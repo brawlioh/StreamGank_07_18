@@ -1,0 +1,46 @@
+# Environment files
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+
+# Media and assets
+assets/
+videos/
+screenshots/
+clips/
+covers/
+cloudinary/
+creatomate/
+heygen/
+scroll_frames/
+trailers/
+temp_videos/
+responses/
+
+# Large media files
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wav
+*.mp3
+
+# Large JSON files
+avatars_list.json
+voices_list.json
+
+# Logs
+*.log
+
+# Mac OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

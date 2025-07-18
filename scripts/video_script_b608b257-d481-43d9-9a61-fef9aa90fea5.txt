@@ -1,0 +1,20 @@
+Scene 1:
+Text: Hey gamers! Climb the Ranks: From Diamond to Challenger with LeagueLeader! I've found something really cool to share with you today.
+Background: gaming_background
+Action: avatar_greeting
+
+Scene 2:
+Text: LeagueLeader is streaming a high-stakes ranked session in League of Legends, aiming to climb from Diamond 2 to Masters. The focus is on playing as an ADC (Attack Damage Carry) in the competitive MOBA environment.
+Background: stream_preview
+Action: avatar_explaining
+
+Scene 3:
+Text: Here are the highlights I found most interesting: 1. LeagueLeader is currently at Diamond 2, indicating a high skill level and competitive gameplay. 2. The stream is attracting a substantial audience with 3,200 viewers, showcasing its popularity. 3. The focus on ADC role highlights strategic gameplay and team coordination essential for climbing ranks. 4. The goal of reaching Challenger adds an exciting aspirational element to the stream. 5. The stream is hosted on Twitch, a leading platform for gaming content, enhancing accessibility and interaction. 
+Background: highlights_background
+Action: avatar_pointing
+
+Scene 4:
+Text: Want to see more content like this? Check out StreamGank and follow us for daily gaming insights and entertainment!
+Background: streamgank_logo
+Action: avatar_call_to_action
+

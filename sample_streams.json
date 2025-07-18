@@ -1,0 +1,79 @@
+[
+    {
+        "title": "Epic Battle Royale Showdown",
+        "description": "Dropping into Verdansk for some intense battle royale action! Come watch us get some wins!",
+        "streamer_name": "GamerPro123",
+        "game_name": "Call of Duty: Warzone",
+        "platform": "Twitch",
+        "url": "https://twitch.tv/gamerpro123",
+        "thumbnail_url": "https://example.com/thumbnail1.jpg",
+        "viewer_count": 1250,
+        "tags": [
+            "FPS",
+            "Battle Royale",
+            "Competitive"
+        ]
+    },
+    {
+        "title": "Minecraft Building Marathon",
+        "description": "Creating an epic castle in survival mode. Day 3 of our building project!",
+        "streamer_name": "CreativeCrafter",
+        "game_name": "Minecraft",
+        "platform": "YouTube",
+        "url": "https://youtube.com/creativecrafter",
+        "thumbnail_url": "https://example.com/thumbnail2.jpg",
+        "viewer_count": 875,
+        "tags": [
+            "Building",
+            "Survival",
+            "Creative"
+        ]
+    },
+    {
+        "title": "Road to Challenger - League Ranked Grind",
+        "description": "Playing ADC in ranked. Currently in Diamond 2, pushing for Masters!",
+        "streamer_name": "LeagueLeader",
+        "game_name": "League of Legends",
+        "platform": "Twitch",
+        "url": "https://twitch.tv/leagueleader",
+        "thumbnail_url": "https://example.com/thumbnail3.jpg",
+        "viewer_count": 3200,
+        "tags": [
+            "MOBA",
+            "Ranked",
+            "Competitive",
+            "ADC"
+        ]
+    },
+    {
+        "title": "Speedrunning Super Mario 64 - World Record Attempts",
+        "description": "Trying to beat my personal best time in 70 star category!",
+        "streamer_name": "SpeedyGamer",
+        "game_name": "Super Mario 64",
+        "platform": "YouTube",
+        "url": "https://youtube.com/speedygamer",
+        "thumbnail_url": "https://example.com/thumbnail4.jpg",
+        "viewer_count": 950,
+        "tags": [
+            "Speedrun",
+            "Retro",
+            "Nintendo"
+        ]
+    },
+    {
+        "title": "Exploring the New Elden Ring DLC",
+        "description": "First playthrough of the Shadow of the Erdtree DLC! No spoilers please!",
+        "streamer_name": "SoulsFan",
+        "game_name": "Elden Ring",
+        "platform": "Twitch",
+        "url": "https://twitch.tv/soulsfan",
+        "thumbnail_url": "https://example.com/thumbnail5.jpg",
+        "viewer_count": 5100,
+        "tags": [
+            "RPG",
+            "Souls-like",
+            "DLC",
+            "Blind Playthrough"
+        ]
+    }
+]

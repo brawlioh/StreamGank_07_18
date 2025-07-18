@@ -1,0 +1,20 @@
+Scene 1:
+Text: Hey gamers! Join the Epic Quest: Day 3 of CreativeCrafter's Castle Marathon! I've found something really cool to share with you today.
+Background: gaming_background
+Action: avatar_greeting
+
+Scene 2:
+Text: CreativeCrafter continues their ambitious Minecraft Building Marathon, focusing on constructing an epic castle in survival mode. This is Day 3 of the project, showcasing impressive building skills and creativity on YouTube.
+Background: stream_preview
+Action: avatar_explaining
+
+Scene 3:
+Text: Here are the highlights I found most interesting: 1. The stream features a challenging survival mode build, adding an extra layer of difficulty and excitement. 2. CreativeCrafter engages with a dedicated audience of 875 viewers, maintaining an interactive and lively atmosphere. 3. The project spans multiple days, indicating a large-scale and ambitious construction effort. 4. The stream showcases not only building skills but also survival strategies within Minecraft. 5. CreativeCrafter's consistent streaming schedule helps build anticipation and community engagement. 
+Background: highlights_background
+Action: avatar_pointing
+
+Scene 4:
+Text: Want to see more content like this? Check out StreamGank and follow us for daily gaming insights and entertainment!
+Background: streamgank_logo
+Action: avatar_call_to_action
+

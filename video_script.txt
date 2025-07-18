@@ -1,0 +1,80 @@
+Scène 1:
+Texte: Salut les gamers ! Aujourd'hui, je vous présente le top 5 des films d'horreur sur Netflix France. Prêts à frissonner ? Suivez-moi sur StreamGank pour découvrir ces pépites !
+Arrière-plan: site_homepage
+Action: avatar_intro
+
+Scène 2:
+Texte: StreamGank vous permet de trouver les meilleurs films en quelques clics. Regardez, je sélectionne France, Netflix, et le genre Horreur...
+Arrière-plan: site_filtering
+Action: avatar_clicking_filters
+
+Scène 3:
+Texte: Numéro 1 : Stranger Things avec un score IMDb impressionnant de 8.6/10. Plonge dans l'univers rétro et captivant de "Stranger Things", la série qui mixe horreur et nostalgie des années 80, avec un score de 8.6 sur IMDb ! Prépare-toi à frissonner avec Eleven et sa bande de geeks qui affrontent des monstres venus d'une autre dimension. Si t'es fan de Dungeons & Dragons, cette série est ton prochain binge-watch assuré ! 👾🎮
+Arrière-plan: movie_1_page
+Action: avatar_clicking_movie
+
+Scène 4:
+Texte: 
+Arrière-plan: trailer_playing
+Action: play_trailer_clip
+URL Trailer: https://www.youtube.com/watch?v=8T4ffTSFCaQ
+Durée: 5 secondes
+
+Scène 5:
+Texte: Numéro 2 : The Haunting of Hill House avec un score IMDb impressionnant de 8.5/10. Tu penses être prêt à affronter tes peurs ? "The Haunting of Hill House" te plonge dans un univers de terreur captivant en seulement 58 minutes d'adrénaline par épisode ! Et fun fact : les fantômes cachés dans chaque scène feront de toi un vrai chasseur de fantômes depuis ton canapé ! 👻🎮
+Arrière-plan: movie_2_page
+Action: avatar_clicking_movie
+
+Scène 6:
+Texte: 
+Arrière-plan: trailer_playing
+Action: play_trailer_clip
+URL Trailer: https://www.youtube.com/watch?v=zr6pV2svobI
+Durée: 5 secondes
+
+Scène 7:
+Texte: Numéro 3 : Love, Death & Robots avec un score IMDb impressionnant de 8.4/10. Love, Death & Robots, c'est le cocktail explosif qui mélange horreur et futurisme en seulement 13 minutes par épisode, avec un score IMDb de 8.4 qui pète les scores ! 🎮💥 Chaque épisode est un univers visuel incroyable, comme si Black Mirror rencontrait un jeu vidéo ! Si t'as un penchant pour les récits dystopiques et les graphismes qui déchirent, t'as trouvé ta nouvelle obsession ! 👾🔥
+Arrière-plan: movie_3_page
+Action: avatar_clicking_movie
+
+Scène 8:
+Texte: 
+Arrière-plan: trailer_playing
+Action: play_trailer_clip
+URL Trailer: https://www.youtube.com/watch?v=7kQsA-jAJck
+Durée: 5 secondes
+
+Scène 9:
+Texte: Numéro 4 : Castlevania avec un score IMDb impressionnant de 8.3/10. Prêts pour une plongée dans l'univers sombre et captivant de "Castlevania" ? Avec un score de 8.3 sur IMDb, cette série d'horreur qui a débarqué en 2017 ne dure que 26 minutes par épisode, mais chaque minute est un pur concentré d'adrénaline ! Et si vous êtes fans de jeux vidéo, préparez-vous à retrouver l'ambiance gothique et les combats épiques qui ont fait la renommée de la franchise ! 🎮🦇
+Arrière-plan: movie_4_page
+Action: avatar_clicking_movie
+
+Scène 10:
+Texte: 
+Arrière-plan: trailer_playing
+Action: play_trailer_clip
+URL Trailer: https://www.youtube.com/watch?v=txAoO1UTvdg
+Durée: 5 secondes
+
+Scène 11:
+Texte: Numéro 5 : La Chute de la maison Usher avec un score IMDb impressionnant de 7.9/10. Prêts pour une dose de frissons avec "La Chute de la maison Usher" ? Avec un score IMDb de 7.9, ce bijou d'horreur de 2023 vous promet 62 minutes de suspense intense ! Fun fact : le réalisateur a utilisé des effets spéciaux innovants qui rappellent l'univers des jeux vidéo pour amplifier l'angoisse — alors, qui est partant pour une session horrifiante ? 🎮👻
+Arrière-plan: movie_5_page
+Action: avatar_clicking_movie
+
+Scène 12:
+Texte: 
+Arrière-plan: trailer_playing
+Action: play_trailer_clip
+URL Trailer: https://www.youtube.com/watch?v=honlK0gMqiU
+Durée: 5 secondes
+
+Scène 13:
+Texte: Voilà pour notre top 5 ! N'oubliez pas que StreamGank vous permet de gagner jusqu'à 1150€ en partageant votre lien personnel. Invitez vos amis, collectez des StreamGank Balls et remportez des récompenses incroyables !
+Arrière-plan: rewards_program_page
+Action: avatar_showing_rewards
+
+Scène 14:
+Texte: Rejoignez StreamGank dès maintenant pour trouver les meilleurs films et séries en quelques clics. À bientôt pour un nouveau top !
+Arrière-plan: site_homepage
+Action: avatar_waving
+

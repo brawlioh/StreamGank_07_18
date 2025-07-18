@@ -1,0 +1,60 @@
+[
+    {
+        "id": 3917,
+        "title": "Sandman",
+        "year": 2022,
+        "imdb": "7.7/10 (190476 votes)",
+        "runtime": "49 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/296846653/s332/the-sandman.avif",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1742219186/movie-posters/bd07bdb34bff7ad39f81de78505b9586.avif",
+        "trailer_url": "https://www.youtube.com/watch?v=-m5Qwjs_-rc",
+        "streaming_url": "https://www.netflix.com/title/81150303",
+        "genres": [
+            "Action & Aventure",
+            "Drame",
+            "Fantastique",
+            "Horreur",
+            "Science-Fiction"
+        ],
+        "content_type": "S\u00e9rie"
+    },
+    {
+        "id": 4857,
+        "title": "Lupin",
+        "year": 2021,
+        "imdb": "7.5/10 (150475 votes)",
+        "runtime": "46 min",
+        "platform": "Netflix",
+        "poster_url": "",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1742219151/movie-posters/669613790c6c1641e6ca38e904c68dda.avif",
+        "trailer_url": "https://www.youtube.com/watch?v=ga0iTWXCGa0",
+        "streaming_url": "https://www.netflix.com/title/80994082",
+        "genres": [
+            "Action & Aventure",
+            "Crime & Thriller",
+            "Drame",
+            "Myst\u00e8re & Thriller"
+        ],
+        "content_type": "S\u00e9rie"
+    },
+    {
+        "id": 4863,
+        "title": "1899",
+        "year": 2022,
+        "imdb": "7.3/10 (117658 votes)",
+        "runtime": "53 min",
+        "platform": "Netflix",
+        "poster_url": "",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1742219188/movie-posters/f594f430e403b33e2e66ce2d9b8610bc.avif",
+        "trailer_url": "https://www.youtube.com/watch?v=ulOOON_KYHs",
+        "streaming_url": "https://www.netflix.com/title/80214497",
+        "genres": [
+            "Drame",
+            "Horreur",
+            "Myst\u00e8re & Thriller",
+            "Science-Fiction"
+        ],
+        "content_type": "S\u00e9rie"
+    }
+]
