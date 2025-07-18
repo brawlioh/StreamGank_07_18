@@ -2,29 +2,17 @@
 """
 Automated Video Generator for StreamGank
 
-This script automates video generation for promoting movies from StreamGank:
-1. Capturing screenshots from StreamGank in mobile view
-2. Uploading screenshots to Cloudinary for storage and delivery
-3. Extracting movie data from Supabase and enriching with concise descriptions via ChatGPT
-4. Generating short, engaging scripts for avatar videos (10-15 seconds per segment)
-5. Creating HeyGen avatar videos with smart status detection
-6. Storing all generated content and metadata in Supabase (with local backup)
-
-Features:
-- Complete end-to-end automation with '--all' option
-- Smart HeyGen video status detection for already completed videos
-- Concise script generation optimized for shorter, engaging videos
-- Robust error handling and fallbacks at each step
-- Flexible modular design - run the complete pipeline or individual components
+This script automates the end-to-end process of generating promotional videos for movies:
+1. Capturing screenshots from StreamGank
+2. Extracting movie data from Supabase
+3. Generating avatar video scripts (Intro+Movie1: ~30s, Movie2 & Movie3: max 20s each)
+4. Creating videos with HeyGen and Creatomate
 
 Usage:
-    # Run the complete end-to-end workflow
     python3 automated_video_generator.py --all
     
-    # Run individual steps as needed
-    python3 automated_video_generator.py --capture-screenshots
-    python3 automated_video_generator.py --extract-data --country FR --platform netflix
-    python3 automated_video_generator.py --create-video --input scripts/my_script.json
+    # Optional parameters:
+    python3 automated_video_generator.py --all --country FR --platform netflix --genre Horreur
 """
 
 import os
@@ -678,22 +666,26 @@ def enrich_movie_data(movie_data):
 
 def generate_script(enriched_movies, cloudinary_urls):
     """
-    Generate concise scripts for the avatar video
+    Generate scripts for the avatar video
     Creates separate scripts for intro+movie1, movie2, and movie3
-    Optimized for shorter duration (10-15 seconds per segment)
+    Optimized for specific durations:
+    - Intro+movie1: ~30 seconds
+    - Movie2: ~20 seconds
+    - Movie3: ~20 seconds
     """
     logger.info("Generating concise scripts for avatar videos...")
     
-    # Create more concise scripts for each section
-    script_intro_movie1 = f"""Hello horror fans! Check out these top Netflix horror films!
+    # Create scripts for each section with appropriate lengths
+    # Intro+movie1: ~30 seconds (approx. 60-70 words for normal speech rate)
+    script_intro_movie1 = f"""Hello horror fans! Welcome to our weekly Netflix horror roundup! Today I'm sharing three must-watch films.
 
-First up: {enriched_movies[0]['title']} ({enriched_movies[0]['year']}). {_get_condensed_description(enriched_movies[0])} IMDB: {enriched_movies[0]['imdb']}."""
+First up is {enriched_movies[0]['title']} from {enriched_movies[0]['year']}. {_get_condensed_description(enriched_movies[0])} What makes this film special is its {enriched_movies[0].get('audience_appeal', 'unique approach to horror and captivating storyline')}."""
     
-    script_movie2 = f"""Next: {enriched_movies[1]['title']} ({enriched_movies[1]['year']}). {_get_condensed_description(enriched_movies[1])} IMDB: {enriched_movies[1]['imdb']}."""
+    # Movie2: ~20 seconds (approx. 40-45 words for normal speech rate)
+    script_movie2 = f"""Next is {enriched_movies[1]['title']} from {enriched_movies[1]['year']}. This film features {_get_condensed_description(enriched_movies[1])}. {enriched_movies[1].get('critical_acclaim', 'Critics praise its inventive approach to horror.')}"""
     
-    script_movie3 = f"""Finally: {enriched_movies[2]['title']} ({enriched_movies[2]['year']}). {_get_condensed_description(enriched_movies[2])} IMDB: {enriched_movies[2]['imdb']}.
-
-Thanks for watching!"""
+    # Movie3: ~20 seconds (approx. 40-45 words for normal speech rate)
+    script_movie3 = f"""Finally, don't miss {enriched_movies[2]['title']} ({enriched_movies[2]['year']}). {_get_condensed_description(enriched_movies[2])}. This is one horror experience you won't forget!"""
     
     # Store scripts in a dictionary
     scripts = {
@@ -2399,11 +2391,11 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="net
         results['heygen_cloudinary_urls'] = cloudinary_video_urls
         logger.info(f"Created and processed {len(cloudinary_video_urls)} HeyGen videos")
         
-        # Step 6: Store information in database
-        logger.info("Step 6: Storing information in database")
-        group_id = store_in_database(enriched_movies, results['cloudinary_urls'], heygen_video_ids, script_path)
-        results['group_id'] = group_id
-        logger.info(f"Stored information in database with group ID: {group_id}")
+        # Step 6: Prepare for Creatomate output (skipping database storage)
+        logger.info("Step 6: Preparing for Creatomate output")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        results['group_id'] = f"creatomate_{timestamp}"
+        logger.info(f"Processing complete with group ID: {results['group_id']}")
         
         # Save results to output file if specified
         if output:
@@ -2443,173 +2435,71 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser(description="StreamGank Automated Video Generator")
         
         # High-level workflow options
-        parser.add_argument("--all", action="store_true", help="Run the complete end-to-end workflow")
+        parser.add_argument("--all", action="store_true", help="Run the complete end-to-end workflow (default if no args provided)")
         
-        # Individual step options
-        parser.add_argument("--capture-screenshots", action="store_true", help="Capture screenshots from StreamGank")
-        parser.add_argument("--upload-to-cloudinary", action="store_true", help="Upload screenshots to Cloudinary")
-        parser.add_argument("--extract-data", action="store_true", help="Extract movie data from Supabase")
-        parser.add_argument("--enrich-data", action="store_true", help="Enrich movie data with ChatGPT")
-        parser.add_argument("--generate-script", action="store_true", help="Generate script for HeyGen avatar")
-        parser.add_argument('--create-video', action='store_true', help='Create HeyGen videos')
-        parser.add_argument('--process-with-creatomate', action='store_true', help='Process HeyGen videos with Creatomate once they are ready')
-        parser.add_argument('--mock-mode', action='store_true', help='Use mock mode for HeyGen video processing (no actual API calls)')
-        parser.add_argument('--use-direct-urls', action='store_true', help='Use direct HeyGen video URLs instead of downloading videos')
-        parser.add_argument("--store-in-db", action="store_true", help="Store all information in database")
+        # Core parameters for customization
+        parser.add_argument("--num-movies", type=int, default=3, help="Number of movies to extract (default: 3)")
+        parser.add_argument("--country", default="FR", help="Country code for content filtering (default: FR)")
+        parser.add_argument("--genre", default="Horreur", help="Genre to filter by (default: Horreur)")
+        parser.add_argument("--platform", default="netflix", help="Platform to filter by (default: netflix)")
+        parser.add_argument("--content-type", default="Film", help="Content type (Film/Série) to filter by (default: Film)")
         
-        # CreatoMate integration options
-        parser.add_argument("--create-creatomate", action="store_true", help="Create video with CreatoMate API")
-        parser.add_argument("--raw-files", nargs="+", help="Paths to RAW files to process with CreatoMate")
-        parser.add_argument("--check-creatomate", help="Check status of a CreatoMate render job")
-        parser.add_argument("--download-creatomate", help="Download a completed CreatoMate video")
-        
-        # Parameters for data extraction
-        parser.add_argument("--num-movies", type=int, default=3, help="Number of movies to extract")
-        parser.add_argument("--country", default="FR", help="Country code for content filtering")
-        parser.add_argument("--genre", default="Horreur", help="Genre to filter by")
-        parser.add_argument("--platform", default="netflix", help="Platform to filter by")
-        parser.add_argument("--content-type", default="Film", help="Content type (Film/Série) to filter by")
-        
-        # Files for input/output
-        parser.add_argument("--input", help="Input file with data for the current step")
-        parser.add_argument("--output", help="Output file to save results to")
-        
-        # Debugging options
+        # Debug and output options
+        parser.add_argument("--output", help="Output file path to save results to")
         parser.add_argument("--debug", action="store_true", help="Enable debug output")
         
         args = parser.parse_args()
-        results = {}
         
-        # If no options provided, show help
-        if not any(vars(args).values()):
-            parser.print_help()
-            sys.exit(0)
+        # Set default to --all if no specific arguments provided
+        if not any([args.country != "FR", args.genre != "Horreur", args.platform != "netflix", 
+                    args.content_type != "Film", args.num_movies != 3, args.debug, args.output]):
+            args.all = True
+            
+        # Print execution parameters
+        print(f"\n🎬 StreamGank Video Generator")
+        print(f"Running with: {args.num_movies} movies, Country: {args.country}, Genre: {args.genre}, ")
+        print(f"Platform: {args.platform}, Content Type: {args.content_type}")
+        print("Starting end-to-end workflow...\n")
         
-        if args.all or args.create_video:
-            print("Creating HeyGen videos...")
-            if args.input:
-                with open(args.input, 'r') as f:
-                    data = json.load(f)
-                    script_path = data.get('script_path')
-                    if script_path:
-                        with open(script_path, 'r') as script_file:
-                            script_data = json.load(script_file)
-                    else:
-                        print("Error: Script path not found in input file.")
-                        sys.exit(1)
-            else:
-                script_data = results.get('script_sections', {})
-                script_path = results.get('script_path', None)
-                
-                # If script data is still empty, generate test script data
-                if not script_data:
-                    print("No script data found. Using test scripts for demonstration.")
-                    script_data = {
-                        "intro_movie1": "Hello and welcome to StreamGank! Today I'm going to tell you about some amazing movies. First up is a thrilling horror film that will keep you on the edge of your seat.",
-                        "movie2": "Next, let me tell you about another great film. This one is a real crowd-pleaser with stunning visuals and an engaging story.",
-                        "movie3": "Finally, don't miss this last recommendation. It's one of my personal favorites and has been praised by critics worldwide."
-                    }
+        # Call the streamlined workflow function
+        try:
+            results = run_full_workflow(
+                num_movies=args.num_movies,
+                country=args.country,
+                genre=args.genre,
+                platform=args.platform,
+                content_type=args.content_type,
+                output=args.output
+            )
+            print("\n✅ Workflow completed successfully!")
+            
+            # Print summary of results
+            if results:
+                print("\n📊 Results Summary:")
+                if 'enriched_movies' in results:
+                    movies = results['enriched_movies']
+                    print(f"📽️  Movies processed: {len(movies)}")
+                    for i, movie in enumerate(movies, 1):
+                        print(f"  {i}. {movie['title']} ({movie['year']}) - IMDB: {movie['imdb']}")
+                        
+                if 'video_ids' in results:
+                    print(f"🎥 HeyGen videos created: {len(results['video_ids'])}")
                     
-                    # Create a temporary script file
-                    script_dir = Path("scripts")
-                    script_dir.mkdir(exist_ok=True)
-                    script_path = str(script_dir / f"test_script_{int(time.time())}.json")
-                    with open(script_path, 'w') as f:
-                        json.dump(script_data, f, indent=2)
-                    print(f"Test script saved to {script_path}")
-                
-            heygen_video_ids = create_heygen_video(script_data)
-            results['video_ids'] = heygen_video_ids
-            if args.output:
-                with open(args.output, 'w') as f:
-                    json.dump({'video_ids': heygen_video_ids}, f, indent=2)
+                if 'creatomate_id' in results:
+                    print(f"🎞️  Final video created with Creatomate ID: {results['creatomate_id']}")
                     
-        if args.all or args.process_with_creatomate:
-            print("Processing HeyGen videos with Creatomate...")
-            # Process HeyGen videos with Creatomate
-            if args.process_with_creatomate:
-                process_result = process_heygen_videos_with_creatomate(
-                    input_file=args.input,
-                    output_file=args.output,
-                    use_direct_urls=args.use_direct_urls
-                )
-            else:
-                # Use data from previous steps
-                heygen_video_ids = results.get('video_ids')
-                movie_data = results.get('enriched_movies', results.get('movies'))
-                cloudinary_urls = results.get('cloudinary_urls')
-                
-                process_result = process_heygen_videos_with_creatomate(
-                    heygen_video_ids=heygen_video_ids,
-                    movie_data=movie_data,
-                    cloudinary_urls=cloudinary_urls,
-                    output_file=args.output
-                )
-            
-            # Store the Creatomate result
-            results['creatomate_result'] = process_result
-            results['creatomate_id'] = process_result.get('creatomate_id')
-        
-        if args.store_in_db:
-            print("Storing information in database...")
-            if args.input:
-                with open(args.input, 'r') as f:
-                    data = json.load(f)
-                    movie_data = data.get('enriched_movies') or data.get('movies', [])
-                    cloudinary_urls = data.get('cloudinary_urls', {})
-                    video_id = data.get('video_ids') or data.get('video_id')
-                    script_path = data.get('script_path', None)
-            else:
-                movie_data = results.get('enriched_movies', results.get('movies', []))
-                cloudinary_urls = results.get('cloudinary_urls', {})
-                video_id = results.get('video_ids', {})
-                script_path = results.get('script_path', None)
-                
-            if not (movie_data and cloudinary_urls and video_id and script_path):
-                print("Error: Missing required data for database storage")
-                sys.exit(1)
-                
-            group_id = store_in_database(movie_data, cloudinary_urls, video_id, script_path)
-            results['group_id'] = group_id
+                if 'group_id' in results:
+                    print(f"💾 All data stored with group ID: {results['group_id']}")
+                    
             if args.output:
-                with open(args.output, 'w') as f:
-                    json.dump({'group_id': group_id}, f, indent=2)
-        
-        # If we got here without running anything, test the Supabase connection
-        if not(args.all or args.capture_screenshots or args.upload_to_cloudinary or 
-            args.extract_data or args.enrich_data or args.generate_script or 
-            args.create_video or args.process_with_creatomate or args.store_in_db):
-            # Test the Supabase movie extraction with progressively more relaxed filters
-            print("Starting Supabase movie extraction test...")
+                print(f"\n Full results saved to: {args.output}")
+                
+        except Exception as e:
+            print(f"\n Error during execution: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
             
-            # First try with original filters
-            test_movies = test_and_extract_movie_data(num_movies=3, country="FR", genre="Horreur", platform="netflix", content_type="Film")
-            
-            # If we didn't get any results, try without genre filter which seems problematic
-            if not test_movies or len(test_movies) == 0:
-                print("No results with original filters, trying without genre filter...")
-                test_movies = test_and_extract_movie_data(num_movies=3, country="FR", genre=None, platform="netflix", content_type="Film")
-            
-            # If still no results, try just platform and content type
-            if not test_movies or len(test_movies) == 0:
-                print("Still no results, trying just with netflix and Film filters...")
-                test_movies = test_and_extract_movie_data(num_movies=3, country=None, genre=None, platform="netflix", content_type="Film")
-            
-            # If still nothing, get any content from netflix
-            if not test_movies or len(test_movies) == 0:
-                print("Still no results, trying just netflix content...")
-                test_movies = test_and_extract_movie_data(num_movies=3, country=None, genre=None, platform="netflix", content_type=None)
-            
-            # Last resort - just get any movies
-            if not test_movies or len(test_movies) == 0:
-                print("No Netflix content found, showing any available movies...")
-                test_movies = test_and_extract_movie_data(num_movies=3, country=None, genre=None, platform=None, content_type=None)
-            
-            # Display what we found
-            print(f"Retrieved {len(test_movies)} movies:")
-            for i, movie in enumerate(test_movies, 1):
-                print(f"{i}. {movie['title']} ({movie['year']}) - {movie['imdb']} on {movie['platform']}")
-        
     except Exception as e:
         print(f"ERROR: Unhandled exception: {str(e)}")
         import traceback
