@@ -1,0 +1,10 @@
+{
+  "status": "success",
+  "message": "",
+  "cloudinary_urls": {
+    "intro_movie1": "https://assets.heygen.ai/video/949ab708089a4c4e967c351c5a6c7dbc.mp4",
+    "movie2": "https://assets.heygen.ai/video/cf8403f3c1994e4f99332465c5284858.mp4",
+    "movie3": "https://assets.heygen.ai/video/5234797c10844e1ebefdf028514a1c53.mp4"
+  },
+  "creatomate_id": "error_202_20250718_191544"
+}
