@@ -246,6 +246,19 @@ def create_creatomate_video_with_heygen_urls(movie_data, heygen_video_urls):
     """
     logger.info("🎥 Creating Creatomate video with HeyGen URLs...")
     
+    # Reliable Cloudinary URLs for movie clips and covers
+    movie_clips = [
+        "https://res.cloudinary.com/dodod8s0v/video/upload/v1752895622/13._Murders_in_the_Building_ckpmhs.mp4",
+        "https://res.cloudinary.com/dodod8s0v/video/upload/v1752895648/14.Mon_petit_renne_dq4z9f.mp4",
+        "https://res.cloudinary.com/dodod8s0v/video/upload/v1752895645/15._maestro_gmtdsm.mp4"
+    ]
+    
+    movie_covers = [
+        "https://res.cloudinary.com/dodod8s0v/image/upload/v1752897739/13_Only_Murders_ttipeu.png",
+        "https://res.cloudinary.com/dodod8s0v/image/upload/v1752890411/14_Mon_petit_renne_wkpoya.png",
+        "https://res.cloudinary.com/dodod8s0v/image/upload/v1752897623/15.maestro_txd0qu.png"
+    ]
+    
     # Build sequential video elements
     elements = []
     current_time = 0
@@ -275,25 +288,27 @@ def create_creatomate_video_with_heygen_urls(movie_data, heygen_video_urls):
             })
             logger.info(f"✅ Added HeyGen video for {segment_name}")
         
-        # Movie cover image
-        if movie.get('cover_image_url'):
+        # Movie cover image (use reliable Cloudinary URLs)
+        if i < len(movie_covers):
             elements.append({
                 "type": "image",
-                "source": movie['cover_image_url'],
+                "source": movie_covers[i],
                 "duration": 3,
                 "fit": "cover",
                 "track": 1
             })
+            logger.info(f"✅ Added movie cover for movie {i+1}: {movie_covers[i]}")
         
-        # Movie clip
-        if movie.get('video_clip_url'):
+        # Movie clip (use reliable Cloudinary URLs)
+        if i < len(movie_clips):
             elements.append({
                 "type": "video",
-                "source": movie['video_clip_url'],
+                "source": movie_clips[i],
                 "duration": 8,
                 "fit": "cover",
                 "track": 1
             })
+            logger.info(f"✅ Added movie clip for movie {i+1}: {movie_clips[i]}")
     
     # Create Creatomate composition
     composition = {
