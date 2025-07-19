@@ -215,93 +215,89 @@ def test_supabase_connection():
         logger.error(f"Error testing Supabase connection: {str(e)}")
         return False
 
-def extract_movie_data(num_movies=3, country=None, genre=None, platform=None, content_type=None):
+def extract_movie_data(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série"):
     """
-    Extract movie data from Supabase with filters for country, genre, platform, and content_type
+    Extract movie data from Supabase with STRICT filters matching StreamGank URL:
+    https://streamgank.com/?country=FR&genres=Horreur&platforms=netflix&type=Film
     
     Args:
         num_movies (int): Number of movies to extract
-        country (str): Country code to filter movies by
-        genre (str): Genre to filter movies by
-        platform (str): Platform to filter movies by
-        content_type (str): Content type to filter movies by (Film/Série)
+        country (str): Country code (default: "FR")
+        genre (str): Genre (default: "Horreur")
+        platform (str): Platform (default: "netflix")
+        content_type (str): Content type (default: "Série")
     
     Returns:
-        list: List of movie data dictionaries
+        list: List of valid movie data dictionaries
     """
-    logger.info(f"Extracting {num_movies} {genre if genre else 'any genre'} content on {platform if platform else 'any platform'} for {country if country else 'any country'}...")
+    logger.info(f"STRICT FILTERING: Extracting {num_movies} {genre} {content_type}s on {platform} for {country}")
     
     movie_data = []
     processed_ids = set()  # Track IDs to avoid duplicates
     
     try:
-        # Always start with movie_localizations to ensure we have titles
-        logger.info("Starting query with movie_localizations joining movies table")
+        # Step 1: Get movies with genre filter first (most restrictive)
+        logger.info(f"Step 1: Finding movies with genre '{genre}'")
+        genre_query = supabase.from_("movie_genres").select("movie_id").eq("genre", genre)
+        genre_response = genre_query.execute()
+        
+        if not hasattr(genre_response, 'data') or len(genre_response.data) == 0:
+            logger.error(f"No movies found with genre '{genre}' - STRICT FILTER FAILED")
+            return []
+        
+        # Extract movie IDs that have the required genre
+        genre_movie_ids = [item['movie_id'] for item in genre_response.data]
+        logger.info(f"Found {len(genre_movie_ids)} movies with genre '{genre}'")
+        
+        # Step 2: Apply all other filters strictly
+        logger.info(f"Step 2: Applying strict filters - country:{country}, platform:{platform}, content_type:{content_type}")
         query = supabase.from_("movie_localizations").select("movie_id,movies!inner(*),*")
         
-        if country:
-            logger.info(f"Filtering by country_code: {country}")
-            query = query.eq("country_code", country)
+        # STRICT FILTERS - ALL REQUIRED
+        query = query.eq("country_code", country)
+        query = query.eq("platform_name", platform)
+        query = query.eq("movies.content_type", content_type)
+        query = query.in_("movie_id", genre_movie_ids)  # Only movies with correct genre
         
-        if platform:
-            logger.info(f"Filtering by platform_name: {platform}")
-            query = query.eq("platform_name", platform)
+        # Increase limit to ensure we get enough valid results
+        logger.info(f"Executing STRICT query with limit: {num_movies * 3}")
+        response = query.limit(num_movies * 3).execute()
         
-        # Apply content_type filter if specified (through the inner join with movies)
-        if content_type:
-            logger.info(f"Filtering by content_type: {content_type}")
-            # Need to be careful with the syntax for filtering on joined table
-            query = query.eq("movies.content_type", content_type)
+        # STRICT VALIDATION - No fallback allowed
+        if not hasattr(response, 'data') or len(response.data) == 0:
+            logger.error(f"STRICT FILTER FAILED: No movies found matching ALL criteria:")
+            logger.error(f"  - Country: {country}")
+            logger.error(f"  - Genre: {genre}")
+            logger.error(f"  - Platform: {platform}")
+            logger.error(f"  - Content Type: {content_type}")
+            return []
         
-        # Double limit to account for potential filtering by genre
-        logger.info(f"Executing localizations query with limit: {num_movies * 2}")
-        response = query.limit(num_movies * 2).execute()
+        movies = response.data
+        logger.info(f"STRICT FILTER SUCCESS: Found {len(movies)} valid movies")
         
-        # Check if we found results with filters
-        if hasattr(response, 'data') and len(response.data) > 0:
-            movies = response.data
-            logger.info(f"Found {len(movies)} movies with filters")
-        else:
-            logger.warning("No results found with specified filters")
-            
-            # Try with fewer filters
-            logger.info("Trying with minimal filters to find movies...")
-            query = supabase.from_("movie_localizations").select("movie_id,movies!inner(*),*").limit(num_movies * 2)
-            response = query.execute()
-            
-            if hasattr(response, 'data') and len(response.data) > 0:
-                movies = response.data
-                logger.info(f"Found {len(movies)} movies with minimal filters")
-            else:
-                logger.warning("No movies found at all")
-                return []
-        
-        # Handle genre filtering via a separate query if needed
+        # Get all genres for the filtered movies (for display purposes)
         movie_genres_map = {}
-        if genre:
-            # Get genres for all movies to filter by genre in Python
-            logger.info(f"Fetching movie genres for genre filter: {genre}")
-            try:
-                # Get all movie_ids from our results
-                movie_ids = [movie['movie_id'] for movie in movies]
+        try:
+            # Get all movie_ids from our results
+            movie_ids = [movie['movie_id'] for movie in movies]
+            
+            # Query movie_genres for these movie_ids to get all genres for display
+            genres_query = supabase.from_("movie_genres").select("*").in_("movie_id", movie_ids)
+            genres_response = genres_query.execute()
+            
+            if hasattr(genres_response, 'data') and genres_response.data:
+                # Build a map of movie_id -> list of genres
+                for genre_item in genres_response.data:
+                    movie_id = genre_item.get('movie_id')
+                    genre_name = genre_item.get('genre')
+                    if movie_id and genre_name:
+                        if movie_id not in movie_genres_map:
+                            movie_genres_map[movie_id] = []
+                        movie_genres_map[movie_id].append(genre_name)
                 
-                # Query movie_genres for these movie_ids
-                genres_query = supabase.from_("movie_genres").select("*").in_("movie_id", movie_ids)
-                genres_response = genres_query.execute()
-                
-                if hasattr(genres_response, 'data') and genres_response.data:
-                    # Build a map of movie_id -> list of genres
-                    for genre_item in genres_response.data:
-                        movie_id = genre_item.get('movie_id')
-                        genre_name = genre_item.get('genre')
-                        if movie_id and genre_name:
-                            if movie_id not in movie_genres_map:
-                                movie_genres_map[movie_id] = []
-                            movie_genres_map[movie_id].append(genre_name)
-                    
-                    logger.info(f"Found genre data for {len(movie_genres_map)} movies")
-            except Exception as genre_error:
-                logger.error(f"Error fetching genre data: {str(genre_error)}")
+                logger.info(f"Found genre data for {len(movie_genres_map)} movies")
+        except Exception as genre_error:
+            logger.error(f"Error fetching genre data: {str(genre_error)}")
         
         # Process and filter results
         processed_ids = set()  # Track which movie IDs we've already processed
@@ -312,73 +308,26 @@ def extract_movie_data(num_movies=3, country=None, genre=None, platform=None, co
                 if len(movie_data) >= num_movies:
                     break
                 
-                # Extract movie data based on query structure
-                if country or platform:
-                    # Results from movie_localizations join
-                    movie_id = movie_item.get('movie_id')
-                    if not movie_id:
-                        continue
-                        
-                    movie = movie_item.get('movies')
-                    if not movie:
-                        continue
-                        
-                    title = movie_item.get('title', 'A Must-Watch Film')
-                    platform_name = movie_item.get('platform_name', platform) if platform else 'Your Favorite Streaming Service'
-                    poster_url = movie_item.get('poster_url', '')
-                    cloudinary_poster_url = movie_item.get('cloudinary_poster_url', '')
-                    trailer_url = movie_item.get('trailer_url', '')
-                    streaming_url = movie_item.get('streaming_url', '')
-                else:
-                    # Results directly from movies table
-                    movie_id = movie_item.get('movie_id')
-                    if not movie_id:
-                        continue
-                        
-                    movie = movie_item
+                # Extract movie data from movie_localizations join (all movies are pre-filtered)
+                movie_id = movie_item.get('movie_id')
+                if not movie_id:
+                    continue
                     
-                    # Fetch localization data for this movie
-                    try:
-                        loc_query = supabase.from_("movie_localizations").select("*").eq("movie_id", movie_id).limit(1)
-                        if country:
-                            loc_query = loc_query.eq("country_code", country)
-                        if platform:
-                            loc_query = loc_query.eq("platform_name", platform)
-                            
-                        loc_response = loc_query.execute()
-                        
-                        if hasattr(loc_response, 'data') and loc_response.data:
-                            loc_data = loc_response.data[0]
-                            title = loc_data.get('title', 'A Captivating Story')
-                            platform_name = loc_data.get('platform_name', platform) if platform else 'Popular Streaming Platform'
-                            poster_url = loc_data.get('poster_url', '')
-                            cloudinary_poster_url = loc_data.get('cloudinary_poster_url', '')
-                            trailer_url = loc_data.get('trailer_url', '')
-                            streaming_url = loc_data.get('streaming_url', '')
-                        else:
-                            title = "An Exciting New Release"  # No localization found
-                            platform_name = platform if platform else 'Top Streaming Platform'
-                            poster_url = ''
-                            cloudinary_poster_url = ''
-                            trailer_url = ''
-                            streaming_url = ''
-                    except Exception as loc_error:
-                        logger.error(f"Error fetching localization for movie {movie_id}: {str(loc_error)}")
-                        title = "A Trending Movie"  # Error fetching localization
-                        platform_name = platform if platform else 'Leading Streaming Service'
-                        poster_url = ''
-                        cloudinary_poster_url = ''
-                        trailer_url = ''
-                        streaming_url = ''
+                movie = movie_item.get('movies')
+                if not movie:
+                    continue
                 
                 # Skip duplicates
                 if movie_id in processed_ids:
                     continue
-                    
-                # Apply genre filter if needed
-                if genre and movie_id not in movie_genres_map:
-                    # Skip this movie since it doesn't have the requested genre
-                    continue
+                
+                # Extract localization data (already filtered by country/platform)
+                title = movie_item.get('title', 'A Must-Watch Film')
+                platform_name = movie_item.get('platform_name', platform)
+                poster_url = movie_item.get('poster_url', '')
+                cloudinary_poster_url = movie_item.get('cloudinary_poster_url', '')
+                trailer_url = movie_item.get('trailer_url', '')
+                streaming_url = movie_item.get('streaming_url', '')
                     
                 # Mark this movie as processed
                 processed_ids.add(movie_id)
@@ -2258,7 +2207,7 @@ def process_heygen_videos_with_creatomate(heygen_video_ids=None, movie_data=None
     
     return result
 
-def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="netflix", content_type="Film", output=None):
+def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None):
     """
     Run the complete video generation workflow
     
@@ -2288,31 +2237,23 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="net
         results['cloudinary_urls'] = {f"screenshot_{i}": url for i, url in enumerate(cloudinary_urls)}
         logger.info(f"Uploaded {len(cloudinary_urls)} screenshots to Cloudinary")
         
-        # Step 3: Extract movie data from Supabase and enrich with ChatGPT
-        logger.info("Step 3: Extracting and enriching movie data")
+        # Step 3: Extract movie data from Supabase with STRICT filtering
+        logger.info("Step 3: Extracting movie data with STRICT StreamGank filters")
+        logger.info(f"ENFORCING: country={country}, genre={genre}, platform={platform}, content_type={content_type}")
         
-        # First try with original filters
+        # STRICT FILTERING - No fallbacks allowed
         movies = test_and_extract_movie_data(num_movies, country, genre, platform, content_type)
         
-        # If we didn't get any results, try with progressively more relaxed filters
+        # Validate that we found valid movies matching ALL criteria
         if not movies or len(movies) == 0:
-            logger.info("No results with original filters, trying without genre filter...")
-            movies = test_and_extract_movie_data(num_movies, country, None, platform, content_type)
-        
-        # If still no results, try just platform and content type
-        if not movies or len(movies) == 0:
-            logger.info("Still no results, trying just with platform and content type filters...")
-            movies = test_and_extract_movie_data(num_movies, None, None, platform, content_type)
-        
-        # If still nothing, get any content from the platform
-        if not movies or len(movies) == 0:
-            logger.info("Still no results, trying just platform filter...")
-            movies = test_and_extract_movie_data(num_movies, None, None, platform, None)
-        
-        # Last resort - just get any movies
-        if not movies or len(movies) == 0:
-            logger.info("No filtered content found, showing any available movies...")
-            movies = test_and_extract_movie_data(num_movies, None, None, None, None)
+            logger.error("STRICT FILTERING FAILED: No movies found matching StreamGank criteria")
+            logger.error("This means the database doesn't contain movies matching:")
+            logger.error(f"  - Country: {country}")
+            logger.error(f"  - Genre: {genre}")
+            logger.error(f"  - Platform: {platform}")
+            logger.error(f"  - Content Type: {content_type}")
+            logger.error("Please check your Supabase database content or update the filter criteria.")
+            return None
         
         # Ensure we have exactly num_movies movies
         movies = movies[:num_movies] if len(movies) >= num_movies else movies
@@ -2414,8 +2355,8 @@ if __name__ == "__main__":
         parser.add_argument("--num-movies", type=int, default=3, help="Number of movies to extract (default: 3)")
         parser.add_argument("--country", default="FR", help="Country code for content filtering (default: FR)")
         parser.add_argument("--genre", default="Horreur", help="Genre to filter by (default: Horreur)")
-        parser.add_argument("--platform", default="netflix", help="Platform to filter by (default: netflix)")
-        parser.add_argument("--content-type", default="Film", help="Content type (Film/Série) to filter by (default: Film)")
+        parser.add_argument("--platform", default="Netflix", help="Platform to filter by (default: Netflix)")
+        parser.add_argument("--content-type", default="Série", help="Content type (Film/Série) to filter by (default: Série)")
         
         # Debug and output options
         parser.add_argument("--output", help="Output file path to save results to")
