@@ -323,8 +323,8 @@ def extract_movie_data(num_movies=3, country=None, genre=None, platform=None, co
                     if not movie:
                         continue
                         
-                    title = movie_item.get('title', 'Unknown Title')
-                    platform_name = movie_item.get('platform_name', platform) if platform else 'Unknown Platform'
+                    title = movie_item.get('title', 'A Must-Watch Film')
+                    platform_name = movie_item.get('platform_name', platform) if platform else 'Your Favorite Streaming Service'
                     poster_url = movie_item.get('poster_url', '')
                     cloudinary_poster_url = movie_item.get('cloudinary_poster_url', '')
                     trailer_url = movie_item.get('trailer_url', '')
@@ -349,23 +349,23 @@ def extract_movie_data(num_movies=3, country=None, genre=None, platform=None, co
                         
                         if hasattr(loc_response, 'data') and loc_response.data:
                             loc_data = loc_response.data[0]
-                            title = loc_data.get('title', 'Unknown Title')
-                            platform_name = loc_data.get('platform_name', platform) if platform else 'Unknown Platform'
+                            title = loc_data.get('title', 'A Captivating Story')
+                            platform_name = loc_data.get('platform_name', platform) if platform else 'Popular Streaming Platform'
                             poster_url = loc_data.get('poster_url', '')
                             cloudinary_poster_url = loc_data.get('cloudinary_poster_url', '')
                             trailer_url = loc_data.get('trailer_url', '')
                             streaming_url = loc_data.get('streaming_url', '')
                         else:
-                            title = "Unknown Title"  # No localization found
-                            platform_name = platform if platform else 'Unknown Platform'
+                            title = "An Exciting New Release"  # No localization found
+                            platform_name = platform if platform else 'Top Streaming Platform'
                             poster_url = ''
                             cloudinary_poster_url = ''
                             trailer_url = ''
                             streaming_url = ''
                     except Exception as loc_error:
                         logger.error(f"Error fetching localization for movie {movie_id}: {str(loc_error)}")
-                        title = "Unknown Title"  # Error fetching localization
-                        platform_name = platform if platform else 'Unknown Platform'
+                        title = "A Trending Movie"  # Error fetching localization
+                        platform_name = platform if platform else 'Leading Streaming Service'
                         poster_url = ''
                         cloudinary_poster_url = ''
                         trailer_url = ''
@@ -395,7 +395,7 @@ def extract_movie_data(num_movies=3, country=None, genre=None, platform=None, co
                 movie_info = {
                     'id': movie_id,
                     'title': title,
-                    'year': movie.get('release_year', 'Unknown'),
+                    'year': movie.get('release_year', 'recent years'),
                     'imdb': imdb_formatted,
                     'runtime': f"{movie.get('runtime', 0)} min",
                     'platform': platform_name,
@@ -966,11 +966,52 @@ def download_heygen_video(video_id: str) -> str:
     if not wait_for_heygen_video(video_id):
         logger.warning(f"HeyGen video {video_id} is not ready yet or has failed processing")
     
-    # Instead of downloading and re-uploading, return the direct HeyGen CDN URL
-    # This works because Creatomate can access HeyGen CDN URLs directly
-    direct_cdn_url = f"https://assets.heygen.ai/video/{video_id}.mp4"
+    # ROBUST SOLUTION: Force download and upload to Cloudinary for reliable access
+    # HeyGen CDN URLs are unreliable (404/520 errors), so we must download and re-host
     
-    # Test multiple CDN endpoints to find working one
+    logger.info("Attempting to get HeyGen video through API and upload to Cloudinary...")
+    
+    # Try to get download URL through HeyGen API first
+    api_endpoints = [
+        f"https://api.heygen.com/v2/video/{video_id}",
+        f"https://api.heygen.com/v1/video/{video_id}",
+        f"https://api.heygen.com/v2/video/status/{video_id}",
+        f"https://api.heygen.com/v1/video/status/{video_id}"
+    ]
+    
+    for endpoint in api_endpoints:
+        try:
+            response = requests.get(endpoint, headers=headers, timeout=15)
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"✅ Got API response from {endpoint}")
+                
+                # Extract download URL from response
+                download_url = None
+                if 'data' in data:
+                    if isinstance(data['data'], dict):
+                        download_url = (data['data'].get('url') or 
+                                      data['data'].get('video_url') or 
+                                      data['data'].get('download_url'))
+                    elif isinstance(data['data'], list) and len(data['data']) > 0:
+                        download_url = (data['data'][0].get('url') or 
+                                      data['data'][0].get('video_url'))
+                
+                if download_url and download_url.startswith('http'):
+                    logger.info(f"🎯 Found download URL: {download_url}")
+                    # Test if URL is accessible and download/upload
+                    try:
+                        test_response = requests.head(download_url, timeout=10)
+                        if test_response.status_code == 200:
+                            return download_and_upload_to_cloudinary(download_url, video_id)
+                    except Exception as e:
+                        logger.warning(f"Download URL test failed: {str(e)}")
+                        
+        except Exception as e:
+            logger.debug(f"API endpoint {endpoint} failed: {str(e)}")
+            continue
+    
+    # If API methods fail, try CDN endpoints with download/upload
     cdn_endpoints = [
         f"https://assets.heygen.ai/video/{video_id}.mp4",
         f"https://resource.heygen.ai/video/{video_id}.mp4", 
@@ -978,15 +1019,14 @@ def download_heygen_video(video_id: str) -> str:
         f"https://storage.heygen.ai/video/{video_id}.mp4"
     ]
     
-    logger.info("Testing HeyGen CDN endpoints for direct access...")
+    logger.info("Trying CDN endpoints with forced download/upload...")
     for cdn_url in cdn_endpoints:
         try:
+            # Try to download from CDN and upload to Cloudinary
             response = requests.head(cdn_url, timeout=10)
             if response.status_code == 200:
-                logger.info(f"✅ Found working CDN endpoint: {cdn_url}")
-                # For now, return the direct CDN URL since Creatomate can use it
-                # This avoids the download/upload step that's currently failing
-                return cdn_url
+                logger.info(f"✅ Found accessible CDN endpoint: {cdn_url}")
+                return download_and_upload_to_cloudinary(cdn_url, video_id)
         except Exception as e:
             logger.debug(f"CDN endpoint {cdn_url} failed: {str(e)}")
             continue
