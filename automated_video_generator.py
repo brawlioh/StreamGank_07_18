@@ -618,23 +618,87 @@ def generate_script(enriched_movies, cloudinary_urls):
     Generate scripts for the avatar video
     Creates separate scripts for intro+movie1, movie2, and movie3
     Precisely calibrated for target durations based on HeyGen testing:
-    - Intro+movie1: 30 seconds (90-100 words)
-    - Movie2: 20 seconds (60-70 words)
-    - Movie3: 20 seconds (60-70 words)
+    - Intro+movie1: 30 seconds (250-300 words)
+    - Movie2: 20 seconds (150-180 words)
+    - Movie3: 20 seconds (150-180 words)
     """
-    logger.info("Generating precisely calibrated scripts for target durations...")
+    logger.info("Generating detailed dynamic scripts for target durations...")
+    
+    # Helper function to get full description from movie data
+    def _get_full_description(movie):
+        """Extract 2-3 sentence description from enriched or short description"""
+        if movie.get('enriched_description'):
+            # Use first 2-3 sentences from enriched description
+            desc = movie['enriched_description']
+            # Split by sentence endings (.!?) followed by a space and take first 2-3
+            sentences = re.split(r'[.!?] ', desc)
+            if len(sentences) > 3:
+                return '. '.join(sentences[:3]) + '.' 
+            return desc
+        elif movie.get('short_description'):
+            return movie['short_description']
+        else:
+            return "This captivating horror film will keep you on the edge of your seat with its suspenseful storyline and atmospheric tension."
+    
+    # Helper function to format vote counts in a readable way
+    def format_votes(vote_count):
+        if not vote_count or vote_count == 0:
+            return ""
+        if vote_count < 1000:
+            return f"with {vote_count} votes"
+        if vote_count < 10000:
+            return f"with thousands of viewers rating it"
+        if vote_count < 100000:
+            return f"with tens of thousands of ratings"
+        return f"with over {vote_count:,} votes"
+    
+    # Determine genre properly
+    def get_primary_genre(movie):
+        genres = movie.get('genres', [])
+        if not genres:
+            return "horror"
+            
+        # Convert French genre names to English equivalents if needed
+        genre_map = {"Horreur": "horror", "Fantastique": "fantasy", "Science-Fiction": "sci-fi"}
+        
+        # Try to find horror first
+        for genre in genres:
+            if genre.lower() == "horror" or genre == "Horreur":
+                return "horror"
+                
+        # Otherwise use first genre and translate if needed
+        primary = genres[0]
+        return genre_map.get(primary, primary.lower())
     
     # Create scripts with precise word counts to hit exact target durations
-    # Intro+movie1: 30 seconds (90-100 words for precise timing)
-    script_intro_movie1 = f"""Hello horror fans! Welcome to our weekly Netflix horror roundup. Today I'm sharing three must-watch films that will keep you on the edge of your seat.
+    # Intro+movie1: 30 seconds (250-300 words for precise timing)
+    script_intro_movie1 = f"""Hello horror fans! Welcome to our weekly Netflix horror roundup. Today I'm sharing three must-watch {get_primary_genre(enriched_movies[0])} films that will keep you on the edge of your seat.
 
-First up is {enriched_movies[0]['title']} from {enriched_movies[0]['year']}. {_get_condensed_description(enriched_movies[0])} What makes this film special is its {enriched_movies[0].get('audience_appeal', 'unique approach to horror storytelling and captivating atmosphere')}. The performances are outstanding."""
+First up is {enriched_movies[0]['title']} from {enriched_movies[0]['year']}. This {get_primary_genre(enriched_movies[0])} masterpiece currently holds an impressive {enriched_movies[0].get('imdb', '7+')} rating on IMDb {format_votes(enriched_movies[0].get('vote_count'))}.
+
+{_get_full_description(enriched_movies[0])}
+
+What makes this film special is its {enriched_movies[0].get('audience_appeal', 'unique approach to storytelling and captivating atmosphere')}. {enriched_movies[0].get('director', 'The director')} crafts an unforgettable experience with {enriched_movies[0].get('cinematography', 'stunning visuals')} that will stay with you long after watching.
+
+{enriched_movies[0].get('cast_highlight', 'The performances are outstanding')}, elevating this {get_primary_genre(enriched_movies[0])} experience to another level. This is definitely a must-watch for any fan of quality horror cinema."""
     
-    # Movie2: 20 seconds (60-70 words for precise timing)
-    script_movie2 = f"""Next up is {enriched_movies[1]['title']} from {enriched_movies[1]['year']}. This compelling film features {_get_condensed_description(enriched_movies[1])} {enriched_movies[1].get('critical_acclaim', 'Critics praise its innovative approach to horror')}. Definitely worth watching."""
+    # Movie2: 20 seconds (150-180 words for precise timing)
+    script_movie2 = f"""Next on our list is {enriched_movies[1]['title']} from {enriched_movies[1]['year']}. With an IMDb score of {enriched_movies[1].get('imdb', '7+')} {format_votes(enriched_movies[1].get('vote_count'))}, this {get_primary_genre(enriched_movies[1])} film has captivated audiences worldwide.
+
+{_get_full_description(enriched_movies[1])}
+
+This compelling work features {enriched_movies[1].get('critical_acclaim', 'innovative direction and a masterful approach to building tension')}. {enriched_movies[1].get('director', 'The filmmaker')} delivers a unique vision that stands out in the genre.
+
+With {enriched_movies[1].get('cast', 'a talented cast')} bringing the story to life, this is one {get_primary_genre(enriched_movies[1])} experience you won't want to miss on Netflix."""
     
-    # Movie3: 20 seconds (60-70 words for precise timing)
-    script_movie3 = f"""Finally, don't miss {enriched_movies[2]['title']} from {enriched_movies[2]['year']}. {_get_condensed_description(enriched_movies[2])} The film delivers exceptional performances and masterful direction. This is one horror experience you won't forget!"""
+    # Movie3: 20 seconds (150-180 words for precise timing)
+    script_movie3 = f"""Finally, don't miss {enriched_movies[2]['title']} from {enriched_movies[2]['year']}. Rated {enriched_movies[2].get('imdb', '7+')} on IMDb {format_votes(enriched_movies[2].get('vote_count'))}, this {get_primary_genre(enriched_movies[2])} gem delivers an exceptional experience.
+
+{_get_full_description(enriched_movies[2])}
+
+What sets this film apart is its {enriched_movies[2].get('unique_element', 'atmospheric tension and psychological depth')}. {enriched_movies[2].get('director', 'The director')} creates a world that draws viewers in completely.
+
+With {enriched_movies[2].get('cast', 'powerful performances')} throughout, this is one {get_primary_genre(enriched_movies[2])} masterpiece that deserves a spot on your watchlist this weekend."""
     
     # Store scripts in a dictionary
     scripts = {
