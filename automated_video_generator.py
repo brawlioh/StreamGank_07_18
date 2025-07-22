@@ -12,7 +12,7 @@ Usage:
     python3 automated_video_generator.py --all
     
     # Optional parameters:
-    python3 automated_video_generator.py --all --country FR --platform netflix --genre Horreur
+    python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film
 """
 
 import os
@@ -217,174 +217,132 @@ def test_supabase_connection():
 
 def extract_movie_data(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série"):
     """
-    Extract movie data from Supabase with STRICT filters matching StreamGank URL:
-    https://streamgank.com/?country=FR&genres=Horreur&platforms=netflix&type=Film
+    Extract top movies by IMDB score from Supabase with filtering
     
     Args:
-        num_movies (int): Number of movies to extract
+        num_movies (int): Number of movies to extract (default: 3)
         country (str): Country code (default: "FR")
-        genre (str): Genre (default: "Horreur")
-        platform (str): Platform (default: "netflix")
+        genre (str): Genre to filter by (default: "Horreur")
+        platform (str): Platform to filter by (default: "Netflix")
         content_type (str): Content type (default: "Série")
     
     Returns:
-        list: List of valid movie data dictionaries
+        list: List of top movies by IMDB score matching criteria
     """
-    logger.info(f"STRICT FILTERING: Extracting {num_movies} {genre} {content_type}s on {platform} for {country}")
-    
-    movie_data = []
-    processed_ids = set()  # Track IDs to avoid duplicates
+    logger.info(f"Extracting top {num_movies} movies by IMDB score")
+    logger.info(f"Filters: country={country}, genre={genre}, platform={platform}, content_type={content_type}")
     
     try:
-        # Step 1: Get movies with genre filter first (most restrictive)
-        logger.info(f"Step 1: Finding movies with genre '{genre}'")
-        genre_query = supabase.from_("movie_genres").select("movie_id").eq("genre", genre)
-        genre_response = genre_query.execute()
+        # Build the query with joins to get all required data
+        # Join movies -> movie_localizations -> movie_genres
+        query = (supabase
+                .from_("movies")
+                .select("""
+                    movie_id,
+                    content_type,
+                    imdb_score,
+                    imdb_votes,
+                    runtime,
+                    release_year,
+                    movie_localizations!inner(
+                        title,
+                        country_code,
+                        platform_name,
+                        poster_url,
+                        cloudinary_poster_url,
+                        trailer_url,
+                        streaming_url
+                    ),
+                    movie_genres!inner(
+                        genre
+                    )
+                """))
         
-        if not hasattr(genre_response, 'data') or len(genre_response.data) == 0:
-            logger.error(f"No movies found with genre '{genre}' - STRICT FILTER FAILED")
-            return []
+        # Apply filters
+        if content_type:
+            query = query.eq("content_type", content_type)
+        if country:
+            query = query.eq("movie_localizations.country_code", country)
+        if platform:
+            query = query.eq("movie_localizations.platform_name", platform)
+        if genre:
+            query = query.eq("movie_genres.genre", genre)
         
-        # Extract movie IDs that have the required genre
-        genre_movie_ids = [item['movie_id'] for item in genre_response.data]
-        logger.info(f"Found {len(genre_movie_ids)} movies with genre '{genre}'")
+        # Order by IMDB score descending and limit results
+        query = query.order("imdb_score", desc=True).limit(num_movies)
         
-        # Step 2: Apply all other filters strictly
-        logger.info(f"Step 2: Applying strict filters - country:{country}, platform:{platform}, content_type:{content_type}")
-        query = supabase.from_("movie_localizations").select("movie_id,movies!inner(*),*")
+        logger.info("Executing query to get top movies by IMDB score...")
+        response = query.execute()
         
-        # STRICT FILTERS - ALL REQUIRED
-        query = query.eq("country_code", country)
-        query = query.eq("platform_name", platform)
-        query = query.eq("movies.content_type", content_type)
-        query = query.in_("movie_id", genre_movie_ids)  # Only movies with correct genre
-        
-        # Increase limit to ensure we get enough valid results
-        logger.info(f"Executing STRICT query with limit: {num_movies * 3}")
-        response = query.limit(num_movies * 3).execute()
-        
-        # STRICT VALIDATION - No fallback allowed
         if not hasattr(response, 'data') or len(response.data) == 0:
-            logger.error(f"STRICT FILTER FAILED: No movies found matching ALL criteria:")
-            logger.error(f"  - Country: {country}")
-            logger.error(f"  - Genre: {genre}")
-            logger.error(f"  - Platform: {platform}")
-            logger.error(f"  - Content Type: {content_type}")
+            logger.warning(f"No movies found matching criteria")
             return []
         
-        movies = response.data
-        logger.info(f"STRICT FILTER SUCCESS: Found {len(movies)} valid movies")
+        movies_raw = response.data
+        logger.info(f"Found {len(movies_raw)} movies matching criteria")
         
-        # Get all genres for the filtered movies (for display purposes)
-        movie_genres_map = {}
-        try:
-            # Get all movie_ids from our results
-            movie_ids = [movie['movie_id'] for movie in movies]
-            
-            # Query movie_genres for these movie_ids to get all genres for display
-            genres_query = supabase.from_("movie_genres").select("*").in_("movie_id", movie_ids)
-            genres_response = genres_query.execute()
-            
-            if hasattr(genres_response, 'data') and genres_response.data:
-                # Build a map of movie_id -> list of genres
-                for genre_item in genres_response.data:
-                    movie_id = genre_item.get('movie_id')
-                    genre_name = genre_item.get('genre')
-                    if movie_id and genre_name:
-                        if movie_id not in movie_genres_map:
-                            movie_genres_map[movie_id] = []
-                        movie_genres_map[movie_id].append(genre_name)
-                
-                logger.info(f"Found genre data for {len(movie_genres_map)} movies")
-        except Exception as genre_error:
-            logger.error(f"Error fetching genre data: {str(genre_error)}")
-        
-        # Process and filter results
-        processed_ids = set()  # Track which movie IDs we've already processed
-        
-        for movie_item in movies:
+        # Process the results into standardized format
+        movie_data = []
+        for movie in movies_raw:
             try:
-                # Skip if we've already got enough movies
-                if len(movie_data) >= num_movies:
-                    break
-                
-                # Extract movie data from movie_localizations join (all movies are pre-filtered)
-                movie_id = movie_item.get('movie_id')
-                if not movie_id:
-                    continue
-                    
-                movie = movie_item.get('movies')
-                if not movie:
+                # Get the localization data (should be single item due to filters)
+                localization = movie.get('movie_localizations', [])
+                if isinstance(localization, list) and len(localization) > 0:
+                    localization = localization[0]
+                elif not isinstance(localization, dict):
+                    logger.warning(f"No localization data for movie {movie.get('movie_id')}")
                     continue
                 
-                # Skip duplicates
-                if movie_id in processed_ids:
-                    continue
+                # Get genre data
+                genres_data = movie.get('movie_genres', [])
+                if isinstance(genres_data, list):
+                    genres = [g.get('genre') for g in genres_data if g.get('genre')]
+                else:
+                    genres = [genres_data.get('genre')] if genres_data.get('genre') else []
                 
-                # Extract localization data (already filtered by country/platform)
-                title = movie_item.get('title', 'A Must-Watch Film')
-                platform_name = movie_item.get('platform_name', platform)
-                poster_url = movie_item.get('poster_url', '')
-                cloudinary_poster_url = movie_item.get('cloudinary_poster_url', '')
-                trailer_url = movie_item.get('trailer_url', '')
-                streaming_url = movie_item.get('streaming_url', '')
-                    
-                # Mark this movie as processed
-                processed_ids.add(movie_id)
-                
-                # Get genres for this movie
-                genres = movie_genres_map.get(movie_id, [])
-                
-                # Format IMDB information
+                # Format IMDB score
                 imdb_score = movie.get('imdb_score', 0)
                 imdb_votes = movie.get('imdb_votes', 0)
-                imdb_formatted = f"{imdb_score}/10 ({imdb_votes} votes)"
+                imdb_formatted = f"{imdb_score}/10 ({imdb_votes} votes)" if imdb_votes > 0 else f"{imdb_score}/10"
                 
-                # Process the movie data into our standardized format
+                # Create standardized movie info
                 movie_info = {
-                    'id': movie_id,
-                    'title': title,
-                    'year': movie.get('release_year', 'recent years'),
+                    'id': movie.get('movie_id'),
+                    'title': localization.get('title', 'Unknown Title'),
+                    'year': movie.get('release_year', 'Unknown'),
                     'imdb': imdb_formatted,
+                    'imdb_score': imdb_score,  # Keep numeric score for sorting
                     'runtime': f"{movie.get('runtime', 0)} min",
-                    'platform': platform_name,
-                    'poster_url': poster_url,
-                    'cloudinary_poster_url': cloudinary_poster_url,
-                    'trailer_url': trailer_url,
-                    'streaming_url': streaming_url,
+                    'platform': localization.get('platform_name', platform),
+                    'poster_url': localization.get('poster_url', ''),
+                    'cloudinary_poster_url': localization.get('cloudinary_poster_url', ''),
+                    'trailer_url': localization.get('trailer_url', ''),
+                    'streaming_url': localization.get('streaming_url', ''),
                     'genres': genres,
                     'content_type': movie.get('content_type', content_type)
                 }
                 
-                # Add the movie to our results
                 movie_data.append(movie_info)
-                logger.info(f"Processed movie: {title} ({movie_info['year']})")
+                logger.info(f"Processed: {movie_info['title']} - IMDB: {movie_info['imdb']}")
                 
             except Exception as e:
-                logger.error(f"Error processing movie item: {str(e)}")
-                # Continue with next movie
+                logger.error(f"Error processing movie {movie.get('movie_id', 'unknown')}: {str(e)}")
                 continue
         
-        # Sort by IMDB score descending
-        try:
-            movie_data.sort(key=lambda x: float(x['imdb'].split('/')[0]) if x['imdb'].split('/')[0].replace('.','',1).isdigit() else 0, reverse=True)
-            logger.info(f"Sorted movies by IMDB score (descending)")
-        except Exception as e:
-            logger.warning(f"Could not sort by IMDB score: {str(e)}")
+        # Sort by IMDB score again to ensure proper ordering (highest first)
+        movie_data.sort(key=lambda x: x.get('imdb_score', 0), reverse=True)
         
-        # Check if we have enough movies
-        if len(movie_data) < num_movies:
-            warning_msg = f"Only found {len(movie_data)} movies in database with all filters applied, but {num_movies} were requested."
-            logger.warning(warning_msg)
+        logger.info(f"Successfully extracted {len(movie_data)} movies, sorted by IMDB score")
+        if movie_data:
+            logger.info(f"Top movie: {movie_data[0]['title']} - IMDB: {movie_data[0]['imdb']}")
             
-        if not movie_data:
-            logger.warning("No movies found matching all criteria after post-filtering.")
+        return movie_data
         
     except Exception as e:
         logger.error(f"Error extracting movie data from Supabase: {str(e)}")
-        return []  # Return empty list instead of raising an exception
-    
-    return movie_data
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return []
 
 # Move the simulation logic to a separate function for fallback
 def _simulate_movie_data(num_movies=3):
@@ -718,7 +676,7 @@ With {enriched_movies[2].get('cast', 'powerful performances')} throughout, this 
     
     # Save scripts to individual files
     for key, script_data in scripts.items():
-        with open(script_data["path"], "w") as f:
+        with open(script_data["path"], "w", encoding='utf-8') as f:
             f.write(script_data["text"])
     
     logger.info(f"Concise scripts generated and saved to videos directory")
@@ -726,7 +684,7 @@ With {enriched_movies[2].get('cast', 'powerful performances')} throughout, this 
     # Return combined script for compatibility with existing functions
     combined_script = script_intro_movie1 + "\n\n" + script_movie2 + "\n\n" + script_movie3
     combined_path = "videos/combined_script.txt"
-    with open(combined_path, "w") as f:
+    with open(combined_path, "w", encoding='utf-8') as f:
         f.write(combined_script)
     
     return combined_script, combined_path, scripts
@@ -778,509 +736,705 @@ def _get_condensed_description(movie):
     
     return description
 
-def check_heygen_video_status(video_id: str) -> str:
+def check_heygen_video_status(video_id: str, silent: bool = False) -> dict:
     """
-    Check the processing status of a HeyGen video
+    Check the processing status of a HeyGen video using the official status API
     
     Args:
         video_id: HeyGen video ID
+        silent: If True, reduce logging verbosity (for polling loops)
         
     Returns:
-        Status string: 'pending', 'processing', 'completed', 'failed', or 'unknown'
+        Dictionary with status information: {'status': str, 'video_url': str, 'data': dict}
     """
-    logger.info(f"Checking status of HeyGen video with ID: {video_id}")
+    if not silent:
+        logger.debug(f"Checking status of HeyGen video {video_id[:8]}...")
     
     api_key = os.getenv('HEYGEN_API_KEY')
     if not api_key:
         logger.error("HEYGEN_API_KEY not found in environment variables")
-        return "unknown"
+        return {"status": "unknown", "video_url": "", "data": {}}
     
-    # First check if the video download URL exists and returns 200 (already completed)
-    download_url = f"https://api.heygen.com/v1/video.get_download_url?video_id={video_id}"
+    # Use the specific endpoint suggested by the user
+    status_url = f"https://api.heygen.com/v1/video_status.get?video_id={video_id}"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "X-Api-Key": api_key,
+    }
+    
     try:
-        download_response = requests.get(
-            download_url,
-            headers={
-                "Content-Type": "application/json",
-                "X-Api-Key": api_key,
-            }
-        )
+        response = requests.get(status_url, headers=headers, timeout=30)
         
-        if download_response.status_code == 200:
-            data = download_response.json()
-            if 'data' in data and 'url' in data['data']:
-                # If we can get a download URL, the video is definitely completed
-                logger.info(f"HeyGen video {video_id} has a valid download URL - status is completed")
-                return "completed"
-    except Exception as e:
-        logger.debug(f"Exception checking download URL: {str(e)}")
-    
-    # Try multiple API endpoints for reliability
-    endpoints = [
-        f"https://api.heygen.com/v1/video.status?video_id={video_id}",
-        f"https://api.heygen.com/v1/video_status?video_id={video_id}"
-    ]
-    
-    for url in endpoints:
-        try:
-            response = requests.get(
-                url,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Api-Key": api_key,
-                }
-            )
+        if response.status_code == 200:
+            data = response.json()
             
-            if response.status_code == 200:
-                data = response.json()
-                logger.debug(f"HeyGen response: {data}")
+            # Only log full response in debug mode or when not silent
+            if not silent:
+                logger.debug(f"HeyGen API response: {json.dumps(data, indent=2)}")
+            
+            # Extract status and video URL from response
+            if 'data' in data:
+                video_data = data['data']
+                status = video_data.get('status', 'unknown')
+                video_url = video_data.get('video_url', '') or video_data.get('url', '')
                 
-                if 'data' in data and 'status' in data['data']:
-                    status = data['data']['status']
-                    logger.info(f"HeyGen video {video_id} status: {status}")
-                    return status
-                else:
-                    logger.warning(f"Unexpected response format: {data}")
-            elif response.status_code == 404:
-                # If the API returns 404 but we saw the videos in the UI, they might be completed
-                # This handles the case when videos are shown as completed in the HeyGen website
-                # Try to directly check the video URL
-                try:
-                    # Try directly checking for a video URL based on the ID format
-                    direct_url = f"https://storage.googleapis.com/heygen-videos/{video_id}.mp4"
-                    direct_response = requests.head(direct_url, timeout=5)
-                    if direct_response.status_code == 200:
-                        logger.info(f"HeyGen video {video_id} found at direct URL - status is completed")
-                        return "completed"
-                except Exception as e:
-                    logger.debug(f"Exception checking direct URL: {str(e)}")
+                # Reduced logging during polling
+                if not silent:
+                    logger.debug(f"HeyGen video {video_id[:8]}... status: {status}")
+                
+                return {
+                    "status": status,
+                    "video_url": video_url,
+                    "data": video_data
+                }
             else:
-                logger.warning(f"Failed to get video status from {url}: {response.status_code}")
-                logger.debug(f"Response: {response.text}")
-        except Exception as e:
-            logger.warning(f"Exception checking video status with {url}: {str(e)}")
-    
-    # If all endpoints fail, try one more approach for already completed videos
-    try:
-        # Make a final check on the HeyGen dashboard API which might show completed videos
-        dashboard_url = "https://api.heygen.com/v1/video.list"
-        dashboard_response = requests.get(
-            dashboard_url,
-            headers={
-                "Content-Type": "application/json",
-                "X-Api-Key": api_key,
-            },
-            params={"page": 1, "page_size": 20}  # Get recent videos
-        )
-        
-        if dashboard_response.status_code == 200:
-            data = dashboard_response.json()
-            if 'data' in data and 'videos' in data['data']:
-                # Check if our video_id is in the list and what status it has
-                for video in data['data']['videos']:
-                    if video.get('video_id') == video_id and video.get('status') == 'completed':
-                        logger.info(f"Found video {video_id} in dashboard with completed status")
-                        return "completed"
+                if not silent:
+                    logger.warning(f"No 'data' field in response: {data}")
+                return {"status": "unknown", "video_url": "", "data": data}
+                
+        else:
+            if not silent:
+                logger.error(f"HeyGen API error: {response.status_code}")
+                logger.error(f"Response: {response.text}")
+            
+            # Try fallback endpoints
+            return _try_fallback_status_endpoints(video_id, headers, silent)
+            
     except Exception as e:
-        logger.debug(f"Exception checking dashboard: {str(e)}")
-    
-    # If all attempts fail
-    logger.error(f"All attempts to check status for video {video_id} failed")
-    return "unknown"
+        if not silent:
+            logger.error(f"Exception calling HeyGen status API: {str(e)}")
+        # Try fallback endpoints
+        return _try_fallback_status_endpoints(video_id, headers, silent)
 
-def wait_for_heygen_video(video_id: str, max_attempts=30, interval=10) -> bool:
+def _try_fallback_status_endpoints(video_id: str, headers: dict, silent: bool = False) -> dict:
     """
-    Wait for a HeyGen video to complete processing with visual feedback
+    Try fallback endpoints if the primary status endpoint fails
     
     Args:
         video_id: HeyGen video ID
-        max_attempts: Maximum number of polling attempts
-        interval: Time between polling attempts in seconds
+        headers: Request headers with API key
+        silent: If True, reduce logging verbosity (for polling loops)
         
     Returns:
-        True if video is ready, False otherwise
+        Dictionary with status information
     """
-    logger.info(f"Waiting for HeyGen video {video_id} to complete processing...")
+    if not silent:
+        logger.debug("Trying fallback status endpoints...")
     
-    # Clear any previous output and display initial message
+    # Fallback endpoints to try
+    fallback_endpoints = [
+        f"https://api.heygen.com/v1/video.status?video_id={video_id}",
+        f"https://api.heygen.com/v1/video_status?video_id={video_id}",
+        f"https://api.heygen.com/v2/video/{video_id}/status"
+    ]
+    
+    for endpoint in fallback_endpoints:
+        try:
+            if not silent:
+                logger.debug(f"Trying fallback endpoint: {endpoint}")
+            response = requests.get(endpoint, headers=headers, timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if not silent:
+                    logger.debug(f"Fallback endpoint success: {endpoint}")
+                
+                if 'data' in data:
+                    video_data = data['data']
+                    status = video_data.get('status', 'unknown')
+                    video_url = video_data.get('video_url', '') or video_data.get('url', '')
+                    
+                    return {
+                        "status": status,
+                        "video_url": video_url,
+                        "data": video_data
+                    }
+                    
+        except Exception as e:
+            if not silent:
+                logger.debug(f"Fallback endpoint {endpoint} failed: {str(e)}")
+            continue
+    
+    # All fallback endpoints failed
+    if not silent:
+        logger.warning(f"All fallback status endpoints failed for video {video_id[:8]}...")
+    
+    return {"status": "unknown", "video_url": "", "data": {}}
+
+def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_minutes: int = 15) -> dict:
+    """
+    Intelligently wait for a HeyGen video with dynamic timeout and progress estimation
+    
+    Args:
+        video_id: HeyGen video ID
+        script_length: Length of the script in characters (for time estimation)
+        max_wait_minutes: Maximum total wait time in minutes (default: 15)
+        
+    Returns:
+        Dictionary with status info: {'success': bool, 'status': str, 'video_url': str, 'data': dict}
+    """
+    # Spinner animation frames
+    spinner_frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    
+    # Estimate processing time based on script complexity
+    estimated_minutes = estimate_heygen_processing_time(script_length)
+    
+    # Dynamic timeout: use estimated time + buffer, but respect max limit
+    timeout_minutes = min(max(estimated_minutes + 5, 8), max_wait_minutes)  # At least 8 min, up to max
+    max_total_seconds = timeout_minutes * 60
+    
+    # Progressive intervals: start fast, then slow down
+    def get_interval(attempt_num: int, elapsed_seconds: int) -> int:
+        """Get dynamic interval based on attempt number and elapsed time"""
+        if elapsed_seconds < 120:  # First 2 minutes: check every 10 seconds
+            return 10
+        elif elapsed_seconds < 300:  # Next 3 minutes: check every 15 seconds  
+            return 15
+        elif elapsed_seconds < 600:  # Next 5 minutes: check every 20 seconds
+            return 20
+        else:  # After 10 minutes: check every 30 seconds
+            return 30
+    
+    # Start message with estimation
+    logger.info(f"⏳ Waiting for HeyGen video {video_id[:8]}... (estimated: ~{estimated_minutes} min)")
+    
+    start_time = time.time()
+    attempt = 0
+    next_check_time = start_time
+    
+    while True:
+        current_time = time.time()
+        elapsed_seconds = current_time - start_time
+        
+        # Check if we've exceeded total timeout
+        if elapsed_seconds > max_total_seconds:
+            elapsed_time = int(elapsed_seconds)
+            minutes, seconds = divmod(elapsed_time, 60)
+            time_str = f"{minutes:02d}:{seconds:02d}"
+            print(f"\r⏰ HeyGen video timeout    [{'░' * 30}] ----  │ {time_str} │ Max time reached{' ' * 10}")
+            logger.warning(f"HeyGen video {video_id[:8]}... exceeded max wait time of {timeout_minutes} minutes")
+            
+            return {
+                'success': False,
+                'status': 'timeout',
+                'video_url': '',
+                'data': {}
+            }
+        
+        # Only check status at scheduled intervals
+        if current_time >= next_check_time:
+            attempt += 1
+            
+            # Calculate progress based on time vs estimated completion
+            time_progress = min(elapsed_seconds / (estimated_minutes * 60) * 100, 95)
+            attempt_progress = min(elapsed_seconds / max_total_seconds * 100, 95)
+            progress = max(time_progress, attempt_progress)  # Use whichever is higher
+            
+            elapsed_time = int(elapsed_seconds)
+            minutes, seconds = divmod(elapsed_time, 60)
+            time_str = f"{minutes:02d}:{seconds:02d}"
+            
+            # Estimate remaining time
+            remaining_seconds = max(0, (estimated_minutes * 60) - elapsed_seconds)
+            if remaining_seconds > 0 and progress < 90:
+                remaining_minutes, remaining_secs = divmod(int(remaining_seconds), 60)
+                eta_str = f"ETA ~{remaining_minutes:02d}:{remaining_secs:02d}"
+            else:
+                eta_str = "Almost ready..."
+            
+            # Spinner animation
+            spinner = spinner_frames[attempt % len(spinner_frames)]
+            
+            # Progress bar
+            bar_length = 30
+            filled_length = int(bar_length * progress / 100)
+            bar = f"[{'█' * filled_length}{'░' * (bar_length - filled_length)}]"
+            
+            # Enhanced progress display with ETA
+            progress_line = f"\r{spinner} Processing HeyGen video {bar} {progress:5.1f}% │ {time_str} │ {eta_str}"
+            print(progress_line, end='', flush=True)
+            
+            # Get status (with reduced logging)
+            status_info = check_heygen_video_status(video_id, silent=True)
+            status = status_info.get('status', 'unknown')
+            video_url = status_info.get('video_url', '')
+            
+            if status == "completed":
+                # Clear progress line and show success
+                print(f"\r✅ HeyGen video completed! [{'█' * bar_length}] 100.0% │ {time_str} │ Ready!{' ' * 15}")
+                if video_url:
+                    logger.info(f"🎬 Video completed in {minutes}:{seconds:02d} (estimated {estimated_minutes} min)")
+                else:
+                    logger.info("🎬 Video completed successfully")
+                
+                return {
+                    'success': True,
+                    'status': status,
+                    'video_url': video_url,
+                    'data': status_info.get('data', {})
+                }
+                
+            elif status in ["failed", "error"]:
+                # Clear progress line and show error
+                print(f"\r❌ HeyGen video failed!   [{'X' * bar_length}] ERROR │ {time_str} │ Processing failed{' ' * 10}")
+                logger.error(f"HeyGen video {video_id[:8]}... processing failed after {minutes}:{seconds:02d}")
+                
+                return {
+                    'success': False,
+                    'status': status,
+                    'video_url': video_url,
+                    'data': status_info.get('data', {})
+                }
+            
+            # Set next check time with progressive interval
+            current_interval = get_interval(attempt, elapsed_seconds)
+            next_check_time = current_time + current_interval
+            
+            # Reduce logging frequency (every 6th attempt or every 3 minutes)
+            if attempt % 6 == 0 or elapsed_seconds % 180 < current_interval:
+                logger.debug(f"Video {video_id[:8]}... still processing ({minutes}:{seconds:02d} elapsed, checking every {current_interval}s)")
+        
+        # Sleep briefly to avoid busy waiting
+        time.sleep(1)
+
+def estimate_heygen_processing_time(script_length: int = None) -> int:
+    """
+    Estimate HeyGen video processing time based on script complexity
+    
+    Args:
+        script_length: Length of script in characters
+        
+    Returns:
+        Estimated processing time in minutes
+    """
+    # Base processing time
+    base_minutes = 3
+    
+    if script_length is None:
+        # Default estimate for unknown length
+        return 6
+    
+    # Estimate based on script length
+    # Roughly 1 additional minute per 200 characters of script
+    additional_minutes = script_length // 200
+    
+    # HeyGen typical processing patterns:
+    # - Short scripts (< 300 chars): 3-5 minutes
+    # - Medium scripts (300-800 chars): 5-8 minutes  
+    # - Long scripts (> 800 chars): 8-12 minutes
+    
+    if script_length <= 300:
+        estimated = base_minutes + 1  # 4 minutes
+    elif script_length <= 800:
+        estimated = base_minutes + 3  # 6 minutes
+    else:
+        estimated = base_minutes + min(additional_minutes, 9)  # Cap at 12 minutes
+    
+    return estimated
+
+def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = None) -> dict:
+    """
+    Get HeyGen video URLs using the status API for direct use with Creatomate
+    
+    Args:
+        heygen_video_ids: Dictionary of HeyGen video IDs {'intro_movie1': 'id1', 'movie2': 'id2', etc.}
+        scripts: Dictionary of script data for time estimation (optional)
+        
+    Returns:
+        Dictionary with video URLs ready for Creatomate: {'intro_movie1': 'url1', 'movie2': 'url2', etc.}
+    """
+    logger.info(f"Getting HeyGen video URLs for {len(heygen_video_ids)} videos...")
+    
+    video_urls = {}
+    fallback_url = "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+    
+    for key, video_id in heygen_video_ids.items():
+        if not video_id or video_id.startswith('placeholder'):
+            logger.debug(f"Skipping placeholder ID for {key}")
+            continue
+            
+        # Extract script length for intelligent estimation
+        script_length = None
+        if scripts and key in scripts:
+            script_data = scripts[key]
+            if isinstance(script_data, dict) and 'text' in script_data:
+                script_text = script_data['text']
+            elif isinstance(script_data, str):
+                script_text = script_data
+            else:
+                script_text = str(script_data)
+            script_length = len(script_text) if script_text else None
+            
+        logger.info(f"Processing {key}: {video_id} ({script_length or 'unknown'} chars)")
+        
+        # Wait intelligently based on script complexity
+        status_result = wait_for_heygen_video(
+            video_id, 
+            script_length=script_length,
+            max_wait_minutes=25  # Increased for complex videos
+        )
+        
+        if status_result['success'] and status_result['video_url']:
+            video_url = status_result['video_url']
+            video_urls[key] = video_url
+            logger.info(f"✅ Got URL for {key}")
+                
+        else:
+            # Use fallback or incomplete URL
+            if status_result.get('video_url'):
+                video_urls[key] = status_result['video_url']
+                logger.warning(f"⚠️ Using incomplete URL for {key}")
+            else:
+                video_urls[key] = fallback_url
+                logger.warning(f"⚠️ Using fallback URL for {key}")
+    
+    logger.info(f"✅ Obtained {len(video_urls)} video URLs")
+    return video_urls
+
+def create_creatomate_video_from_heygen_urls(
+    heygen_video_urls: dict,
+    movie_data: List[Dict[str, Any]] = None
+) -> str:
+    """
+    Create a Creatomate video using HeyGen video URLs directly from the status API
+    
+    Args:
+        heygen_video_urls: Dictionary with HeyGen video URLs {'intro_movie1': 'url1', 'movie2': 'url2', etc.}
+        movie_data: List of movie data dictionaries (optional, uses defaults if not provided)
+        
+    Returns:
+        str: Creatomate video ID or error message
+    """
+    logger.info("Creating Creatomate video using direct HeyGen URLs...")
+    
+    api_key = os.getenv("CREATOMATE_API_KEY")
+    if not api_key:
+        logger.error("CREATOMATE_API_KEY is not set in environment variables")
+        return f"error_no_api_key_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    # Use default movie assets
+    movie_covers = [
+        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
+        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
+        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
+    ]
+    
+    movie_clips = [
+        "https://res.cloudinary.com/dodod8s0v/video/upload/v1751353401/the_last_of_us_zljllt.mp4",
+        "https://res.cloudinary.com/dodod8s0v/video/upload/v1751355284/Stranger_Things_uyxt3a.mp4",
+        "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356566/The_Haunting_of_Hill_House_jhztq4.mp4"
+    ]
+    
+    # Get HeyGen video URLs with fallbacks
+    heygen_intro = heygen_video_urls.get(
+        "intro_movie1", 
+        "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+    )
+    heygen_movie2 = heygen_video_urls.get(
+        "movie2", 
+        "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+    )
+    heygen_movie3 = heygen_video_urls.get(
+        "movie3", 
+        "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+    )
+    
+    logger.debug(f"HeyGen URLs: {len([url for url in [heygen_intro, heygen_movie2, heygen_movie3] if url])} videos")
+    
+    # Create sequential timeline
+    source = {
+        "width": 720,
+        "height": 1280,
+        "elements": [
+            # HeyGen intro video + movie1
+            {
+                "fit": "cover",
+                "type": "video",
+                "track": 1,
+                "source": heygen_intro
+            },
+            # Movie 1 cover
+            {
+                "fit": "cover",
+                "type": "image",
+                "track": 1,
+                "source": movie_covers[0],
+                "duration": 3
+            },
+            # Movie 1 clip
+            {
+                "fit": "cover",
+                "type": "video",
+                "track": 1,
+                "source": movie_clips[0],
+                "trim_end": 8,
+                "trim_start": 0
+            },
+            # HeyGen movie2 video
+            {
+                "fit": "cover",
+                "type": "video",
+                "track": 1,
+                "source": heygen_movie2
+            },
+            # Movie 2 cover
+            {
+                "fit": "cover",
+                "type": "image",
+                "track": 1,
+                "source": movie_covers[1],
+                "duration": 3
+            },
+            # Movie 2 clip
+            {
+                "fit": "cover",
+                "type": "video",
+                "track": 1,
+                "source": movie_clips[1],
+                "trim_end": 8,
+                "trim_start": 0
+            },
+            # HeyGen movie3 video
+            {
+                "fit": "cover",
+                "type": "video",
+                "track": 1,
+                "source": heygen_movie3
+            },
+            # Movie 3 cover
+            {
+                "fit": "cover",
+                "type": "image",
+                "track": 1,
+                "source": movie_covers[2],
+                "duration": 3
+            },
+            # Movie 3 clip
+            {
+                "fit": "cover",
+                "type": "video",
+                "track": 1,
+                "source": movie_clips[2],
+                "trim_end": 8,
+                "trim_start": 0
+            }
+        ],
+        "frame_rate": 30,
+        "output_format": "mp4",
+        "timeline_type": "sequential"
+    }
+    
+    # Prepare the payload for the Creatomate API
+    payload = {
+        "source": source,
+        "output_format": "mp4",
+        "render_scale": 1
+    }
+    
+    try:
+        response = requests.post(
+            "https://api.creatomate.com/v1/renders",
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+        )
+        
+        if response.status_code in [200, 201, 202]:
+            result = response.json()
+            logger.info(f"Creatomate API success (HTTP {response.status_code})")
+            
+            if isinstance(result, list) and len(result) > 0:
+                creatomate_data = result[0]
+                creatomate_id = creatomate_data.get("id", "")
+                status = creatomate_data.get("status", "unknown")
+                logger.info(f"Render {creatomate_id[:8]}... status: {status}")
+                    
+            elif isinstance(result, dict):
+                creatomate_id = result.get("id", "")
+                status = result.get("status", "unknown")
+                logger.info(f"Render {creatomate_id[:8]}... status: {status}")
+            else:
+                creatomate_id = f"unknown_format_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                
+            return creatomate_id
+            
+        else:
+            logger.error(f"Creatomate API error: {response.status_code} - {response.text}")
+            return f"error_{response.status_code}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+    except Exception as e:
+        logger.error(f"❌ Exception when calling Creatomate API: {str(e)}")
+        return f"exception_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+def check_creatomate_render_status(render_id: str) -> dict:
+    """
+    Check the status of a Creatomate render
+    
+    Args:
+        render_id: Creatomate render ID
+        
+    Returns:
+        Dictionary with render status information
+    """
+    logger.info(f"Checking Creatomate render status for ID: {render_id}")
+    
+    api_key = os.getenv("CREATOMATE_API_KEY")
+    if not api_key:
+        logger.error("CREATOMATE_API_KEY is not set in environment variables")
+        return {"status": "error", "message": "No API key"}
+    
+    try:
+        response = requests.get(
+            f"https://api.creatomate.com/v1/renders/{render_id}",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            status = result.get("status", "unknown")
+            url = result.get("url", "")
+            
+            logger.info(f"Creatomate render {render_id} status: {status}")
+            if url and status == "completed":
+                logger.info(f"Video ready at: {url}")
+                
+            return {
+                "status": status,
+                "url": url,
+                "data": result
+            }
+        else:
+            logger.error(f"Failed to check render status: {response.status_code} - {response.text}")
+            return {"status": "error", "message": f"HTTP {response.status_code}"}
+            
+    except Exception as e:
+        logger.error(f"Exception checking render status: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+def wait_for_creatomate_completion(render_id: str, max_attempts: int = 30, interval: int = 10) -> dict:
+    """
+    Wait for a Creatomate render to complete with progress feedback
+    
+    Args:
+        render_id: Creatomate render ID
+        max_attempts: Maximum polling attempts
+        interval: Seconds between status checks
+        
+    Returns:
+        Final status dictionary
+    """
+    logger.info(f"Waiting for Creatomate render {render_id} to complete...")
+    
     print(f"\n{'=' * 70}")
-    print(f"PROCESSING: HeyGen video {video_id}")
+    print(f"RENDERING: Creatomate video {render_id}")
     print(f"{'=' * 70}")
     
     for attempt in range(1, max_attempts + 1):
-        # Visual feedback for loading - more prominent and colorful
-        progress = min(attempt / max_attempts * 100, 99) if max_attempts > 0 else 50
-        bar_length = 40  # Longer bar for better visibility
+        # Progress bar
+        progress = min(attempt / max_attempts * 100, 99)
+        bar_length = 40
         filled_length = int(bar_length * progress / 100)
-        loading_bar = f"[{'█' * filled_length}{' ' * (bar_length - filled_length)}] {progress:.1f}%"
-        print(f"\rProcessing: {loading_bar}", end="")
-        sys.stdout.flush()  # Ensure output is displayed immediately
+        progress_bar = f"[{'█' * filled_length}{' ' * (bar_length - filled_length)}] {progress:.1f}%"
+        print(f"\rRendering: {progress_bar}", end="")
+        sys.stdout.flush()
         
-        status = check_heygen_video_status(video_id)
+        # Check status
+        status_info = check_creatomate_render_status(render_id)
+        status = status_info.get("status", "unknown")
         
         if status == "completed":
             print(f"\r\n{'=' * 70}")
-            print(f"SUCCESS: HeyGen video {video_id} processing complete! [{'█' * bar_length}] 100%")
+            print(f"SUCCESS: Creatomate video completed! [{'█' * bar_length}] 100%")
+            print(f"Video URL: {status_info.get('url', 'No URL provided')}")
             print(f"{'=' * 70}\n")
-            logger.info(f"HeyGen video {video_id} processing complete after {attempt} attempts")
-            return True
+            return status_info
+            
         elif status in ["failed", "error"]:
             print(f"\r\n{'=' * 70}")
-            print(f"FAILED: HeyGen video {video_id} processing failed! [{'X' * bar_length}]")
+            print(f"FAILED: Creatomate render failed! [{'X' * bar_length}]")
             print(f"{'=' * 70}\n")
-            logger.error(f"HeyGen video {video_id} processing failed after {attempt} attempts")
-            return False
-        
-        # Wait before checking again
+            return status_info
+            
+        # Wait before next check
         time.sleep(interval)
     
     print(f"\r\n{'=' * 70}")
-    print(f"TIMEOUT: HeyGen video {video_id} processing timed out after {max_attempts} attempts")
+    print(f"TIMEOUT: Render timed out after {max_attempts} attempts")
     print(f"{'=' * 70}\n")
-    logger.warning(f"HeyGen video {video_id} processing timed out after {max_attempts} attempts")
-    # Return True anyway to allow proceeding with potentially cached video
-    return True
+    
+    # Return last status
+    return check_creatomate_render_status(render_id)
 
-def download_heygen_video(video_id: str) -> str:
+def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = None) -> dict:
     """
-    Download a HeyGen video by its ID and upload to Cloudinary
-    Enhanced with multiple fallback strategies for API changes
+    Process existing HeyGen video IDs using the status API and create Creatomate video
     
     Args:
-        video_id: HeyGen video ID or web URL (https://app.heygen.com/videos/[id])
+        heygen_video_ids: Dictionary with HeyGen video IDs {'intro_movie1': 'id1', 'movie2': 'id2', etc.}
+        output_file: Optional file path to save results
         
     Returns:
-        Cloudinary URL for the uploaded HeyGen video
+        Dictionary with processing results
     """
-    # Store original input for logging/fallback
-    original_input = video_id
-    web_url = None
+    logger.info("Processing existing HeyGen video IDs with new API approach...")
     
-    # Handle case where video_id is actually a full URL
-    if video_id.startswith("https://app.heygen.com/videos/"):
-        web_url = video_id  # Save the original URL for web player fallback
-        video_id = video_id.split("/")[-1]
-        logger.info(f"Extracted video ID from URL: {video_id}")
-    else:
-        # Construct web URL if only ID was provided
-        web_url = f"https://app.heygen.com/videos/{video_id}"
-    
-    if not os.getenv('HEYGEN_API_KEY'):
-        logger.error("HEYGEN_API_KEY environment variable not set!")
-        return ""
-        
-    logger.info(f"Attempting to download HeyGen video with ID: {video_id}")
-    
-    # WORKAROUND: Since HeyGen download APIs are currently failing (404 errors),
-    # we'll use the direct CDN URLs that Creatomate can access directly
-    # This bypasses the download issue while still providing working video URLs
-    
-    # Check if video is completed first
-    if not wait_for_heygen_video(video_id):
-        logger.warning(f"HeyGen video {video_id} is not ready yet or has failed processing")
-    
-    # ROBUST SOLUTION: Force download and upload to Cloudinary for reliable access
-    # HeyGen CDN URLs are unreliable (404/520 errors), so we must download and re-host
-    
-    logger.info("Attempting to get HeyGen video through API and upload to Cloudinary...")
-    
-    # Try to get download URL through HeyGen API first
-    api_endpoints = [
-        f"https://api.heygen.com/v2/video/{video_id}",
-        f"https://api.heygen.com/v1/video/{video_id}",
-        f"https://api.heygen.com/v2/video/status/{video_id}",
-        f"https://api.heygen.com/v1/video/status/{video_id}"
-    ]
-    
-    for endpoint in api_endpoints:
-        try:
-            response = requests.get(endpoint, headers=headers, timeout=15)
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"✅ Got API response from {endpoint}")
-                
-                # Extract download URL from response
-                download_url = None
-                if 'data' in data:
-                    if isinstance(data['data'], dict):
-                        download_url = (data['data'].get('url') or 
-                                      data['data'].get('video_url') or 
-                                      data['data'].get('download_url'))
-                    elif isinstance(data['data'], list) and len(data['data']) > 0:
-                        download_url = (data['data'][0].get('url') or 
-                                      data['data'][0].get('video_url'))
-                
-                if download_url and download_url.startswith('http'):
-                    logger.info(f"🎯 Found download URL: {download_url}")
-                    # Test if URL is accessible and download/upload
-                    try:
-                        test_response = requests.head(download_url, timeout=10)
-                        if test_response.status_code == 200:
-                            return download_and_upload_to_cloudinary(download_url, video_id)
-                    except Exception as e:
-                        logger.warning(f"Download URL test failed: {str(e)}")
-                        
-        except Exception as e:
-            logger.debug(f"API endpoint {endpoint} failed: {str(e)}")
-            continue
-    
-    # If API methods fail, try CDN endpoints with download/upload
-    cdn_endpoints = [
-        f"https://assets.heygen.ai/video/{video_id}.mp4",
-        f"https://resource.heygen.ai/video/{video_id}.mp4", 
-        f"https://cdn.heygen.ai/video/{video_id}.mp4",
-        f"https://storage.heygen.ai/video/{video_id}.mp4"
-    ]
-    
-    logger.info("Trying CDN endpoints with forced download/upload...")
-    for cdn_url in cdn_endpoints:
-        try:
-            # Try to download from CDN and upload to Cloudinary
-            response = requests.head(cdn_url, timeout=10)
-            if response.status_code == 200:
-                logger.info(f"✅ Found accessible CDN endpoint: {cdn_url}")
-                return download_and_upload_to_cloudinary(cdn_url, video_id)
-        except Exception as e:
-            logger.debug(f"CDN endpoint {cdn_url} failed: {str(e)}")
-            continue
-    
-    # If no CDN endpoints work, try the API download methods
-    api_key = os.getenv('HEYGEN_API_KEY')
-    if not api_key:
-        logger.error("HEYGEN_API_KEY environment variable not found. Cannot download video.")
-        return ""
-    
-    headers = {
-        "accept": "application/json",
-        "X-Api-Key": api_key
+    results = {
+        'input_video_ids': heygen_video_ids,
+        'timestamp': datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     }
     
-    # Try alternative API endpoints
-    api_endpoints = [
-        f"https://api.heygen.com/v2/video/download?video_id={video_id}",
-        f"https://api.heygen.com/v1/video/{video_id}/download",
-        f"https://api.heygen.com/video/{video_id}/download"
-    ]
-    
-    logger.info("Trying alternative API download endpoints...")
-    for endpoint in api_endpoints:
-        try:
-            response = requests.get(endpoint, headers=headers, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                video_url = data.get('data', {}).get('download_url') or data.get('download_url')
-                if video_url:
-                    logger.info(f"✅ Got download URL from API: {endpoint}")
-                    return download_and_upload_to_cloudinary(video_url, video_id)
-        except Exception as e:
-            logger.debug(f"API endpoint {endpoint} failed: {str(e)}")
-            continue
-    
-    # Final fallback: return the most likely CDN URL even if we can't verify it
-    # Creatomate might be able to access it even if our HEAD request fails
-    fallback_url = f"https://assets.heygen.ai/video/{video_id}.mp4"
-    logger.warning(f"All download methods failed. Using fallback URL: {fallback_url}")
-    return fallback_url
-
-
-def download_and_upload_to_cloudinary(video_url: str, video_id: str, max_retries: int = 3) -> str:
-    """
-    Helper function to download a video from a URL and upload it to Cloudinary
-    
-    Args:
-        video_url: URL of the video to download
-        video_id: HeyGen video ID (for logging)
-        max_retries: Maximum number of retry attempts for transient errors
-        
-    Returns:
-        Cloudinary URL for the uploaded video or empty string on failure
-    """
-    if not video_url or not video_url.startswith(('http://', 'https://')):
-        logger.error(f"Invalid video URL: {video_url}")
-        return ""
-        logger.info(f"All API methods failed, trying web player extraction from {web_url}")
-        try:
-            # Use browser-like headers to avoid being blocked
-            browser_headers = {
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.5",
-                "Referer": "https://app.heygen.com/"
-            }
-            
-            # Request the web player page
-            response = requests.get(web_url, headers=browser_headers, timeout=15)
-            if response.status_code == 200:
-                # Look for video URLs in the page source
-                page_content = response.text
-                
-                # Common patterns for video URLs in the page source
-                patterns = [
-                    # Standard video URL patterns
-                    r'"(https://assets\.heygen\.ai/video/[^"]+\.mp4)"',  # CDN URL pattern
-                    r'"(https://[^"]+\.cloudfront\.net/[^"]+\.mp4)"',    # CloudFront URL pattern
-                    r'"(https://[^"]+\.amazonaws\.com/[^"]+\.mp4)"',     # S3 URL pattern
-                    r'"url":"(https://[^"]+\.mp4)"',                      # JSON URL pattern
-                    r'src="(https://[^"]+\.mp4)"',                         # HTML src attribute pattern
-                    r'data-src="(https://[^"]+\.mp4)"',                    # HTML data-src attribute pattern
-                    
-                    # JavaScript variable assignments
-                    r'videoUrl\s*=\s*"(https://[^"]+\.mp4)"',             # JS variable assignment
-                    r'videoUrl\s*=\s*\'(https://[^\']+\.mp4)\'',             # JS variable with single quotes
-                    r'videoSrc\s*=\s*"(https://[^"]+\.mp4)"',             # Alternative variable name
-                    r'url\s*:\s*"(https://[^"]+\.mp4)"',                  # Object property
-                    
-                    # JSON data structures
-                    r'"url"\s*:\s*"(https://[^"]+\.mp4)"',               # JSON structure
-                    r'"video_url"\s*:\s*"(https://[^"]+\.mp4)"',          # Alternative JSON key
-                    r'"videoUrl"\s*:\s*"(https://[^"]+\.mp4)"',           # Camel case JSON key
-                    
-                    # Broader patterns (use cautiously as they might match non-video URLs)
-                    r'(https://[^"\s]+\.heygen\.ai/[^"\s]+\.mp4)',        # Any Heygen CDN URL
-                    r'(https://[^"\s]+\.cloudfront\.net/[^"\s]+\.mp4)'     # Any CloudFront URL
-                ]
-                
-                # Try each pattern until we find a match
-                import re
-                for pattern in patterns:
-                    matches = re.findall(pattern, page_content)
-                    if matches:
-                        extracted_url = matches[0]
-                        logger.info(f"Extracted video URL from web player: {extracted_url}")
-                        return download_and_upload_to_cloudinary(extracted_url, video_id)
-                
-                # Save page content for debugging
-                logger.warning("Could not extract video URL from web player page")
-                # Log a small snippet of the page content to help with debugging
-                logger.debug(f"Page content snippet: {page_content[:500]}...")
-            else:
-                logger.warning(f"Failed to access web player page: {response.status_code}")
-        except Exception as e:
-            logger.error(f"Error extracting from web player: {str(e)}")
-        
-    # --- APPROACH 4: Try video status API to extract URL ---
-    logger.info("Attempting video library fallback")
-    status_url = f"https://api.heygen.com/v2/video/status?video_id={video_id}"
-    
     try:
-        logger.info(f"Checking status API for video URL: {status_url}")
-        response = requests.get(status_url, headers=headers)
+        # Step 1: Get HeyGen video URLs using status API
+        logger.info("Step 1: Getting HeyGen video URLs using status API...")
+        heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids)
+        results['heygen_video_urls'] = heygen_video_urls
         
-        if response.status_code == 200:
-            status_data = response.json()
-            
-            # Extract URL from status data
-            video_url = None
-            if 'data' in status_data:
-                if 'video_url' in status_data['data']:
-                    video_url = status_data['data']['video_url']
-                elif 'url' in status_data['data']:
-                    video_url = status_data['data']['url']
-            
-            if video_url:
-                logger.info(f"Found video URL via status API: {video_url}")
-                return download_and_upload_to_cloudinary(video_url, video_id)
-            else:
-                logger.warning(f"No URL found in status data: {status_data}")
-    except Exception as e:
-        logger.error(f"Error getting video URL from status API: {str(e)}")
-    
-    # --- APPROACH 4: Try video library API as last resort ---
-    logger.info("Attempting to locate video in library as final method")
-    try:
-        library_url = "https://api.heygen.com/v2/video/library"
-        logger.info(f"Searching for video in library: {library_url}")
-        response = requests.get(library_url, headers=headers)
+        if not heygen_video_urls:
+            logger.error("No HeyGen video URLs obtained")
+            results['status'] = 'failed'
+            results['error'] = 'No HeyGen video URLs obtained'
+            return results
         
-        if response.status_code == 200:
-            library_data = response.json()
-            videos = []
-            if 'data' in library_data and 'videos' in library_data['data']:
-                videos = library_data['data']['videos']
-            
-            for video in videos:
-                if video.get('video_id') == video_id:
-                    video_url = video.get('video_url') or video.get('url')
-                    if video_url:
-                        logger.info(f"Found video URL in library: {video_url}")
-                        return download_and_upload_to_cloudinary(video_url, video_id)
-            
-            logger.warning(f"Video ID {video_id} not found in library of {len(videos)} videos")
+        logger.info(f"✅ Successfully obtained {len(heygen_video_urls)} HeyGen video URLs")
+        
+        # Step 2: Create Creatomate video
+        logger.info("Step 2: Creating Creatomate video...")
+        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, enriched_movies)
+        results['creatomate_id'] = creatomate_id
+        
+        if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
+            logger.error(f"❌ Creatomate video creation failed: {creatomate_id}")
+            results['status'] = 'failed'
+            results['error'] = f'Creatomate creation failed: {creatomate_id}'
         else:
-            logger.warning(f"Failed to access video library: {response.status_code}")
-    except Exception as e:
-        logger.error(f"Error accessing video library: {str(e)}")
-    
-    # All attempts failed
-    logger.error(f"All attempts to download HeyGen video {video_id} failed")
-    return ""
-
-
-def get_video_duration(video_url: str) -> float:
-    """
-    Get the duration of a video from Cloudinary or other source
-    
-    Args:
-        video_url: URL of the video
+            logger.info(f"🎬 Successfully submitted Creatomate video: {creatomate_id}")
+            results['status'] = 'success'
+            results['creatomate_status'] = 'submitted'
+            results['status_check_command'] = f"python automated_video_generator.py --check-creatomate {creatomate_id}"
         
-    Returns:
-        Duration of the video in seconds (or default value if couldn't determine)
-    """
-    try:
-        # If it's a Cloudinary URL, we can parse the public ID and use Cloudinary API
-        if "cloudinary" in video_url and "/video/upload/" in video_url:
-            # Improved extraction of public ID from Cloudinary URL
-            # Example URL: https://res.cloudinary.com/dodod8s0v/video/upload/v1752582467/intro_movie1_kegi9p.mp4
-            # or: https://res.cloudinary.com/dodod8s0v/video/upload/intro_movie1_kegi9p.mp4
-            parts = video_url.split("/upload/")
-            if len(parts) == 2:
-                # Extract everything after /upload/ and before file extension if present
-                path_after_upload = parts[1]
-                
-                # Handle versioning formats (vXXXXXXXXX/) if present
-                if path_after_upload.startswith("v"):
-                    version_match = re.match(r"v\d+/(.+)$", path_after_upload)
-                    if version_match:
-                        public_id = version_match.group(1).rsplit(".", 1)[0]  # Remove file extension
-                    else:
-                        public_id = path_after_upload.rsplit(".", 1)[0]  # Remove file extension
-                else:
-                    public_id = path_after_upload.rsplit(".", 1)[0]  # Remove file extension
-                
-                logger.info(f"Extracted public_id from URL: {public_id}")
-                
-                try:
-                    # Get resource details from Cloudinary
-                    result = cloudinary.api.resource(public_id, resource_type="video")
-                    if result and "duration" in result:
-                        duration = float(result["duration"])
-                        logger.info(f"Retrieved duration for video {public_id}: {duration} seconds")
-                        return duration
-                except Exception as e:
-                    logger.error(f"Cloudinary API error for {public_id}: {str(e)}")
-            
-        # Since accurately determining video duration is critical for preventing overlap,
-        # use these known durations for specific videos we're working with
-        video_durations = {
-            "intro_movie1_kegi9p": 15.5,  # Duration in seconds for intro+movie1
-            "movie2_knfyfm": 14.2,      # Duration in seconds for movie2
-            "movie3_m5h4ta": 13.8       # Duration in seconds for movie3
-        }
+        # Step 3: Save results if output file provided
+        if output_file:
+            try:
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    json.dump(results, f, indent=2, ensure_ascii=False)
+                logger.info(f"Results saved to {output_file}")
+            except Exception as e:
+                logger.error(f"Failed to save results to {output_file}: {str(e)}")
         
-        # Check if we can match the filename in our known durations
-        for video_id, duration in video_durations.items():
-            if video_id in video_url:
-                logger.info(f"Using predefined duration for {video_id}: {duration} seconds")
-                return duration
-        
-        # If still no match, use a longer default to be safe (prevents overlap)
-        default_duration = 20.0
-        logger.warning(f"Couldn't determine video duration for {video_url}, using safe default: {default_duration}s")
-        return default_duration
+        return results
         
     except Exception as e:
-        logger.error(f"Error getting video duration: {str(e)}")
-        return 20.0  # Longer default duration if we can't determine it to prevent overlap
+        logger.error(f"Error processing existing HeyGen videos: {str(e)}")
+        results['status'] = 'error'
+        results['error'] = str(e)
+        return results
 
 def download_and_upload_to_cloudinary(video_url: str, video_id: str, max_retries: int = 3) -> str:
     """
@@ -1500,25 +1654,18 @@ def create_heygen_video(script_data, use_template=True, template_id="7fb75067718
     Returns:
         Dictionary of video IDs or a single video ID string
     """
-    # Check if API key is set and log mask version for debugging
+    # Validate API key
     heygen_api_key = os.getenv("HEYGEN_API_KEY")
     if not heygen_api_key:
-        logger.error("ERROR: HEYGEN_API_KEY is not set in environment variables")
-    else:
-        # Log a masked version of the key for debugging (first 4 chars + last 4 chars)
-        masked_key = heygen_api_key[:4] + "..." + heygen_api_key[-4:] if len(heygen_api_key) > 8 else "[KEY TOO SHORT]"
-        logger.info(f"Using HeyGen API key: {masked_key}")
+        logger.error("HEYGEN_API_KEY is not set in environment variables")
+        return None
         
-    if use_template:
-        logger.info(f"Preparing requests to HeyGen API with template ID: {template_id}...")
-    else:
-        logger.info("Preparing requests to HeyGen API using standard approach...")
-        
-    # Log script data information
+    # Validate script data
     if script_data is None:
-        logger.error("ERROR: No script data provided for video creation")
-    else:
-        logger.info(f"Script data type: {type(script_data)}, content sample: {str(script_data)[:100]}...")
+        logger.error("No script data provided for video creation")
+        return None
+        
+    logger.info(f"Creating HeyGen videos using {'template' if use_template else 'standard'} approach")
     
     # If script_data is a string (direct script text), wrap it in a standard format
     if isinstance(script_data, str):
@@ -1719,382 +1866,6 @@ def send_heygen_request(payload):
         logger.error(f"Exception during video creation: {str(e)}")
         return None
 
-def create_creatomate_video(
-    movie_data: List[Dict[str, Any]] = None,
-    heygen_video_ids: Dict[str, str] = None,
-    cloudinary_urls: Dict[str, str] = None
-) -> str:
-    """Create a video with CreatoMate API using movie data, HeyGen video IDs, and Cloudinary URLs
-    
-    Args:
-        movie_data: List of movie data dictionaries
-        heygen_video_ids: Dictionary mapping movie index to HeyGen video ID
-        cloudinary_urls: Dictionary of Cloudinary URLs for images and videos
-        
-    Returns:
-        str: CreatoMate video ID or error code
-    """
-    logger.info("Creating video with CreatoMate...")
-    
-    # Get API key from environment
-    api_key = os.getenv("CREATOMATE_API_KEY")
-    if not api_key:
-        logger.error("CREATOMATE_API_KEY is not set in environment variables")
-        return "error_no_api_key"
-    
-    # Prepare HeyGen videos if provided
-    heygen_videos = {}
-    if cloudinary_urls:
-        logger.info(f"Using provided Cloudinary URLs: {list(cloudinary_urls.keys())}")
-        # Look for HeyGen videos in cloudinary_urls
-        for key, url in cloudinary_urls.items():
-            if 'heygen' in key.lower() or 'heygen' in url.lower():
-                heygen_videos[key] = url
-        logger.info(f"Found {len(heygen_videos)} HeyGen videos in Cloudinary URLs")
-    else:
-        logger.warning("No Cloudinary URLs provided, using fallback URLs")
-        # Fallback URLs for testing
-        heygen_videos = {
-            "intro_movie1": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752652709/heygen_videos/heygen_intro_movie1.mp4",
-            "movie2": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752652716/heygen_videos/heygen_movie2.mp4",
-            "movie3": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752652720/heygen_videos/heygen_movie3.mp4"
-        }
-    
-    # Get Cloudinary URLs for movie covers and clips
-    cloudinary_movie_covers = []
-    movie_clips = {}
-    # Use publicly accessible video placeholders when actual HeyGen videos aren't available
-    PUBLIC_VIDEO_PLACEHOLDER = "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
-    
-    # Construct URLs for HeyGen videos, using public placeholders when needed
-    heygen_video_urls = {}
-    
-    # For each video position, check if we have a valid HeyGen video ID
-    # If yes, download and upload to Cloudinary, otherwise use a public placeholder video
-    for key in ['intro_movie1', 'movie2', 'movie3']:
-        video_id = ''
-        if heygen_video_ids is not None:
-            video_id = heygen_video_ids.get(key, '')
-        if video_id and video_id != 'placeholder':
-            logger.info(f"Processing HeyGen video for {key} with ID: {video_id}")
-            
-            # Download HeyGen video and upload to Cloudinary
-            cloudinary_url = download_heygen_video(video_id)
-            
-            if cloudinary_url:
-                # Successfully downloaded and uploaded to Cloudinary
-                heygen_video_urls[key] = cloudinary_url
-                logger.info(f"Using Cloudinary URL for HeyGen video {key}: {cloudinary_url}")
-            else:
-                # Failed to download/upload, use a publicly accessible placeholder
-                heygen_video_urls[key] = "https://res.cloudinary.com/dodod8s0v/video/upload/v1751353401/the_last_of_us_zljllt.mp4"
-                logger.warning(f"Failed to download HeyGen video {video_id}, using placeholder instead")
-        else:
-            # Use a publicly accessible placeholder video
-            heygen_video_urls[key] = PUBLIC_VIDEO_PLACEHOLDER
-            logger.info(f"Using public placeholder video for {key}")
-            
-        # Cache the HeyGen video URLs for future use
-        # This avoids re-downloading the same video multiple times
-        # TODO: Implement caching mechanism if needed
-    
-    
-    # Use the specific Cloudinary URLs for movie covers provided by the user
-    movie_covers = [
-        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
-        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
-        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
-    ]
-    
-    # Function to validate and fix image URLs for Creatomate
-    def validate_image_url(url):
-        # If URL contains 'streamgank.com/images', replace with a direct image URL
-        # as these URLs appear to be web pages, not direct image files
-        if url and ('streamgank.com/images' in url or 'placeholder.com' in url):
-            logger.info(f"Replacing non-direct image URL: {url}")
-            return "https://placehold.co/600x400/png"  # Use a guaranteed direct image URL
-        return url
-        
-    # Handle different movie_data structures to get thumbnail URLs
-    if isinstance(movie_data, list):
-        # Handle list of dictionaries
-        for i in range(min(len(movie_data), 3)):
-            if isinstance(movie_data[i], dict):
-                url = movie_data[i].get("thumbnail_url", movie_covers[i])
-                movie_covers[i] = validate_image_url(url)
-    elif isinstance(movie_data, dict):
-        # Handle dictionary with keys
-        url1 = movie_data.get("thumbnail_url_1", movie_data.get("thumbnail_url", movie_covers[0]))
-        url2 = movie_data.get("thumbnail_url_2", movie_covers[1])
-        url3 = movie_data.get("thumbnail_url_3", movie_covers[2])
-        movie_covers[0] = validate_image_url(url1)
-        movie_covers[1] = validate_image_url(url2)
-        movie_covers[2] = validate_image_url(url3)
-    
-    # Construct modifications for Creatomate template
-    # Use thumbnail_url for movie covers and clip_url for movie clips
-    # Use the specific Cloudinary URLs for movie clips provided by the user
-    clip_url1 = "https://res.cloudinary.com/dodod8s0v/video/upload/v1751353401/the_last_of_us_zljllt.mp4"
-    clip_url2 = "https://res.cloudinary.com/dodod8s0v/video/upload/v1751355284/Stranger_Things_uyxt3a.mp4"
-    clip_url3 = "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356566/The_Haunting_of_Hill_House_jhztq4.mp4"
-    
-    # Log the URLs being used
-    logger.info(f"Using movie clip URLs: {clip_url1}, {clip_url2}, {clip_url3}")
-    
-    # Skip loading from movie_data since we're using the provided Cloudinary URLs
-        
-    # Use the Cloudinary URLs directly in the modifications
-    cloudinary_movie_covers = [
-        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
-        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
-        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
-    ]
-    
-    # Log the cover images being used
-    logger.info(f"Using movie cover images: {cloudinary_movie_covers}")
-    
-    # Debug info - log Creatomate element details to help diagnose the issue
-    logger.info("Debug: Creatomate template elements")
-    
-    # Verify movie clips are valid and accessible
-    for i, url in enumerate([clip_url1, clip_url2, clip_url3]):
-        logger.info(f"Verifying movie clip {i+1}: {url}")
-        try:
-            response = requests.head(url, timeout=5)
-            if response.status_code == 200:
-                logger.info(f"Movie clip {i+1} is accessible")
-            else:
-                logger.warning(f"Movie clip {i+1} might not be accessible: HTTP {response.status_code}")
-        except Exception as e:
-            logger.warning(f"Could not verify movie clip {i+1}: {str(e)}")
-    
-    # Verify cover images are valid and accessible
-    for i, url in enumerate(cloudinary_movie_covers):
-        logger.info(f"Verifying cover image {i+1}: {url}")
-        try:
-            response = requests.head(url, timeout=5)
-            if response.status_code == 200:
-                logger.info(f"Cover image {i+1} is accessible")
-            else:
-                logger.warning(f"Cover image {i+1} might not be accessible: HTTP {response.status_code}")
-        except Exception as e:
-            logger.warning(f"Could not verify cover image {i+1}: {str(e)}")
-            
-    # Log the template structure we're using
-    logger.info("Template elements:")
-    logger.info(f"  - heygenIntro+movie1: video element for intro+movie1 HeyGen")
-    logger.info(f"  - movie1_cover: image element for movie1 cover")
-    logger.info(f"  - movie1_clip: video element for movie1 clip")
-    logger.info(f"  - heygenMovie2: video element for movie2 HeyGen")
-    logger.info(f"  - movie2_cover: image element for movie2 cover")
-    logger.info(f"  - movie2_clip: video element for movie2 clip")
-    logger.info(f"  - heygenMovie3: video element for movie3 HeyGen")
-    logger.info(f"  - movie3_cover: image element for movie3 cover")
-    logger.info(f"  - movie3_clip: video element for movie3 clip")
-    
-    # Re module is now imported at the top of the file
-    
-    # Set fixed clip duration and zero gap between sections
-    clip_duration = 8     # Duration for movie clips
-    section_gap = 0.01    # Almost zero gap for continuous playback
-    
-    # Define a default video URL for fallbacks
-    DEFAULT_VIDEO_URL = "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
-    
-    # Define the HeyGen video URLs based on the cloudinary_urls parameter or use defaults
-    heygen_videos = {}
-    
-    if cloudinary_urls and isinstance(cloudinary_urls, dict):
-        logger.info(f"Using provided Cloudinary URLs for HeyGen videos: {cloudinary_urls}")
-        heygen_videos = {
-            "intro_movie1": cloudinary_urls.get("intro_movie1", DEFAULT_VIDEO_URL),
-            "movie2": cloudinary_urls.get("movie2", DEFAULT_VIDEO_URL),
-            "movie3": cloudinary_urls.get("movie3", DEFAULT_VIDEO_URL)
-        }
-    else:
-        logger.info("No Cloudinary URLs provided, using default HeyGen video URLs")
-        heygen_videos = {
-            "intro_movie1": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752582467/intro_movie1_kegi9p.mp4",
-            "movie2": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752582475/movie2_knfyfm.mp4",
-            "movie3": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752582467/movie3_m5h4ta.mp4"
-        }
-    
-    # Log the heygen video URLs for debugging
-    logger.info(f"Using HeyGen video URLs:")
-    for key, url in heygen_videos.items():
-        logger.info(f"  - {key}: {url}")
-    
-    # Calculate precise timing to avoid gaps and ensure continuous content
-    
-    # Section 1 timing
-    section1_start = 0
-    
-    # Get HeyGen video IDs from input or use placeholders
-    if heygen_video_ids and len(heygen_video_ids) > 0:
-        logger.info(f"Using provided HeyGen video IDs: {heygen_video_ids}")
-    else:
-        # Use default HeyGen video IDs if none provided
-        heygen_video_ids = {
-            "intro_movie1": "placeholder_intro_movie1",
-            "movie2": "placeholder_movie2",
-            "movie3": "placeholder_movie3"
-        }
-        logger.info(f"No HeyGen video IDs provided, using placeholders: {heygen_video_ids}")
-    
-    # Ensure movie_data is defined
-    if not movie_data:
-        movie_data = []
-        
-    # Log what data we have
-    logger.info(f"Creating Creatomate video with: {len(movie_data)} movies")
-        
-    # Make a real API call to Creatomate to process the RAW files
-    logger.info("Making Creatomate API call...")
-    api_key = os.getenv("CREATOMATE_API_KEY")
-    
-    if not api_key:
-        logger.error("CREATOMATE_API_KEY is not set in environment variables")
-        return f"error_creatomate_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    
-    # Create a sequential timeline with all source elements
-    source = {
-        "width": 720,
-        "height": 1280,
-        "elements": [
-            # HeyGen intro video + movie1
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": heygen_videos.get("intro_movie1", "https://res.cloudinary.com/dodod8s0v/video/upload/v1752652709/heygen_videos/heygen_intro_movie1.mp4")
-            },
-            # Movie 1 cover
-            {
-                "fit": "cover",
-                "type": "image",
-                "track": 1,
-                "source": cloudinary_movie_covers[0],
-                "duration": 3
-            },
-            # Movie 1 clip
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": clip_url1,
-                "trim_end": 8,
-                "trim_start": 0
-            },
-            # HeyGen movie2 video
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": heygen_videos.get("movie2", "https://res.cloudinary.com/dodod8s0v/video/upload/v1752652716/heygen_videos/heygen_movie2.mp4")
-            },
-            # Movie 2 cover
-            {
-                "fit": "cover",
-                "type": "image",
-                "track": 1,
-                "source": cloudinary_movie_covers[1],
-                "duration": 3
-            },
-            # Movie 2 clip
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": clip_url2,
-                "trim_end": 8,
-                "trim_start": 0
-            },
-            # HeyGen movie3 video
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": heygen_videos.get("movie3", "https://res.cloudinary.com/dodod8s0v/video/upload/v1752652720/heygen_videos/heygen_movie3.mp4")
-            },
-            # Movie 3 cover
-            {
-                "fit": "cover",
-                "type": "image",
-                "track": 1,
-                "source": cloudinary_movie_covers[2],
-                "duration": 3
-            },
-            # Movie 3 clip
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": clip_url3,
-                "trim_end": 8,
-                "trim_start": 0
-            }
-        ],
-        "frame_rate": 30,
-        "output_format": "mp4",
-        "timeline_type": "sequential"
-    }
-    
-    # Prepare the payload for the Creatomate API
-    payload = {
-        "source": source,
-        "output_format": "mp4",
-        "render_scale": 1
-    }
-    
-    try:
-        # Make the API request to Creatomate
-        response = requests.post(
-            "https://api.creatomate.com/v1/renders",
-            json=payload,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-        )
-        
-        if response.status_code == 200 or response.status_code == 201:
-            result = response.json()
-            logger.info(f"Creatomate API response: {result}")
-            
-            if isinstance(result, list) and len(result) > 0:
-                creatomate_id = result[0].get("id", "")
-            elif isinstance(result, dict):
-                creatomate_id = result.get("id", "")
-            else:
-                creatomate_id = f"unknown_format_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                
-            logger.info(f"Generated Creatomate video ID: {creatomate_id}")
-        else:
-            logger.error(f"Creatomate API error: {response.status_code} - {response.text}")
-            creatomate_id = f"error_{response.status_code}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    except Exception as e:
-        logger.error(f"Exception when calling Creatomate API: {str(e)}")
-        creatomate_id = f"exception_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    logger.info(f"Generated Creatomate video ID: {creatomate_id}")
-    # No need to write output or store in DB from inside the function
-    # This will be handled by the calling function
-    
-    # For debugging purposes only
-    if False:  # This block is disabled - for reference only
-        # Code below was dependent on args which is not accessible here
-        # Proper implementation should handle DB storage at the caller level
-        pass
-        
-    # Return the created Creatomate video ID
-    return creatomate_id
-    
-    group_id = store_in_database(movie_data, cloudinary_urls, video_id, script_path)
-    results['group_id'] = group_id
-    if args.output:
-        with open(args.output, 'w') as f:
-            json.dump({'group_id': group_id}, f, indent=2)
-
-# Test code for Supabase integration
 def store_in_database(movie_data, cloudinary_urls, video_id, script_path):
     """
     Store all generated information in the database
@@ -2136,8 +1907,8 @@ def store_in_database(movie_data, cloudinary_urls, video_id, script_path):
             # Store locally as JSON if Supabase is not available
             logger.warning("Supabase connection not available, storing data locally...")
             output_path = os.path.join("videos", f"{group_id}.json")
-            with open(output_path, "w") as f:
-                json.dump(data, f, indent=2)
+            with open(output_path, "w", encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
             logger.info(f"Data stored locally at: {output_path}")
         
         return group_id
@@ -2146,130 +1917,23 @@ def store_in_database(movie_data, cloudinary_urls, video_id, script_path):
         # Store locally as backup
         try:
             backup_path = os.path.join("videos", f"backup_{timestamp}.json")
-            with open(backup_path, "w") as f:
+            with open(backup_path, "w", encoding='utf-8') as f:
                 json.dump({
                     "movies": movie_data,
                     "cloudinary_urls": cloudinary_urls,
                     "video_id": video_id,
                     "script_path": script_path,
                     "error": str(e)
-                }, f, indent=2)
+                }, f, indent=2, ensure_ascii=False)
             logger.info(f"Backup data stored at: {backup_path}")
         except Exception as backup_error:
             logger.error(f"Error creating backup: {str(backup_error)}")
         
         return f"error_{timestamp}"
 
-def process_heygen_videos_with_creatomate(heygen_video_ids=None, movie_data=None, cloudinary_urls=None, input_file=None, output_file=None, use_direct_urls=False):
-    """
-    Process HeyGen videos with Creatomate once they are complete
-    
-    Args:
-        heygen_video_ids: Dictionary of HeyGen video IDs or None to load from input file
-        movie_data: Movie data or None to load from input file
-        cloudinary_urls: Dictionary of Cloudinary URLs or None to load from input file
-        input_file: JSON file to load data from if not provided directly
-        output_file: File to write results to
-    
-    Returns:
-        Dictionary with processing results
-    """
-    # Import the integration module
-    try:
-        from heygen_creatomate_integration import process_heygen_to_creatomate
-    except ImportError:
-        logger.error("Failed to import heygen_creatomate_integration module. Make sure it's in the same directory.")
-        return {"status": "error", "message": "Failed to import integration module"}
-    
-    # Load data from input file if provided
-    if input_file and (not heygen_video_ids or not movie_data):
-        try:
-            with open(input_file, 'r') as f:
-                data = json.load(f)
-                
-            # Extract required data
-            if not heygen_video_ids and 'video_ids' in data:
-                heygen_video_ids = data['video_ids']
-                
-            if not movie_data and 'enriched_movies' in data:
-                movie_data = data['enriched_movies']
-            elif not movie_data and 'movies' in data:
-                movie_data = data['movies']
-                
-            if not cloudinary_urls and 'cloudinary_urls' in data:
-                cloudinary_urls = data['cloudinary_urls']
-                
-        except Exception as e:
-            logger.error(f"Error loading data from input file: {str(e)}")
-            return {"status": "error", "message": f"Error loading data from input file: {str(e)}"}
-    
-    # Validate required data
-    if not heygen_video_ids:
-        logger.error("No HeyGen video IDs provided")
-        return {"status": "error", "message": "No HeyGen video IDs provided"}
-        
-    if not movie_data:
-        logger.info("No movie data provided. Using test movie data with real Cloudinary resources.")
-        
-        # Generate test movie data with real Cloudinary resources
-        movie_data = []
-        
-        # Pre-defined movie clip and cover URLs provided by user
-        movie_clips = [
-            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356088/10.Alice_in_Borderland_xfaqwy.mp4",
-            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356096/11.Midnight_Mass_glfgsp.mp4",
-            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356107/12.sandman_u3xw90.mp4"
-        ]
-        
-        movie_covers = [
-            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751367562/10_AliceinBorderland_img_ddxuvc.png",
-            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751367692/11_Sermonsdeminuit_img_pfefx0.png",
-            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751367692/12_Sandman_img_txh4ly.png"
-        ]
-        
-        # Real movie titles to match the clips
-        movie_titles = ["Alice in Borderland", "Midnight Mass", "The Sandman"]
-        
-        # Create test movie data entries
-        for i in range(min(len(movie_clips), 3)):
-            test_movie = {
-                "id": f"test-movie-{i+1}",
-                "title": movie_titles[i],
-                "year": 2025,
-                "platform": "Netflix",
-                "imdb": 8.5 - (i * 0.2),  # Decreasing ratings
-                "genre": ["Thriller", "Horror", "Fantasy"][i],
-                "description": f"This is a test movie description for {movie_titles[i]}. The content is for testing purposes only.",
-                "short_desc": f"A captivating {['Thriller', 'Horror', 'Fantasy'][i]} series that will keep you on the edge of your seat.",
-                "audience_appeal": "Appeals to fans of high-concept genre entertainment with thought-provoking themes.",
-                "critical_acclaim": "Critically acclaimed for its unique vision and storytelling approach.",
-                "thumbnail_url": movie_covers[i],  # Real movie cover
-                "poster_url": movie_covers[i],  # Same image used for poster
-                "clip_url": movie_clips[i]  # Real movie clip
-            }
-            movie_data.append(test_movie)
-            
-        logger.info(f"Generated {len(movie_data)} test movie entries")
-    
-    # Process the videos
-    logger.info(f"Processing HeyGen videos with Creatomate: {heygen_video_ids}")
-    result = process_heygen_to_creatomate(
-        heygen_video_ids=heygen_video_ids,
-        movie_data=movie_data,
-        cloudinary_urls=cloudinary_urls,
-        use_direct_urls=use_direct_urls
-    )
-    
-    # Write results to output file if requested
-    if output_file:
-        try:
-            with open(output_file, 'w') as f:
-                json.dump(result, f, indent=2)
-            logger.info(f"Results written to {output_file}")
-        except Exception as e:
-            logger.error(f"Error writing results to output file: {str(e)}")
-    
-    return result
+# NOTE: process_heygen_videos_with_creatomate() function removed - no longer needed
+# This function has been replaced by the more efficient process_existing_heygen_videos()
+
 
 def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None):
     """
@@ -2301,22 +1965,12 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         results['cloudinary_urls'] = {f"screenshot_{i}": url for i, url in enumerate(cloudinary_urls)}
         logger.info(f"Uploaded {len(cloudinary_urls)} screenshots to Cloudinary")
         
-        # Step 3: Extract movie data from Supabase with STRICT filtering
-        logger.info("Step 3: Extracting movie data with STRICT StreamGank filters")
-        logger.info(f"ENFORCING: country={country}, genre={genre}, platform={platform}, content_type={content_type}")
-        
-        # STRICT FILTERING - No fallbacks allowed
+        # Step 3: Extract movie data from database
+        logger.info(f"Step 3: Extracting {num_movies} movies ({country}, {genre}, {platform}, {content_type})")
         movies = test_and_extract_movie_data(num_movies, country, genre, platform, content_type)
         
-        # Validate that we found valid movies matching ALL criteria
         if not movies or len(movies) == 0:
-            logger.error("STRICT FILTERING FAILED: No movies found matching StreamGank criteria")
-            logger.error("This means the database doesn't contain movies matching:")
-            logger.error(f"  - Country: {country}")
-            logger.error(f"  - Genre: {genre}")
-            logger.error(f"  - Platform: {platform}")
-            logger.error(f"  - Content Type: {content_type}")
-            logger.error("Please check your Supabase database content or update the filter criteria.")
+            logger.error(f"No movies found matching criteria: {country}/{genre}/{platform}/{content_type}")
             return None
         
         # Ensure we have exactly num_movies movies
@@ -2333,8 +1987,8 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         results['enriched_movies'] = enriched_movies
         
         # Save enriched data for debugging or future use
-        with open("videos/enriched_data.json", "w") as f:
-            json.dump(enriched_movies, f, indent=2)
+        with open("videos/enriched_data.json", "w", encoding='utf-8') as f:
+            json.dump(enriched_movies, f, indent=2, ensure_ascii=False)
         logger.info(f"Extracted and enriched {len(enriched_movies)} movies")
         
         # Step 4: Generate script for the avatar
@@ -2350,35 +2004,33 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         heygen_video_ids = create_heygen_video(scripts)
         results['video_ids'] = heygen_video_ids
         
-        # Wait for HeyGen videos to complete and download them
-        logger.info("Waiting for HeyGen videos to complete...")
-        cloudinary_video_urls = {}
+        # Get HeyGen video URLs using intelligent waiting with script complexity analysis
+        logger.info("Getting HeyGen video URLs for Creatomate integration...")
+        heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, scripts)
+        results['heygen_video_urls'] = heygen_video_urls
+        logger.info(f"Successfully obtained {len(heygen_video_urls)} HeyGen video URLs for Creatomate")
         
-        for key, video_id in heygen_video_ids.items():
-            # Skip placeholder IDs
-            if not video_id or video_id.startswith('placeholder'):
-                continue
-                
-            # Wait for video processing
-            if wait_for_heygen_video(video_id):
-                # Download and upload to Cloudinary
-                cloudinary_url = download_heygen_video(video_id)
-                if cloudinary_url:
-                    cloudinary_video_urls[key] = cloudinary_url
+        # Step 6: Create final video with Creatomate
+        logger.info("Step 6: Creating final video with Creatomate...")
+        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, enriched_movies)
+        results['creatomate_id'] = creatomate_id
         
-        results['heygen_cloudinary_urls'] = cloudinary_video_urls
-        logger.info(f"Created and processed {len(cloudinary_video_urls)} HeyGen videos")
+        if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
+            logger.error(f"Creatomate creation failed: {creatomate_id}")
+        else:
+            logger.info(f"✅ Creatomate video submitted: {creatomate_id}")
+            results['creatomate_status'] = 'submitted'
+            results['status_check_command'] = f"python automated_video_generator.py --check-creatomate {creatomate_id}"
         
-        # Step 6: Prepare for Creatomate output (skipping database storage)
-        logger.info("Step 6: Preparing for Creatomate output")
+        # Step 7: Finalize results
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        results['group_id'] = f"creatomate_{timestamp}"
-        logger.info(f"Processing complete with group ID: {results['group_id']}")
+        results['group_id'] = f"workflow_{timestamp}"
+        logger.info(f"✅ Complete workflow finished with group ID: {results['group_id']}")
         
         # Save results to output file if specified
         if output:
-            with open(output, "w") as f:
-                json.dump(results, f, indent=2)
+            with open(output, "w", encoding='utf-8') as f:
+                json.dump(results, f, indent=2, ensure_ascii=False)
             logger.info(f"Results saved to {output}")
         
         logger.info("Full workflow completed successfully!")
@@ -2391,10 +2043,10 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         # Save partial results if we have an output path
         if output:
             try:
-                with open(output, "w") as f:
+                with open(output, "w", encoding='utf-8') as f:
                     results['error'] = str(e)
                     results['traceback'] = traceback.format_exc()
-                    json.dump(results, f, indent=2)
+                    json.dump(results, f, indent=2, ensure_ascii=False)
                 logger.info(f"Partial results saved to {output}")
             except Exception as save_error:
                 logger.error(f"Error saving partial results: {str(save_error)}")
@@ -2414,6 +2066,9 @@ if __name__ == "__main__":
         
         # High-level workflow options
         parser.add_argument("--all", action="store_true", help="Run the complete end-to-end workflow (default if no args provided)")
+        parser.add_argument("--process-heygen", help="Process existing HeyGen video IDs from JSON file (use with HeyGen video IDs)")
+        parser.add_argument("--check-creatomate", help="Check the status of a Creatomate render by ID")
+        parser.add_argument("--wait-creatomate", help="Wait for a Creatomate render to complete by ID")
         
         # Core parameters for customization
         parser.add_argument("--num-movies", type=int, default=3, help="Number of movies to extract (default: 3)")
@@ -2422,61 +2077,186 @@ if __name__ == "__main__":
         parser.add_argument("--platform", default="Netflix", help="Platform to filter by (default: Netflix)")
         parser.add_argument("--content-type", default="Série", help="Content type (Film/Série) to filter by (default: Série)")
         
+        # HeyGen video processing
+        parser.add_argument("--heygen-ids", help="JSON string or file path with HeyGen video IDs")
+        
         # Debug and output options
         parser.add_argument("--output", help="Output file path to save results to")
         parser.add_argument("--debug", action="store_true", help="Enable debug output")
         
         args = parser.parse_args()
         
-        # Set default to --all if no specific arguments provided
-        if not any([args.country != "FR", args.genre != "Horreur", args.platform != "netflix", 
-                    args.content_type != "Film", args.num_movies != 3, args.debug, args.output]):
-            args.all = True
+        # Handle different execution modes
+        if args.check_creatomate:
+            # Check Creatomate render status
+            print(f"\n🎬 StreamGank Video Generator - Creatomate Status Check")
+            print(f"Checking status for render ID: {args.check_creatomate}")
             
-        # Print execution parameters
-        print(f"\n🎬 StreamGank Video Generator")
-        print(f"Running with: {args.num_movies} movies, Country: {args.country}, Genre: {args.genre}, ")
-        print(f"Platform: {args.platform}, Content Type: {args.content_type}")
-        print("Starting end-to-end workflow...\n")
-        
-        # Call the streamlined workflow function
-        try:
-            results = run_full_workflow(
-                num_movies=args.num_movies,
-                country=args.country,
-                genre=args.genre,
-                platform=args.platform,
-                content_type=args.content_type,
-                output=args.output
-            )
-            print("\n✅ Workflow completed successfully!")
-            
-            # Print summary of results
-            if results:
-                print("\n📊 Results Summary:")
-                if 'enriched_movies' in results:
-                    movies = results['enriched_movies']
-                    print(f"📽️  Movies processed: {len(movies)}")
-                    for i, movie in enumerate(movies, 1):
-                        print(f"  {i}. {movie['title']} ({movie['year']}) - IMDB: {movie['imdb']}")
-                        
-                if 'video_ids' in results:
-                    print(f"🎥 HeyGen videos created: {len(results['video_ids'])}")
-                    
-                if 'creatomate_id' in results:
-                    print(f"🎞️  Final video created with Creatomate ID: {results['creatomate_id']}")
-                    
-                if 'group_id' in results:
-                    print(f"💾 All data stored with group ID: {results['group_id']}")
-                    
-            if args.output:
-                print(f"\n Full results saved to: {args.output}")
+            try:
+                status_info = check_creatomate_render_status(args.check_creatomate)
+                status = status_info.get("status", "unknown")
                 
-        except Exception as e:
-            print(f"\n Error during execution: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            sys.exit(1)
+                print(f"\n📊 Render Status: {status}")
+                if status_info.get("url"):
+                    print(f"📹 Video URL: {status_info['url']}")
+                    
+                if status == "completed":
+                    print("✅ Video is ready for download!")
+                elif status == "planned":
+                    print("⏳ Video is queued for rendering")
+                elif status == "processing":
+                    print("🔄 Video is currently being rendered")
+                elif status in ["failed", "error"]:
+                    print("❌ Video rendering failed")
+                    
+                if args.output:
+                    with open(args.output, 'w', encoding='utf-8') as f:
+                        json.dump(status_info, f, indent=2, ensure_ascii=False)
+                    print(f"📁 Status saved to: {args.output}")
+                    
+            except Exception as e:
+                print(f"❌ Error checking status: {str(e)}")
+                sys.exit(1)
+                
+        elif args.wait_creatomate:
+            # Wait for Creatomate render completion
+            print(f"\n🎬 StreamGank Video Generator - Wait for Creatomate")
+            print(f"Waiting for render ID: {args.wait_creatomate}")
+            
+            try:
+                final_status = wait_for_creatomate_completion(args.wait_creatomate)
+                status = final_status.get("status", "unknown")
+                
+                if status == "completed":
+                    print(f"✅ Video completed successfully!")
+                    print(f"📹 Download URL: {final_status.get('url', 'No URL')}")
+                else:
+                    print(f"❌ Video rendering ended with status: {status}")
+                    
+                if args.output:
+                    with open(args.output, 'w', encoding='utf-8') as f:
+                        json.dump(final_status, f, indent=2, ensure_ascii=False)
+                    print(f"📁 Final status saved to: {args.output}")
+                    
+            except Exception as e:
+                print(f"❌ Error waiting for completion: {str(e)}")
+                sys.exit(1)
+                
+        elif args.process_heygen or args.heygen_ids:
+            # Process existing HeyGen video IDs
+            print(f"\n🎬 StreamGank Video Generator - HeyGen Processing Mode")
+            
+            heygen_video_ids = {}
+            
+            # Get HeyGen video IDs from command line or file
+            if args.heygen_ids:
+                try:
+                    # Try to load from file first
+                    if os.path.exists(args.heygen_ids):
+                        with open(args.heygen_ids, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            if isinstance(data, dict):
+                                heygen_video_ids = data.get('video_ids', data)
+                            else:
+                                logger.error("Invalid JSON format in HeyGen IDs file")
+                                sys.exit(1)
+                    else:
+                        # Try to parse as JSON string
+                        heygen_video_ids = json.loads(args.heygen_ids)
+                except Exception as e:
+                    logger.error(f"Error loading HeyGen video IDs: {str(e)}")
+                    sys.exit(1)
+                    
+            elif args.process_heygen:
+                try:
+                    with open(args.process_heygen, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        heygen_video_ids = data.get('video_ids', data)
+                except Exception as e:
+                    logger.error(f"Error loading HeyGen video IDs from {args.process_heygen}: {str(e)}")
+                    sys.exit(1)
+            
+            if not heygen_video_ids:
+                logger.error("No HeyGen video IDs provided")
+                sys.exit(1)
+            
+            print(f"Processing HeyGen video IDs: {list(heygen_video_ids.keys())}")
+            
+            try:
+                results = process_existing_heygen_videos(heygen_video_ids, args.output)
+                print("\n✅ HeyGen processing completed!")
+                
+                # Print summary
+                if results.get('status') == 'success':
+                    print(f"🎬 Successfully submitted Creatomate video: {results.get('creatomate_id')}")
+                    print(f"📹 Status: {results.get('creatomate_status', 'submitted')}")
+                    if results.get('status_check_command'):
+                        print(f"💡 Check status: {results['status_check_command']}")
+                else:
+                    print(f"❌ Processing failed: {results.get('error')}")
+                    
+                if args.output:
+                    print(f"📁 Results saved to: {args.output}")
+                    
+            except Exception as e:
+                print(f"❌ Error during HeyGen processing: {str(e)}")
+                sys.exit(1)
+                
+        else:
+            # Run full workflow (default behavior)
+            
+            # Set default to --all if no specific arguments provided
+            if not any([args.country != "FR", args.genre != "Horreur", args.platform != "netflix", 
+                        args.content_type != "Film", args.num_movies != 3, args.debug, args.output]):
+                args.all = True
+                
+            # Print execution parameters
+            print(f"\n🎬 StreamGank Video Generator - Full Workflow Mode")
+            print(f"Running with: {args.num_movies} movies, Country: {args.country}, Genre: {args.genre}, ")
+            print(f"Platform: {args.platform}, Content Type: {args.content_type}")
+            print("Starting end-to-end workflow...\n")
+            
+            # Call the streamlined workflow function
+            try:
+                results = run_full_workflow(
+                    num_movies=args.num_movies,
+                    country=args.country,
+                    genre=args.genre,
+                    platform=args.platform,
+                    content_type=args.content_type,
+                    output=args.output
+                )
+                print("\n✅ Workflow completed successfully!")
+                
+                # Print summary of results
+                if results:
+                    print("\n📊 Results Summary:")
+                    if 'enriched_movies' in results:
+                        movies = results['enriched_movies']
+                        print(f"📽️  Movies processed: {len(movies)}")
+                        for i, movie in enumerate(movies, 1):
+                            print(f"  {i}. {movie['title']} ({movie['year']}) - IMDB: {movie['imdb']}")
+                            
+                    if 'video_ids' in results:
+                        print(f"🎥 HeyGen videos created: {len(results['video_ids'])}")
+                        
+                    if 'creatomate_id' in results:
+                        print(f"🎞️  Final video submitted to Creatomate ID: {results['creatomate_id']}")
+                        print(f"📹 Status: {results.get('creatomate_status', 'submitted')}")
+                        if results.get('status_check_command'):
+                            print(f"💡 Check status: {results['status_check_command']}")
+                        
+                    if 'group_id' in results:
+                        print(f"💾 All data stored with group ID: {results['group_id']}")
+                        
+                if args.output:
+                    print(f"\n📁 Full results saved to: {args.output}")
+                    
+            except Exception as e:
+                print(f"\n❌ Error during execution: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                sys.exit(1)
             
     except Exception as e:
         print(f"ERROR: Unhandled exception: {str(e)}")
