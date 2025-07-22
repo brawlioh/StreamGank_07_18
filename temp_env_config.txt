@@ -1,0 +1,18 @@
+# Cloudinary - These have defaults in the script but can be overridden
+CLOUDINARY_CLOUD_NAME=dodod8s0v
+CLOUDINARY_API_KEY=589374432754798
+CLOUDINARY_API_SECRET=iwOZJxSJ9SIE47BwVBsvQdYAfsg
+
+# Supabase - Required for database operations
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_KEY=your_supabase_key_here
+
+# OpenAI - Required for script generation and data enrichment
+OPENAI_API_KEY=your_openai_api_key_here
+
+# HeyGen - Required for avatar video generation
+HEYGEN_API_KEY=your_heygen_api_key_here
+
+# Creatomate - Has placeholder defaults but real keys recommended
+CREATOMATE_API_KEY=your_creatomate_api_key_here
+CREATOMATE_TEMPLATE_ID=e11ad4cc-3fcb-4589-824b-b6ef018da1ba
