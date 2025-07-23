@@ -1,0 +1,3 @@
+Portrait Video URL: https://res.cloudinary.com/dodod8s0v/video/upload/v1753279660/movie_clips/movie_clips/portrait_test_9999_10s.mp4
+Expected: 1080x1920 portrait format
+Test: Landscape YouTube trailer converted to portrait

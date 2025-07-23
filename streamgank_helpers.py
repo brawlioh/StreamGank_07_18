@@ -99,15 +99,19 @@ def download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers"
 
 def extract_10_second_highlight(video_path: str, start_time: int = 30, output_dir: str = "temp_clips") -> Optional[str]:
     """
-    Extract a 10-second highlight clip from a video using FFmpeg
+    Extract a 10-second highlight clip from a video and convert to PORTRAIT format (9:16)
+    
+    This function converts landscape YouTube trailers to portrait format by:
+    1. Scaling the video to ensure it covers the full 1080x1920 area
+    2. Cropping the center portion to create true portrait video
     
     Args:
-        video_path (str): Path to the source video file
+        video_path (str): Path to the source video file (typically landscape YouTube trailer)
         start_time (int): Start time in seconds (default: 30s to skip intros)
-        output_dir (str): Directory to save the highlight clip
+        output_dir (str): Directory to save the portrait highlight clip
         
     Returns:
-        str: Path to the extracted highlight clip or None if failed
+        str: Path to the extracted PORTRAIT highlight clip or None if failed
     """
     try:
         # Create output directory
@@ -121,7 +125,7 @@ def extract_10_second_highlight(video_path: str, start_time: int = 30, output_di
         logger.info(f"   Start time: {start_time}s")
         logger.info(f"   Output: {output_path}")
         
-        # Use FFmpeg to extract 10-second clip with high quality settings
+        # Use FFmpeg to extract 10-second clip with TRUE portrait conversion (crop landscape to portrait)
         ffmpeg_cmd = [
             'ffmpeg',
             '-i', video_path,           # Input file
@@ -129,10 +133,16 @@ def extract_10_second_highlight(video_path: str, start_time: int = 30, output_di
             '-t', '10',                 # Duration (10 seconds)
             '-c:v', 'libx264',         # Video codec
             '-c:a', 'aac',             # Audio codec
-            '-crf', '18',              # High quality (lower = better quality, 18 is near-lossless)
+            '-crf', '16',              # Very high quality (16 = near-lossless for YouTube Shorts)
             '-preset', 'slow',         # Better compression efficiency
+            '-profile:v', 'high',      # H.264 high profile for better quality
+            '-level:v', '4.0',         # H.264 level 4.0 for high resolution
             '-movflags', '+faststart', # Optimize for web streaming
             '-pix_fmt', 'yuv420p',     # Ensure compatibility
+            '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920', # Smart scale and center crop to portrait
+            '-r', '30',                # 30 FPS for smooth playback
+            '-maxrate', '3000k',       # Max bitrate for high quality
+            '-bufsize', '6000k',       # Buffer size
             '-y',                       # Overwrite output file
             output_path
         ]
@@ -159,7 +169,7 @@ def extract_10_second_highlight(video_path: str, start_time: int = 30, output_di
         logger.error(f"❌ Error extracting highlight from {video_path}: {str(e)}")
         return None
 
-def upload_clip_to_cloudinary(clip_path: str, movie_title: str, movie_id: str = None, transform_mode: str = "fit") -> Optional[str]:
+def upload_clip_to_cloudinary(clip_path: str, movie_title: str, movie_id: str = None, transform_mode: str = "youtube_shorts") -> Optional[str]:
     """
     Upload a video clip to Cloudinary with optimized settings
     
@@ -185,29 +195,49 @@ def upload_clip_to_cloudinary(clip_path: str, movie_title: str, movie_id: str = 
         logger.info(f"   Public ID: {public_id}")
         logger.info(f"   Transform mode: {transform_mode}")
         
-        # Different transformation options for better quality
+        # YouTube Shorts optimized transformation modes (9:16 portrait - 1080x1920)
         transform_modes = {
             "fit": [
-                {"width": 720, "height": 1280, "crop": "fit", "background": "black"},  # Fit with black bars, no cropping
-                {"quality": "auto:best"}
+                {"width": 1080, "height": 1920, "crop": "fit", "background": "black"},  # YouTube Shorts standard resolution
+                {"quality": "auto:best"},
+                {"format": "mp4"},
+                {"video_codec": "h264"},
+                {"bit_rate": "2000k"}  # High bitrate for crisp quality
+            ],
+            "smart_fit": [
+                {"width": 1080, "height": 1920, "crop": "fill", "gravity": "center"},  # Smart crop with center focus
+                {"quality": "auto:best"},
+                {"format": "mp4"},
+                {"video_codec": "h264"},
+                {"bit_rate": "2500k"},  # Even higher bitrate
+                {"flags": "progressive"}  # Progressive scan for smooth playbook
             ],
             "pad": [
-                {"width": 720, "height": 1280, "crop": "pad", "background": "auto"},   # Smart padding with auto background
-                {"quality": "auto:best"}
+                {"width": 1080, "height": 1920, "crop": "pad", "background": "auto"},   # Smart padding with auto background
+                {"quality": "auto:best"},
+                {"format": "mp4"},
+                {"bit_rate": "2000k"}
             ],
             "scale": [
-                {"width": 720, "height": 1280, "crop": "scale"},                      # Scale to fit (may distort aspect ratio)
-                {"quality": "auto:best"}
-            ],
-            "auto": [
-                {"width": 720, "height": 1280, "crop": "auto", "gravity": "center"},  # Smart auto crop from center
+                {"width": 1080, "height": 1920, "crop": "scale"},                      # Scale to fit (may distort)
                 {"quality": "auto:best"},
-                {"format": "auto"}  # Auto format optimization
+                {"format": "mp4"},
+                {"bit_rate": "1800k"}
+            ],
+            "youtube_shorts": [
+                {"width": 1080, "height": 1920, "crop": "fill", "gravity": "center"},  # YouTube Shorts optimized
+                {"quality": "auto:best"},
+                {"format": "mp4"},
+                {"video_codec": "h264"},
+                {"bit_rate": "3000k"},  # Premium bitrate for YouTube Shorts quality
+                {"flags": "progressive"},
+                {"audio_codec": "aac"},
+                {"audio_frequency": 48000}  # High quality audio
             ]
         }
         
         # Get the transformation based on mode
-        transformation = transform_modes.get(transform_mode, transform_modes["fit"])
+        transformation = transform_modes.get(transform_mode, transform_modes["youtube_shorts"])
         
         # Upload to Cloudinary with video optimization (using selected transformation)
         upload_result = cloudinary.uploader.upload(
