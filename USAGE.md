@@ -92,15 +92,46 @@ python automated_video_generator.py --heygen-ids '{"intro_movie1":"video_id_1","
 
 ```
 StreamGank_07_18/
-├── automated_video_generator.py  # Main script
-├── requirements.txt              # Python dependencies
-├── setup.py                     # Automated setup script
-├── USAGE.md                     # This usage guide
-├── .env                         # Environment variables (create this)
-├── screenshots/                 # Generated screenshots
-├── videos/                      # Generated videos and scripts
-└── output/                      # Results and logs
+├── automated_video_generator.py       # Main script with full workflow
+├── automated_video_generator_concise.py  # Simplified version
+├── streamgank_helpers.py              # 🆕 Country-specific mapping helpers
+├── requirements.txt                   # Python dependencies
+├── setup.py                          # Automated setup script
+├── USAGE.md                          # This usage guide
+├── .env                              # Environment variables (create this)
+├── screenshots/                      # Generated screenshots
+├── videos/                           # Generated videos and scripts
+└── output/                           # Results and logs
 ```
+
+### 🆕 StreamGank Helpers Module
+
+The new `streamgank_helpers.py` contains centralized mapping functions:
+
+**Core Functions:**
+
+-   `build_streamgank_url()` - Complete URL builder with localization
+-   `get_genre_mapping_by_country()` - Genre name translations
+-   `get_platform_mapping_by_country()` - Platform name mappings
+-   `get_content_type_mapping_by_country()` - Content type mappings
+
+**Utility Functions:**
+
+-   `get_supported_countries()` - List of supported country codes
+-   `get_available_genres_for_country()` - Available genres per country
+-   `get_all_mappings_for_country()` - All mappings for a country
+
+**Supported Countries:**
+
+-   **🇫🇷 FR**: Full French localization (Horreur, Comédie, etc.)
+-   **🇺🇸 US/GB/UK/CA/AU**: English localization
+
+**Benefits:**
+
+-   ✅ Modular and reusable across projects
+-   ✅ Centralized mapping logic
+-   ✅ Easy to extend for new countries
+-   ✅ Cross-language support (English ↔ French)
 
 ## 🔍 Troubleshooting
 
@@ -110,6 +141,27 @@ StreamGank_07_18/
 2. **Playwright browser errors**: Run `python -m playwright install`
 3. **API key errors**: Check your `.env` file configuration
 4. **Database connection**: Verify SUPABASE_URL and SUPABASE_KEY
+
+### Script Exits with "No Movies Found"
+
+**Behavior**: The script now stops execution immediately if no movies are found matching your criteria.
+
+**Error Messages**:
+
+```
+❌ NO MOVIES FOUND in database matching criteria: country=XX, genre=YY, platform=ZZ, content_type=WW
+🛑 STOPPING SCRIPT EXECUTION - No content available for video generation
+💡 Try different filter criteria (country, genre, platform, or content-type)
+```
+
+**Solutions**:
+
+-   Try different filter combinations (country, genre, platform, content-type)
+-   Use `--debug` flag to see available database content
+-   Check if your Supabase database connection is working
+-   Verify that data exists for your chosen criteria
+
+**Note**: The script no longer uses simulated/fallback data when no real movies are found. This ensures that your videos are based on actual database content only.
 
 ### Debug Mode
 

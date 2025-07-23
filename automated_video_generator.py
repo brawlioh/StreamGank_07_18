@@ -36,6 +36,14 @@ from supabase import create_client
 import openai
 from typing import Dict, List, Tuple, Optional, Any
 
+# Import StreamGank helper functions for country-specific mappings
+from streamgank_helpers import (
+    get_genre_mapping_by_country,
+    get_platform_mapping_by_country,
+    get_content_type_mapping_by_country,
+    build_streamgank_url
+)
+
 # Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -82,11 +90,53 @@ videos_dir.mkdir(exist_ok=True)
 clips_dir.mkdir(exist_ok=True)
 covers_dir.mkdir(exist_ok=True)
 
-def capture_streamgank_screenshots(url="https://streamgank.com/?country=FR&genres=Horreur&platforms=netflix&type=Film"):
+
+def capture_streamgank_screenshots(country=None, genre=None, platform=None, content_type=None):
     """
-    Capture screenshots of StreamGank in mobile format
-    showing horror movie results on Netflix France
+    Capture screenshots of StreamGank in mobile format - fully dynamic based on CLI arguments
+    
+    Args:
+        country (str): Country code for filtering (from CLI args)
+        genre (str): Genre to filter by (from CLI args)  
+        platform (str): Platform to filter by (from CLI args)
+        content_type (str): Content type to filter by (from CLI args)
+        
+    Returns:
+        list: List of screenshot file paths
     """
+    # Comprehensive logging of arguments
+    logger.info(f"📸 CAPTURE_STREAMGANK_SCREENSHOTS FUNCTION CALLED")
+    logger.info(f"📋 CLI Arguments Received:")
+    logger.info(f"   --country: {country}")
+    logger.info(f"   --genre: {genre}")
+    logger.info(f"   --platform: {platform}")
+    logger.info(f"   --content-type: {content_type}")
+    
+    # Build dynamic StreamGank URL using helper function
+    url = build_streamgank_url(country, genre, platform, content_type)
+    
+    # Log the constructed URL with parameter details
+    logger.info(f"🌐 CONSTRUCTED STREAMGANK URL:")
+    logger.info(f"   {url}")
+    
+    # Log individual parameters for transparency
+    if country:
+        logger.info(f"   ✅ URL param added: country={country}")
+    if genre:
+        genre_mapping = get_genre_mapping_by_country(country)
+        streamgank_genre = genre_mapping.get(genre, genre)
+        logger.info(f"   ✅ URL param added: genres={streamgank_genre} (country: {country})")
+    if platform:
+        platform_mapping = get_platform_mapping_by_country(country)
+        streamgank_platform = platform_mapping.get(platform, platform.lower())
+        logger.info(f"   ✅ URL param added: platforms={streamgank_platform} (country: {country})")
+    if content_type:
+        type_mapping = get_content_type_mapping_by_country(country)
+        streamgank_type = type_mapping.get(content_type, content_type)
+        logger.info(f"   ✅ URL param added: type={streamgank_type} (country: {country})")
+    
+    if not any([country, genre, platform, content_type]):
+        logger.warning("⚠️ No CLI arguments provided, using default StreamGank homepage")
     # Create a folder for screenshots if needed
     output_dir = "screenshots"
     os.makedirs(output_dir, exist_ok=True)
@@ -215,26 +265,73 @@ def test_supabase_connection():
         logger.error(f"Error testing Supabase connection: {str(e)}")
         return False
 
-def extract_movie_data(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série"):
+def extract_movie_data(num_movies=3, country=None, genre=None, platform=None, content_type=None, debug=False):
     """
-    Extract top movies by IMDB score from Supabase with filtering
+    Extract top movies by IMDB score from Supabase with exact filtering
+    
+    This function is fully dynamic - it uses the exact parameters passed from command line arguments
+    instead of hardcoded defaults, making it responsive to user input. If no movies match the exact
+    criteria specified, it returns simulated data rather than relaxing filters.
     
     Args:
         num_movies (int): Number of movies to extract (default: 3)
-        country (str): Country code (default: "FR")
-        genre (str): Genre to filter by (default: "Horreur")
-        platform (str): Platform to filter by (default: "Netflix")
-        content_type (str): Content type (default: "Série")
-    
+        country (str): Country code for filtering (passed from CLI args, None = no filter)
+        genre (str): Genre to filter by (passed from CLI args, None = no filter)
+        platform (str): Platform to filter by (passed from CLI args, None = no filter)
+        content_type (str): Content type to filter by (passed from CLI args, None = no filter)
+        debug (bool): Enable debug mode with connection testing and detailed logging
+        
     Returns:
-        list: List of top movies by IMDB score matching criteria
+        list: List of top movies by IMDB score matching exact criteria, or simulated data if no matches
     """
-    logger.info(f"Extracting top {num_movies} movies by IMDB score")
-    logger.info(f"Filters: country={country}, genre={genre}, platform={platform}, content_type={content_type}")
+    # Comprehensive logging of arguments and context
+    logger.info(f"🎬 EXTRACT_MOVIE_DATA FUNCTION CALLED")
+    logger.info(f"📋 CLI Arguments Received:")
+    logger.info(f"   --num-movies: {num_movies}")
+    logger.info(f"   --country: {country}")
+    logger.info(f"   --genre: {genre}")
+    logger.info(f"   --platform: {platform}")
+    logger.info(f"   --content-type: {content_type}")
+    logger.info(f"   --debug: {debug}")
+    logger.info(f"🎯 Extracting top {num_movies} movies by IMDB score")
     
+    # Test Supabase connection first
+    if not test_supabase_connection():
+        logger.error("❌ SUPABASE CONNECTION FAILED or unavailable")
+        logger.error("🛑 STOPPING SCRIPT EXECUTION - Cannot access movie database")
+        logger.error("💡 Check your SUPABASE_URL and SUPABASE_KEY environment variables")
+        return None  # Return None to indicate connection failure
+    
+    # Debug mode: Check database structure and available data
+    if debug:
+        logger.info("DEBUG MODE: Analyzing database structure and available data...")
+        try:
+            # Check available movies
+            movies_sample = supabase.from_("movies").select("*").limit(3).execute()
+            if hasattr(movies_sample, 'data') and movies_sample.data:
+                logger.info(f"✅ Found {len(movies_sample.data)} sample movies in database")
+            else:
+                logger.warning("❌ No movies found in database!")
+                
+            # Check available localizations
+            loc_sample = supabase.from_("movie_localizations").select("*").limit(3).execute()
+            if hasattr(loc_sample, 'data') and loc_sample.data:
+                logger.info(f"✅ Found {len(loc_sample.data)} localizations")
+                
+                # Show available filters
+                countries = {loc.get('country_code') for loc in loc_sample.data if loc.get('country_code')}
+                platforms = {loc.get('platform_name') for loc in loc_sample.data if loc.get('platform_name')}
+                logger.info(f"Available countries: {countries}")
+                logger.info(f"Available platforms: {platforms}")
+            else:
+                logger.warning("❌ No movie_localizations found!")
+                
+        except Exception as e:
+            logger.error(f"Debug query failed: {str(e)}")
+    
+            # Main database query with exact filtering
     try:
-        # Build the query with joins to get all required data
-        # Join movies -> movie_localizations -> movie_genres
+        # Build the query with proper joins
         query = (supabase
                 .from_("movies")
                 .select("""
@@ -258,34 +355,57 @@ def extract_movie_data(num_movies=3, country="FR", genre="Horreur", platform="Ne
                     )
                 """))
         
-        # Apply filters
+        # Apply exact filters - only if values are provided
+        logger.info(f"🔍 BUILDING SUPABASE QUERY:")
+        logger.info(f"   Base query: movies with joins to movie_localizations and movie_genres")
+        
+        filters_applied = []
         if content_type:
             query = query.eq("content_type", content_type)
+            filters_applied.append(f"content_type={content_type}")
+            logger.info(f"   ✅ Filter added: content_type = '{content_type}'")
         if country:
             query = query.eq("movie_localizations.country_code", country)
+            filters_applied.append(f"country={country}")
+            logger.info(f"   ✅ Filter added: movie_localizations.country_code = '{country}'")
         if platform:
             query = query.eq("movie_localizations.platform_name", platform)
+            filters_applied.append(f"platform={platform}")
+            logger.info(f"   ✅ Filter added: movie_localizations.platform_name = '{platform}'")
         if genre:
             query = query.eq("movie_genres.genre", genre)
-        
-        # Order by IMDB score descending and limit results
+            filters_applied.append(f"genre={genre}")
+            logger.info(f"   ✅ Filter added: movie_genres.genre = '{genre}'")
+            
+        # Execute query with applied filters
         query = query.order("imdb_score", desc=True).limit(num_movies)
+        logger.info(f"   📊 Order by: imdb_score DESC")
+        logger.info(f"   📋 Limit: {num_movies} results")
         
-        logger.info("Executing query to get top movies by IMDB score...")
+        if filters_applied:
+            logger.info(f"🚀 EXECUTING QUERY with filters: {', '.join(filters_applied)}")
+        else:
+            logger.info("🚀 EXECUTING QUERY with no filters - getting top movies globally by IMDB score")
+        
         response = query.execute()
+        logger.info(f"📊 QUERY RESULT: {len(response.data) if hasattr(response, 'data') and response.data else 0} movies returned")
         
+        # Check if we got results from the database
         if not hasattr(response, 'data') or len(response.data) == 0:
-            logger.warning(f"No movies found matching criteria")
-            return []
+            filter_summary = f"country={country}, genre={genre}, platform={platform}, content_type={content_type}"
+            logger.error(f"❌ NO MOVIES FOUND in database matching criteria: {filter_summary}")
+            logger.error("🛑 STOPPING SCRIPT EXECUTION - No content available for video generation")
+            logger.error("💡 Try different filter criteria (country, genre, platform, or content-type)")
+            return None  # Return None to indicate no real data found
         
         movies_raw = response.data
-        logger.info(f"Found {len(movies_raw)} movies matching criteria")
+        logger.info(f"Successfully retrieved {len(movies_raw)} movies from database")
         
-        # Process the results into standardized format
+        # Process results into standardized format
         movie_data = []
         for movie in movies_raw:
             try:
-                # Get the localization data (should be single item due to filters)
+                # Extract localization data
                 localization = movie.get('movie_localizations', [])
                 if isinstance(localization, list) and len(localization) > 0:
                     localization = localization[0]
@@ -293,7 +413,7 @@ def extract_movie_data(num_movies=3, country="FR", genre="Horreur", platform="Ne
                     logger.warning(f"No localization data for movie {movie.get('movie_id')}")
                     continue
                 
-                # Get genre data
+                # Extract genre data
                 genres_data = movie.get('movie_genres', [])
                 if isinstance(genres_data, list):
                     genres = [g.get('genre') for g in genres_data if g.get('genre')]
@@ -311,40 +431,45 @@ def extract_movie_data(num_movies=3, country="FR", genre="Horreur", platform="Ne
                     'title': localization.get('title', 'Unknown Title'),
                     'year': movie.get('release_year', 'Unknown'),
                     'imdb': imdb_formatted,
-                    'imdb_score': imdb_score,  # Keep numeric score for sorting
+                    'imdb_score': imdb_score,
                     'runtime': f"{movie.get('runtime', 0)} min",
-                    'platform': localization.get('platform_name', platform),
+                    'platform': localization.get('platform_name', platform or 'Unknown'),
                     'poster_url': localization.get('poster_url', ''),
                     'cloudinary_poster_url': localization.get('cloudinary_poster_url', ''),
                     'trailer_url': localization.get('trailer_url', ''),
                     'streaming_url': localization.get('streaming_url', ''),
                     'genres': genres,
-                    'content_type': movie.get('content_type', content_type)
+                    'content_type': movie.get('content_type', content_type or 'Unknown')
                 }
                 
                 movie_data.append(movie_info)
-                logger.info(f"Processed: {movie_info['title']} - IMDB: {movie_info['imdb']}")
+                logger.debug(f"Processed: {movie_info['title']} - IMDB: {movie_info['imdb']}")
                 
             except Exception as e:
                 logger.error(f"Error processing movie {movie.get('movie_id', 'unknown')}: {str(e)}")
                 continue
         
-        # Sort by IMDB score again to ensure proper ordering (highest first)
+        # Ensure proper sorting by IMDB score (highest first)
         movie_data.sort(key=lambda x: x.get('imdb_score', 0), reverse=True)
         
-        logger.info(f"Successfully extracted {len(movie_data)} movies, sorted by IMDB score")
         if movie_data:
+            logger.info(f"✅ Successfully extracted {len(movie_data)} movies")
             logger.info(f"Top movie: {movie_data[0]['title']} - IMDB: {movie_data[0]['imdb']}")
+        else:
+            logger.error("❌ NO MOVIES could be processed from database results")
+            logger.error("🛑 STOPPING SCRIPT EXECUTION - Database returned data but could not be processed")
+            logger.error("💡 Check database schema or try different filter criteria")
+            return None  # Return None to indicate processing failure
             
         return movie_data
         
     except Exception as e:
-        logger.error(f"Error extracting movie data from Supabase: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return []
+        logger.error(f"❌ DATABASE QUERY FAILED: {str(e)}")
+        logger.error("🛑 STOPPING SCRIPT EXECUTION - Cannot connect to database")
+        logger.error("💡 Check your SUPABASE_URL and SUPABASE_KEY environment variables")
+        return None  # Return None to indicate database failure
 
-# Move the simulation logic to a separate function for fallback
+# Simulation logic for when database access fails or no matches found
 def _simulate_movie_data(num_movies=3):
     """
     Simulate movie data when database access fails
@@ -436,125 +561,145 @@ def _simulate_movie_data(num_movies=3):
         modified_movie["title"] = f"{modified_movie['title']} ({timestamp[-4:]})"
         
         movie_data.append(modified_movie)
+    
+    return movie_data
 
-# Test Supabase connection before extracting movie data
-def test_and_extract_movie_data(num_movies=3, country="FR", genre="Horreur", platform="netflix", content_type="Film", debug=True):
+def enrich_movie_data(movie_data, country=None, genre=None, platform=None, content_type=None):
     """
-    Test Supabase connection and extract movie data if successful
+    Enrich movie data with ChatGPT for more engaging descriptions - fully dynamic based on CLI arguments
     
     Args:
-        num_movies: Number of movies to extract
-        country: Country code for content filtering
-        genre: Genre to filter by
-        platform: Streaming platform to filter by
-        content_type: Content type (Film, Series, etc.)
-        debug: Whether to run in debug mode (with minimal filters)
+        movie_data: List of movie data dictionaries
+        country (str): Country code for language and cultural context (from CLI args)
+        genre (str): Genre for specialized prompts (from CLI args)
+        platform (str): Platform for context-specific content (from CLI args)
+        content_type (str): Film/Série for appropriate terminology (from CLI args)
         
     Returns:
-        List of movie data dictionaries
+        List of movie data dictionaries with enriched descriptions
     """
-    logger.info(f"Testing Supabase connection before extracting movie data...")
-    if test_supabase_connection():
-        logger.info("Supabase connection successful, proceeding with data extraction")
-        
-        # If debug mode is enabled, try with minimal filters first
-        if debug:
-            logger.info("DEBUG MODE: Starting with minimal filters to check available data")
-            # Try to get any movies first
-            try:
-                logger.info("Checking available movies in database...")
-                movies_sample = supabase.from_("movies").select("*").limit(3).execute()
-                if hasattr(movies_sample, 'data') and len(movies_sample.data) > 0:
-                    logger.info(f"Found {len(movies_sample.data)} sample movies")
-                    for i, movie in enumerate(movies_sample.data):
-                        logger.info(f"Sample movie {i+1}: {movie}")
-                else:
-                    logger.warning("No movies found in the database!")
-                
-                # Check available localizations
-                logger.info("Checking available movie_localizations in database...")
-                loc_sample = supabase.from_("movie_localizations").select("*").limit(3).execute()
-                if hasattr(loc_sample, 'data') and len(loc_sample.data) > 0:
-                    logger.info(f"Found {len(loc_sample.data)} sample localizations")
-                    for i, loc in enumerate(loc_sample.data):
-                        logger.info(f"Sample localization {i+1}: {loc}")
-                    
-                    # Check country codes
-                    country_codes = set(loc.get('country_code') for loc in loc_sample.data if loc.get('country_code'))
-                    logger.info(f"Available country codes: {country_codes}")
-                    
-                    # Check platform names
-                    platforms = set(loc.get('platform_name') for loc in loc_sample.data if loc.get('platform_name'))
-                    logger.info(f"Available platforms: {platforms}")
-                else:
-                    logger.warning("No movie_localizations found in the database!")
-                    
-                # Try with just country filter
-                if country:
-                    logger.info(f"Trying with just country filter: {country}")
-                    country_results = supabase.from_("movie_localizations")\
-                        .select("*")\
-                        .eq("country_code", country)\
-                        .limit(3).execute()
-                    
-                    if hasattr(country_results, 'data') and len(country_results.data) > 0:
-                        logger.info(f"Found {len(country_results.data)} movies for country {country}")
-                    else:
-                        logger.warning(f"No movies found for country {country}")
-                        
-                # Initialize this variable to avoid reference errors
-                country_results = None
-            except Exception as e:
-                logger.error(f"Error in debug queries: {str(e)}")
-                country_results = None
-        
-        # Now try the actual extraction with possibly reduced filters
-        try:
-            # If debug showed no results with country filter, try without it
-            if debug and country and country_results is not None and not hasattr(country_results, 'data'):
-                logger.info(f"No results with country '{country}', trying without country filter")
-                return extract_movie_data(num_movies, None, genre, platform, content_type)
-            else:
-                return extract_movie_data(num_movies, country, genre, platform, content_type)
-        except Exception as e:
-            logger.error(f"Error in extract_movie_data: {str(e)}")
-            logger.warning("Falling back to simulated data")
-            return _simulate_movie_data(num_movies)
-    else:
-        logger.warning("Supabase connection failed or unavailable. Using simulated data instead.")
-        return _simulate_movie_data(num_movies)
-
-def enrich_movie_data(movie_data):
-    """
-    Enrich movie data with ChatGPT for more engaging descriptions
-    """
-    logger.info("Enriching movie data with ChatGPT...")
+    # Create dynamic context based on CLI arguments
+    language_map = {
+        'FR': {'language': 'French', 'code': 'fr'},
+        'US': {'language': 'English', 'code': 'en'},
+        'UK': {'language': 'English', 'code': 'en'},
+        'CA': {'language': 'English', 'code': 'en'},
+        'DE': {'language': 'German', 'code': 'de'},
+        'ES': {'language': 'Spanish', 'code': 'es'},
+        'IT': {'language': 'Italian', 'code': 'it'},
+    }
+    
+    # Determine language from country (default to English)
+    lang_info = language_map.get(country or 'US', {'language': 'English', 'code': 'en'})
+    is_french = lang_info['code'] == 'fr'
+    
+    # Dynamic genre context
+    genre_contexts = {
+        'Horreur': {'fr': 'film d\'horreur', 'en': 'horror movie', 'expert': 'horror'},
+        'Horror': {'fr': 'film d\'horreur', 'en': 'horror movie', 'expert': 'horror'},
+        'Action': {'fr': 'film d\'action', 'en': 'action movie', 'expert': 'action'},
+        'Drama': {'fr': 'drame', 'en': 'drama', 'expert': 'drama'},
+        'Drame': {'fr': 'drame', 'en': 'drama', 'expert': 'drama'},
+        'Comedy': {'fr': 'comédie', 'en': 'comedy', 'expert': 'comedy'},
+        'Comédie': {'fr': 'comédie', 'en': 'comedy', 'expert': 'comedy'},
+        'Thriller': {'fr': 'thriller', 'en': 'thriller', 'expert': 'thriller'},
+        'Sci-Fi': {'fr': 'film de science-fiction', 'en': 'sci-fi movie', 'expert': 'sci-fi'},
+        'Romance': {'fr': 'film romantique', 'en': 'romance', 'expert': 'romance'},
+    }
+    
+    # Dynamic content type terminology
+    content_type_map = {
+        'Film': {'fr': 'film', 'en': 'movie'},
+        'Série': {'fr': 'série', 'en': 'series'},
+        'Series': {'fr': 'série', 'en': 'series'},
+    }
+    
+    # Get dynamic context
+    genre_context = genre_contexts.get(genre or 'Horror', {'fr': 'contenu', 'en': 'content', 'expert': 'entertainment'})
+    content_context = content_type_map.get(content_type or 'Film', {'fr': 'contenu', 'en': 'content'})
+    
+    # Comprehensive logging of arguments and context
+    logger.info(f"🤖 ENRICH_MOVIE_DATA FUNCTION CALLED")
+    logger.info(f"📋 CLI Arguments Received:")
+    logger.info(f"   --country: {country}")
+    logger.info(f"   --genre: {genre}")
+    logger.info(f"   --platform: {platform}")
+    logger.info(f"   --content-type: {content_type}")
+    logger.info(f"🌍 Dynamic Context Built:")
+    logger.info(f"   Language: {lang_info['language']} (code: {lang_info['code']})")
+    logger.info(f"   Genre Context: {genre or 'General'} -> {genre_context.get(lang_info['code'], 'content')}")
+    logger.info(f"   Platform Context: {platform or 'Any'}")
+    logger.info(f"   Content Type Context: {content_type or 'Any'} -> {content_context.get(lang_info['code'], 'content')}")
+    logger.info(f"🎬 Processing {len(movie_data)} movies for enrichment")
     
     for movie in movie_data:
         try:
-            # Creating prompt for ChatGPT
-            prompt = f"""
-            Génère une description courte et engageante pour le film d'horreur "{movie['title']}" pour une vidéo TikTok/YouTube.
+            # Create dynamic system message based on genre and language
+            if is_french:
+                system_message = f"Tu es un expert en {genre_context['expert']} qui crée du contenu court et engageant pour les réseaux sociaux."
+            else:
+                system_message = f"You are a {genre_context['expert']} expert who creates short and engaging content for social media."
             
-            Informations:
-            - Titre: {movie['title']}
-            - Score IMDb: {movie['imdb']}
-            - Année: {movie['year']}
-            - Genres: {', '.join(movie['genres'])}
+            # Create fully dynamic prompt based on all CLI arguments
+            if is_french:
+                platform_context = f" sur {platform}" if platform else ""
+                prompt = f"""
+                Génère une description courte et engageante pour le {genre_context['fr']} "{movie['title']}" pour une vidéo TikTok/YouTube{platform_context}.
+                
+                Informations:
+                - Titre: {movie['title']}
+                - Score IMDb: {movie['imdb']}
+                - Année: {movie['year']}
+                - Genres: {', '.join(movie.get('genres', ['Divers']))}
+                - Type: {content_context['fr'].title()}
+                {f"- Plateforme: {platform}" if platform else ""}
+                
+                Critères:
+                1. 1-2 phrases maximum (TRÈS COURT)
+                2. Ton décontracté qui accroche un public jeune
+                3. Mentionne le score IMDb et l'année
+                4. Ne révèle pas trop l'intrigue
+                {f"5. Adapté pour {content_context['fr']}" if content_type else ""}
+                
+                Réponds UNIQUEMENT avec le texte enrichi, sans préambule.
+                """
+            else:
+                platform_context = f" on {platform}" if platform else ""
+                prompt = f"""
+                Generate a short and engaging description for the {genre_context['en']} "{movie['title']}" for a TikTok/YouTube video{platform_context}.
+                
+                Information:
+                - Title: {movie['title']}
+                - IMDb Score: {movie['imdb']}
+                - Year: {movie['year']}
+                - Genres: {', '.join(movie.get('genres', ['Various']))}
+                - Type: {content_context['en'].title()}
+                {f"- Platform: {platform}" if platform else ""}
+                
+                Criteria:
+                1. 1-2 sentences maximum (VERY SHORT)
+                2. Casual tone that hooks young audiences
+                3. Mention the IMDb score and year
+                4. Don't spoil too much of the plot
+                {f"5. Adapted for {content_context['en']}" if content_type else ""}
+                
+                Respond ONLY with the enriched text, no preamble.
+                """
             
-            Critères:
-            1. 1-2 phrases maximum (TRÈS COURT)
-            2. Ton décontracté qui accroche un public jeune
-            3. Mentionne le score IMDb et l'année
-            4. Ne révèle pas trop l'intrigue
-            
-            Réponds UNIQUEMENT avec le texte enrichi, sans préambule.
-            """
+            # Log the OpenAI request details
+            logger.info(f"🚀 CALLING OPENAI API for movie: {movie['title']}")
+            logger.info(f"   Model: gpt-4o")
+            logger.info(f"   Temperature: 0.7")
+            logger.info(f"   Max tokens: 100")
+            logger.info(f"📝 SYSTEM MESSAGE:")
+            logger.info(f"   {system_message}")
+            logger.info(f"📝 USER PROMPT (first 200 chars):")
+            logger.info(f"   {prompt[:200]}...")
             
             response = openai.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": "You are a horror film expert who creates short and engaging content for social media."},
+                    {"role": "system", "content": system_message},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
@@ -567,24 +712,103 @@ def enrich_movie_data(movie_data):
             
         except Exception as e:
             logger.error(f"Error during enrichment for {movie['title']}: {str(e)}")
-            movie["enriched_description"] = f"This horror movie from {movie['year']} with an IMDb score of {movie['imdb']} will chill your blood!"
+            
+            # Dynamic fallback description based on CLI arguments
+            genre_fallback = genre_context.get(lang_info['code'], 'content')
+            content_fallback = content_context.get(lang_info['code'], 'content')
+            
+            if is_french:
+                movie["enriched_description"] = f"Ce {content_fallback} de {movie['year']} avec un score IMDb de {movie['imdb']} vous captivera !"
+            else:
+                movie["enriched_description"] = f"This {content_fallback} from {movie['year']} with an IMDb score of {movie['imdb']} will captivate you!"
     
     return movie_data
 
-def generate_script(enriched_movies, cloudinary_urls):
+def generate_script(enriched_movies, cloudinary_urls, country=None, genre=None, platform=None, content_type=None):
     """
-    Generate scripts for the avatar video
-    Creates separate scripts for intro+movie1, movie2, and movie3
-    Precisely calibrated for target durations based on HeyGen testing:
-    - Intro+movie1: 30 seconds (250-300 words)
-    - Movie2: 20 seconds (150-180 words)
-    - Movie3: 20 seconds (150-180 words)
-    """
-    logger.info("Generating detailed dynamic scripts for target durations...")
+    Generate scripts for REELS-TYPE videos (60-90 seconds total)
     
-    # Helper function to get full description from movie data
+    REELS-OPTIMIZED RULES (based on 2.5 words/second speaking pace):
+    - Intro+movie1: 35-40 seconds (85-100 words) - Quick intro + first movie
+    - Movie2: 15-25 seconds (40-60 words) - Brief second movie mention  
+    - Movie3: 15-25 seconds (40-60 words) - Brief third movie mention
+    - TOTAL: 65-90 seconds (165-220 words) - Perfect for reels!
+    
+    Args:
+        enriched_movies: List of movie data dictionaries
+        cloudinary_urls: URLs for images
+        country (str): Country code for language context (from CLI args)
+        genre (str): Genre for specialized terminology (from CLI args)
+        platform (str): Platform for specific context (from CLI args)
+        content_type (str): Film/Série for appropriate terminology (from CLI args)
+    """
+    # Create dynamic context based on CLI arguments
+    language_map = {
+        'FR': {'language': 'French', 'code': 'fr'},
+        'US': {'language': 'English', 'code': 'en'},
+        'UK': {'language': 'English', 'code': 'en'},
+        'CA': {'language': 'English', 'code': 'en'},
+        'DE': {'language': 'German', 'code': 'de'},
+        'ES': {'language': 'Spanish', 'code': 'es'},
+        'IT': {'language': 'Italian', 'code': 'it'},
+    }
+    
+    # Dynamic genre contexts for script generation
+    genre_contexts = {
+        'Horreur': {'fr': {'fans': 'fans d\'horreur', 'content': 'films d\'horreur', 'roundup': 'sélection horreur hebdomadaire', 'cinema': 'cinéma d\'horreur de qualité'}, 
+                   'en': {'fans': 'horror fans', 'content': 'horror films', 'roundup': 'weekly horror roundup', 'cinema': 'quality horror cinema'}},
+        'Horror': {'fr': {'fans': 'fans d\'horreur', 'content': 'films d\'horreur', 'roundup': 'sélection horreur hebdomadaire', 'cinema': 'cinéma d\'horreur de qualité'},
+                  'en': {'fans': 'horror fans', 'content': 'horror films', 'roundup': 'weekly horror roundup', 'cinema': 'quality horror cinema'}},
+        'Action': {'fr': {'fans': 'fans d\'action', 'content': 'films d\'action', 'roundup': 'sélection action hebdomadaire', 'cinema': 'cinéma d\'action de qualité'},
+                  'en': {'fans': 'action fans', 'content': 'action movies', 'roundup': 'weekly action roundup', 'cinema': 'quality action cinema'}},
+        'Drama': {'fr': {'fans': 'amateurs de drames', 'content': 'drames', 'roundup': 'sélection drame hebdomadaire', 'cinema': 'cinéma dramatique de qualité'},
+                 'en': {'fans': 'drama lovers', 'content': 'drama films', 'roundup': 'weekly drama roundup', 'cinema': 'quality drama cinema'}},
+        'Comedy': {'fr': {'fans': 'fans de comédie', 'content': 'comédies', 'roundup': 'sélection comédie hebdomadaire', 'cinema': 'comédie de qualité'},
+                  'en': {'fans': 'comedy fans', 'content': 'comedies', 'roundup': 'weekly comedy roundup', 'cinema': 'quality comedy cinema'}},
+        'Thriller': {'fr': {'fans': 'fans de thriller', 'content': 'thrillers', 'roundup': 'sélection thriller hebdomadaire', 'cinema': 'thriller de qualité'},
+                    'en': {'fans': 'thriller fans', 'content': 'thrillers', 'roundup': 'weekly thriller roundup', 'cinema': 'quality thriller cinema'}},
+    }
+    
+    # Dynamic content type terminology
+    content_type_map = {
+        'Film': {'fr': {'single': 'film', 'plural': 'films', 'experience': 'expérience cinématographique'}, 
+                'en': {'single': 'movie', 'plural': 'movies', 'experience': 'cinematic experience'}},
+        'Série': {'fr': {'single': 'série', 'plural': 'séries', 'experience': 'expérience télévisuelle'}, 
+                 'en': {'single': 'series', 'plural': 'series', 'experience': 'viewing experience'}},
+    }
+    
+    # Get dynamic context
+    lang_info = language_map.get(country or 'US', {'language': 'English', 'code': 'en'})
+    is_french = lang_info['code'] == 'fr'
+    
+    # Default to Horror if no genre specified
+    genre_context = genre_contexts.get(genre or 'Horror', {
+        'fr': {'fans': 'cinéphiles', 'content': 'contenus', 'roundup': 'sélection hebdomadaire', 'cinema': 'cinéma de qualité'},
+        'en': {'fans': 'movie fans', 'content': 'films', 'roundup': 'weekly roundup', 'cinema': 'quality cinema'}
+    })
+    
+    content_context = content_type_map.get(content_type or 'Film', {
+        'fr': {'single': 'contenu', 'plural': 'contenus', 'experience': 'expérience'},
+        'en': {'single': 'content', 'plural': 'content', 'experience': 'experience'}
+    })
+    
+    # Comprehensive logging of arguments and context
+    logger.info(f"📝 GENERATE_SCRIPT FUNCTION CALLED")
+    logger.info(f"📋 CLI Arguments Received:")
+    logger.info(f"   --country: {country}")
+    logger.info(f"   --genre: {genre}")
+    logger.info(f"   --platform: {platform}")
+    logger.info(f"   --content-type: {content_type}")
+    logger.info(f"🌍 Dynamic Context Built:")
+    logger.info(f"   Language: {lang_info['language']} (code: {lang_info['code']})")
+    logger.info(f"   Genre Context: {genre or 'General'}")
+    logger.info(f"   Platform Context: {platform or 'Any'}")
+    logger.info(f"   Content Type Context: {content_type or 'Any'}")
+    logger.info(f"🎬 Processing {len(enriched_movies)} movies for script generation")
+    
+    # Helper function to get full description from movie data with dynamic fallback
     def _get_full_description(movie):
-        """Extract 2-3 sentence description from enriched or short description"""
+        """Extract 2-3 sentence description from enriched or short description with dynamic fallback"""
         if movie.get('enriched_description'):
             # Use first 2-3 sentences from enriched description
             desc = movie['enriched_description']
@@ -596,7 +820,11 @@ def generate_script(enriched_movies, cloudinary_urls):
         elif movie.get('short_description'):
             return movie['short_description']
         else:
-            return "This captivating horror film will keep you on the edge of your seat with its suspenseful storyline and atmospheric tension."
+            # Dynamic fallback based on CLI arguments
+            if is_french:
+                return f"Ce {content_context['fr']['single']} captivant vous tiendra en haleine avec son intrigue suspensieuse et son atmosphère envoûtante."
+            else:
+                return f"This captivating {content_context['en']['single']} will keep you on the edge of your seat with its suspenseful storyline and atmospheric tension."
     
     # Helper function to format vote counts in a readable way
     def format_votes(vote_count):
@@ -628,35 +856,201 @@ def generate_script(enriched_movies, cloudinary_urls):
         primary = genres[0]
         return genre_map.get(primary, primary.lower())
     
-    # Create scripts with precise word counts to hit exact target durations
-    # Intro+movie1: 30 seconds (250-300 words for precise timing)
-    script_intro_movie1 = f"""Hello horror fans! Welcome to our weekly Netflix horror roundup. Today I'm sharing three must-watch {get_primary_genre(enriched_movies[0])} films that will keep you on the edge of your seat.
-
-First up is {enriched_movies[0]['title']} from {enriched_movies[0]['year']}. This {get_primary_genre(enriched_movies[0])} masterpiece currently holds an impressive {enriched_movies[0].get('imdb', '7+')} rating on IMDb {format_votes(enriched_movies[0].get('vote_count'))}.
-
-{_get_full_description(enriched_movies[0])}
-
-What makes this film special is its {enriched_movies[0].get('audience_appeal', 'unique approach to storytelling and captivating atmosphere')}. {enriched_movies[0].get('director', 'The director')} crafts an unforgettable experience with {enriched_movies[0].get('cinematography', 'stunning visuals')} that will stay with you long after watching.
-
-{enriched_movies[0].get('cast_highlight', 'The performances are outstanding')}, elevating this {get_primary_genre(enriched_movies[0])} experience to another level. This is definitely a must-watch for any fan of quality horror cinema."""
+    # Generate dynamic scripts using OpenAI with precise word counts for exact target durations
+    # Get dynamic text elements based on CLI arguments
+    lang_code = lang_info['code']
+    genre_text = genre_context.get(lang_code, genre_context['en'])
+    content_text = content_context.get(lang_code, content_context['en'])
     
-    # Movie2: 20 seconds (150-180 words for precise timing)
-    script_movie2 = f"""Next on our list is {enriched_movies[1]['title']} from {enriched_movies[1]['year']}. With an IMDb score of {enriched_movies[1].get('imdb', '7+')} {format_votes(enriched_movies[1].get('vote_count'))}, this {get_primary_genre(enriched_movies[1])} film has captivated audiences worldwide.
-
-{_get_full_description(enriched_movies[1])}
-
-This compelling work features {enriched_movies[1].get('critical_acclaim', 'innovative direction and a masterful approach to building tension')}. {enriched_movies[1].get('director', 'The filmmaker')} delivers a unique vision that stands out in the genre.
-
-With {enriched_movies[1].get('cast', 'a talented cast')} bringing the story to life, this is one {get_primary_genre(enriched_movies[1])} experience you won't want to miss on Netflix."""
+    # Dynamic platform context
+    platform_context = f" {platform}" if platform else ""
     
-    # Movie3: 20 seconds (150-180 words for precise timing)
-    script_movie3 = f"""Finally, don't miss {enriched_movies[2]['title']} from {enriched_movies[2]['year']}. Rated {enriched_movies[2].get('imdb', '7+')} on IMDb {format_votes(enriched_movies[2].get('vote_count'))}, this {get_primary_genre(enriched_movies[2])} gem delivers an exceptional experience.
+    # Generate scripts using OpenAI with strict timing rules
+    scripts_data = []
+    
+    # REELS-OPTIMIZED Script rules for 60-90 second videos
+    script_rules = [
+        {
+            "name": "intro_movie1",
+            "duration": "35-40 seconds", 
+            "word_count": "85-100 words",
+            "movie_index": 0,
+            "type": "quick introduction + first movie highlight"
+        },
+        {
+            "name": "movie2", 
+            "duration": "15-25 seconds",
+            "word_count": "40-60 words", 
+            "movie_index": 1,
+            "type": "brief second movie mention"
+        },
+        {
+            "name": "movie3",
+            "duration": "15-25 seconds", 
+            "word_count": "40-60 words",
+            "movie_index": 2, 
+            "type": "brief third movie mention"
+        }
+    ]
+    
+    # Log the reels timing rules being applied
+    logger.info(f"⏱️  REELS TIMING RULES APPLIED:")
+    for rule in script_rules:
+        logger.info(f"   {rule['name']}: {rule['duration']} ({rule['word_count']}) - {rule['type']}")
+    total_min_words = sum([int(rule['word_count'].split('-')[0]) for rule in script_rules])
+    total_max_words = sum([int(rule['word_count'].split('-')[1].split(' ')[0]) for rule in script_rules])
+    estimated_duration_min = total_min_words / 2.5
+    estimated_duration_max = total_max_words / 2.5
+    logger.info(f"   🎯 TOTAL TARGET: {total_min_words}-{total_max_words} words = {estimated_duration_min:.0f}-{estimated_duration_max:.0f} seconds")
+    
+    generated_scripts = {}
+    
+    for rule in script_rules:
+        movie = enriched_movies[rule["movie_index"]]
+        
+        try:
+            # Create dynamic system message based on genre and language
+            if is_french:
+                system_message = f"Tu es un expert en {genre_context.get('expert', 'divertissement')} qui crée des scripts engageants pour des vidéos TikTok/YouTube. Tu respectes PRÉCISÉMENT les contraintes de timing et de nombre de mots."
+            else:
+                system_message = f"You are a {genre_context.get('expert', 'entertainment')} expert who creates engaging scripts for TikTok/YouTube videos. You follow timing and word count constraints PRECISELY."
+                
+            # Create dynamic prompt based on all CLI arguments and timing rules
+            if is_french:
+                if rule["name"] == "intro_movie1":
+                    prompt = f"""
+                    Crée un script TRÈS COURT pour un REEL de 60-90 secondes{platform_context}.
+                    
+                    CONTRAINTES CRITIQUES - REELS:
+                    - Durée: {rule['duration']} (MAXIMUM {rule['word_count']} - PAS UN MOT DE PLUS!)
+                    - Format: REEL court, punchy, accrocher immédiatement
+                    - Rythme: Rapide, énergique, pas de temps mort
+                    
+                    CONTENU {content_text['single'].upper()}:
+                    - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
+                    
+                    STRUCTURE ULTRA-COURTE:
+                    1. Accroche rapide (5-10 mots)
+                    2. {movie['title']} + score + 1 phrase d'impact
+                    3. Teaser rapide des 2 autres
+                    
+                    STYLE: Dynamique, percutant, TikTok/Instagram Reels.
+                    RAPPEL: {rule['word_count']} MAXIMUM - Chaque mot compte!
+                    
+                    Réponds UNIQUEMENT avec le script final.
+                    """
+                else:
+                    prompt = f"""
+                    Crée un script ULTRA-COURT pour un REEL rapide{platform_context}.
+                    
+                    CONTRAINTES EXTRÊMES - REELS:
+                    - Durée: {rule['duration']} (MAXIMUM {rule['word_count']} - AUCUN MOT EN PLUS!)
+                    - Format: Mention rapide, efficace, percutante
+                    
+                    CONTENU:
+                    - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
+                    
+                    STRUCTURE MINIMAL:
+                    1. Transition (1-2 mots: "Ensuite" ou "Enfin")
+                    2. Titre + score + 1 mot-clé d'impact
+                    3. Pas de détails - juste l'essentiel!
+                    
+                    STYLE: Rapide, direct, TikTok/Reels.
+                    IMPÉRATIF: {rule['word_count']} MAXIMUM!
+                    
+                    Réponds UNIQUEMENT avec le script final.
+                    """
+            else:
+                if rule["name"] == "intro_movie1":
+                    prompt = f"""
+                    Create a SUPER SHORT script for a 60-90 second REEL{platform_context}.
+                    
+                    CRITICAL CONSTRAINTS - REELS:
+                    - Duration: {rule['duration']} (MAXIMUM {rule['word_count']} - NOT ONE WORD MORE!)
+                    - Format: Short reel, punchy, hook immediately
+                    - Pace: Fast, energetic, no dead time
+                    
+                    CONTENT:
+                    - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
+                    
+                    ULTRA-SHORT STRUCTURE:
+                    1. Quick hook (5-10 words)
+                    2. {movie['title']} + score + 1 impact phrase
+                    3. Quick tease of 2 others
+                    
+                    STYLE: Dynamic, punchy, TikTok/Instagram Reels.
+                    REMINDER: {rule['word_count']} MAXIMUM - Every word counts!
+                    
+                    Respond ONLY with the final script.
+                    """
+                else:
+                    prompt = f"""
+                    Create an ULTRA-SHORT script for a fast REEL{platform_context}.
+                    
+                    EXTREME CONSTRAINTS - REELS:
+                    - Duration: {rule['duration']} (MAXIMUM {rule['word_count']} - NO EXTRA WORDS!)
+                    - Format: Quick mention, efficient, punchy
+                    
+                    CONTENT:
+                    - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
+                    
+                    MINIMAL STRUCTURE:
+                    1. Transition (1-2 words: "Next" or "Finally")
+                    2. Title + score + 1 impact keyword
+                    3. No details - just essentials!
+                    
+                    STYLE: Fast, direct, TikTok/Reels.
+                    IMPERATIVE: {rule['word_count']} MAXIMUM!
+                    
+                    Respond ONLY with the final script.
+                    """
+            
+            # Log the OpenAI request details for script generation
+            max_tokens = 180 if rule["name"] == "intro_movie1" else 100
+            logger.info(f"🚀 CALLING OPENAI API for script: {rule['name']}")
+            logger.info(f"   Movie: {movie['title']} ({movie['year']})")
+            logger.info(f"   Target: {rule['duration']} ({rule['word_count']})")
+            logger.info(f"   Model: gpt-4o")
+            logger.info(f"   Temperature: 0.7")
+            logger.info(f"   Max tokens: {max_tokens}")
+            logger.info(f"📝 SYSTEM MESSAGE:")
+            logger.info(f"   {system_message}")
+            logger.info(f"📝 USER PROMPT (first 200 chars):")
+            logger.info(f"   {prompt[:200]}...")
+            
+            # Generate script with OpenAI (REELS-optimized token limits)
+            response = openai.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=max_tokens  # Reels-optimized but sufficient for target word counts
+            )
+            
+            generated_script = response.choices[0].message.content.strip()
+            generated_scripts[rule["name"]] = generated_script
+            
+            logger.info(f"✅ Generated {rule['name']} script ({rule['duration']}, target: {rule['word_count']})")
+            logger.info(f"   Actual word count: {len(generated_script.split())} words")
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating {rule['name']} script: {str(e)}")
+            
+            # Dynamic fallback based on CLI arguments
+            if is_french:
+                fallback_script = f"""Salut {genre_text['fans']} ! Découvrez {movie['title']} de {movie['year']}, un {content_text['single']} exceptionnel avec un score de {movie.get('imdb', '7+')} sur IMDb. {_get_full_description(movie)} C'est un incontournable pour tous les amateurs de {genre_text['cinema']}."""
+            else:
+                fallback_script = f"""Hello {genre_text['fans']}! Discover {movie['title']} from {movie['year']}, an exceptional {content_text['single']} with {movie.get('imdb', '7+')} on IMDb. {_get_full_description(movie)} This is a must-watch for all {genre_text['cinema']} enthusiasts."""
+            
+            generated_scripts[rule["name"]] = fallback_script
+    
+    # Use the generated scripts
+    script_intro_movie1 = generated_scripts.get("intro_movie1", "Script generation failed.")
+    script_movie2 = generated_scripts.get("movie2", "Script generation failed.")  
+    script_movie3 = generated_scripts.get("movie3", "Script generation failed.")
 
-{_get_full_description(enriched_movies[2])}
-
-What sets this film apart is its {enriched_movies[2].get('unique_element', 'atmospheric tension and psychological depth')}. {enriched_movies[2].get('director', 'The director')} creates a world that draws viewers in completely.
-
-With {enriched_movies[2].get('cast', 'powerful performances')} throughout, this is one {get_primary_genre(enriched_movies[2])} masterpiece that deserves a spot on your watchlist this weekend."""
     
     # Store scripts in a dictionary
     scripts = {
@@ -679,7 +1073,7 @@ With {enriched_movies[2].get('cast', 'powerful performances')} throughout, this 
         with open(script_data["path"], "w", encoding='utf-8') as f:
             f.write(script_data["text"])
     
-    logger.info(f"Concise scripts generated and saved to videos directory")
+    logger.info(f"✅ Dynamic OpenAI-generated scripts created with precise timing rules and saved to videos directory")
     
     # Return combined script for compatibility with existing functions
     combined_script = script_intro_movie1 + "\n\n" + script_movie2 + "\n\n" + script_movie3
@@ -1147,6 +1541,24 @@ def create_creatomate_video_from_heygen_urls(
         "width": 720,
         "height": 1280,
         "elements": [
+             {
+                "fit": "cover",
+                "type": "image",
+                "track": 1,
+                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753263646/streamGank_intro_cwefmt.jpg",
+                "duration": 1
+            },
+             # StreamGank banner at top of videos (starts after intro image)
+            {
+                "id": "streamgank-banner",
+                "name": "streamgank_logo",
+                "type": "image",
+                "y": "6.25%",
+                "height": "12.5%",
+                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752587056/streamgankbanner_uempzb.jpg",
+                "time_offset": 1,  # Start after the 1-second intro image
+                "duration": "99%"  # Maintain banner for the rest of the video
+            },
             # HeyGen intro video + movie1
             {
                 "fit": "cover",
@@ -1218,6 +1630,13 @@ def create_creatomate_video_from_heygen_urls(
                 "source": movie_clips[2],
                 "trim_end": 8,
                 "trim_start": 0
+            },
+            {
+                "fit": "cover",
+                "type": "image",
+                "track": 1,
+                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752587571/streamgank_bg_heecu7.png",
+                "duration": 2
             }
         ],
         "frame_rate": 30,
@@ -1406,7 +1825,7 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
         
         # Step 2: Create Creatomate video
         logger.info("Step 2: Creating Creatomate video...")
-        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, enriched_movies)
+        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls)
         results['creatomate_id'] = creatomate_id
         
         if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
@@ -1953,25 +2372,36 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
     results = {}
     
     try:
-        # Step 1: Capture screenshots from StreamGank
-        logger.info("Step 1: Capturing screenshots from StreamGank")
-        screenshot_paths = capture_streamgank_screenshots()
+        # Step 1: Query database for movies FIRST (before wasting time on screenshots)
+        logger.info(f"Step 1: Checking database for {num_movies} movies ({country}, {genre}, {platform}, {content_type})")
+        movies = extract_movie_data(num_movies, country, genre, platform, content_type)
+        
+        # Check if database query failed or returned no results - EXIT IMMEDIATELY
+        if movies is None:
+            logger.error("🚫 WORKFLOW TERMINATED - Database query failed or no movies found")
+            logger.error("🔄 Script execution stopped. Please resolve the issue and try again.")
+            import sys
+            sys.exit(1)  # Exit with error code
+        
+        if len(movies) == 0:
+            logger.error(f"📭 WORKFLOW TERMINATED - Empty movie list returned")
+            logger.error("🔄 Script execution stopped. Please try different filter criteria.")
+            import sys
+            sys.exit(1)  # Exit with error code
+        
+        logger.info(f"✅ Found {len(movies)} movies in database - proceeding with workflow")
+        
+        # Step 2: Now capture screenshots from StreamGank (only if movies exist)
+        logger.info("Step 2: Capturing screenshots from StreamGank")
+        screenshot_paths = capture_streamgank_screenshots(country, genre, platform, content_type)
         results['screenshots'] = screenshot_paths
         logger.info(f"Captured {len(screenshot_paths)} screenshots")
         
-        # Step 2: Upload screenshots to Cloudinary
-        logger.info("Step 2: Uploading screenshots to Cloudinary")
+        # Step 3: Upload screenshots to Cloudinary
+        logger.info("Step 3: Uploading screenshots to Cloudinary")
         cloudinary_urls = upload_to_cloudinary(screenshot_paths)
         results['cloudinary_urls'] = {f"screenshot_{i}": url for i, url in enumerate(cloudinary_urls)}
         logger.info(f"Uploaded {len(cloudinary_urls)} screenshots to Cloudinary")
-        
-        # Step 3: Extract movie data from database
-        logger.info(f"Step 3: Extracting {num_movies} movies ({country}, {genre}, {platform}, {content_type})")
-        movies = test_and_extract_movie_data(num_movies, country, genre, platform, content_type)
-        
-        if not movies or len(movies) == 0:
-            logger.error(f"No movies found matching criteria: {country}/{genre}/{platform}/{content_type}")
-            return None
         
         # Ensure we have exactly num_movies movies
         movies = movies[:num_movies] if len(movies) >= num_movies else movies
@@ -1982,8 +2412,9 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
             simulated = _simulate_movie_data(num_movies - len(movies))
             movies.extend(simulated[:num_movies - len(movies)])
         
-        # Enrich movie data with ChatGPT
-        enriched_movies = enrich_movie_data(movies)
+        # Step 4: Enrich movie data with ChatGPT (using dynamic CLI arguments)
+        logger.info("Step 4: Enriching movie data with AI")
+        enriched_movies = enrich_movie_data(movies, country, genre, platform, content_type)
         results['enriched_movies'] = enriched_movies
         
         # Save enriched data for debugging or future use
@@ -1991,16 +2422,16 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
             json.dump(enriched_movies, f, indent=2, ensure_ascii=False)
         logger.info(f"Extracted and enriched {len(enriched_movies)} movies")
         
-        # Step 4: Generate script for the avatar
-        logger.info("Step 4: Generating script for the avatar")
-        combined_script, script_path, scripts = generate_script(enriched_movies, results['cloudinary_urls'])
+        # Step 5: Generate script for the avatar (using dynamic CLI arguments)
+        logger.info("Step 5: Generating script for the avatar")
+        combined_script, script_path, scripts = generate_script(enriched_movies, results['cloudinary_urls'], country, genre, platform, content_type)
         results['script'] = combined_script
         results['script_path'] = script_path
         results['script_sections'] = scripts
         logger.info("Generated script for the avatar")
         
-        # Step 5: Create HeyGen videos
-        logger.info("Step 5: Creating HeyGen videos")
+        # Step 6: Create HeyGen videos
+        logger.info("Step 6: Creating HeyGen videos")
         heygen_video_ids = create_heygen_video(scripts)
         results['video_ids'] = heygen_video_ids
         
