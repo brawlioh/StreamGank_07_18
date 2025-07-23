@@ -1,15 +1,314 @@
 #!/usr/bin/env python3
 """
 StreamGank Helper Functions
-===========================
 
-This module contains helper functions for mapping database values to StreamGank URL parameters
-based on country-specific localization requirements.
-
-Author: StreamGank Video Generator
-Created: 2025
+This module contains helper functions for StreamGank URL construction and country-specific mappings.
+Also includes dynamic movie trailer processing for creating 10-second highlight clips.
 """
 
+import os
+import re
+import tempfile
+import logging
+import subprocess
+from typing import Dict, List, Optional, Tuple
+import yt_dlp
+import cloudinary
+import cloudinary.uploader
+from pathlib import Path
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+def extract_youtube_video_id(url: str) -> Optional[str]:
+    """
+    Extract YouTube video ID from various YouTube URL formats
+    
+    Args:
+        url (str): YouTube URL in various formats
+        
+    Returns:
+        str: YouTube video ID or None if not found
+    """
+    # Various YouTube URL patterns
+    patterns = [
+        r'(?:https?://)?(?:www\.)?youtube\.com/watch\?v=([a-zA-Z0-9_-]+)',
+        r'(?:https?://)?(?:www\.)?youtube\.com/embed/([a-zA-Z0-9_-]+)',
+        r'(?:https?://)?(?:www\.)?youtu\.be/([a-zA-Z0-9_-]+)',
+        r'(?:https?://)?(?:www\.)?youtube\.com/v/([a-zA-Z0-9_-]+)',
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    
+    logger.warning(f"Could not extract YouTube video ID from URL: {url}")
+    return None
+
+def download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers") -> Optional[str]:
+    """
+    Download YouTube trailer video using yt-dlp
+    
+    Args:
+        trailer_url (str): YouTube trailer URL
+        output_dir (str): Directory to save downloaded video
+        
+    Returns:
+        str: Path to downloaded video file or None if failed
+    """
+    try:
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Extract video ID for consistent naming
+        video_id = extract_youtube_video_id(trailer_url)
+        if not video_id:
+            logger.error(f"Invalid YouTube URL: {trailer_url}")
+            return None
+        
+        # Configure yt-dlp options for best quality video
+        ydl_opts = {
+            'format': 'best[height<=720][ext=mp4]/best[ext=mp4]/best',  # Prefer 720p MP4
+            'outtmpl': os.path.join(output_dir, f'{video_id}_trailer.%(ext)s'),
+            'quiet': True,  # Reduce verbose output
+            'no_warnings': True,
+        }
+        
+        logger.info(f"🎬 Downloading YouTube trailer: {trailer_url}")
+        logger.info(f"   Video ID: {video_id}")
+        logger.info(f"   Output directory: {output_dir}")
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Download the video
+            ydl.download([trailer_url])
+            
+            # Find the downloaded file
+            for file in os.listdir(output_dir):
+                if video_id in file and file.endswith(('.mp4', '.webm', '.mkv')):
+                    downloaded_path = os.path.join(output_dir, file)
+                    logger.info(f"✅ Successfully downloaded: {downloaded_path}")
+                    return downloaded_path
+        
+        logger.error(f"❌ Could not find downloaded file for video ID: {video_id}")
+        return None
+        
+    except Exception as e:
+        logger.error(f"❌ Error downloading YouTube trailer {trailer_url}: {str(e)}")
+        return None
+
+def extract_10_second_highlight(video_path: str, start_time: int = 30, output_dir: str = "temp_clips") -> Optional[str]:
+    """
+    Extract a 10-second highlight clip from a video using FFmpeg
+    
+    Args:
+        video_path (str): Path to the source video file
+        start_time (int): Start time in seconds (default: 30s to skip intros)
+        output_dir (str): Directory to save the highlight clip
+        
+    Returns:
+        str: Path to the extracted highlight clip or None if failed
+    """
+    try:
+        # Create output directory
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Generate output filename
+        video_name = Path(video_path).stem
+        output_path = os.path.join(output_dir, f"{video_name}_10s_highlight.mp4")
+        
+        logger.info(f"🎞️ Extracting 10-second highlight from: {video_path}")
+        logger.info(f"   Start time: {start_time}s")
+        logger.info(f"   Output: {output_path}")
+        
+        # Use FFmpeg to extract 10-second clip with high quality settings
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-i', video_path,           # Input file
+            '-ss', str(start_time),     # Start time
+            '-t', '10',                 # Duration (10 seconds)
+            '-c:v', 'libx264',         # Video codec
+            '-c:a', 'aac',             # Audio codec
+            '-crf', '18',              # High quality (lower = better quality, 18 is near-lossless)
+            '-preset', 'slow',         # Better compression efficiency
+            '-movflags', '+faststart', # Optimize for web streaming
+            '-pix_fmt', 'yuv420p',     # Ensure compatibility
+            '-y',                       # Overwrite output file
+            output_path
+        ]
+        
+        # Run FFmpeg command
+        result = subprocess.run(
+            ffmpeg_cmd, 
+            capture_output=True, 
+            text=True,
+            timeout=60  # 60 second timeout
+        )
+        
+        if result.returncode == 0:
+            logger.info(f"✅ Successfully extracted 10-second highlight: {output_path}")
+            return output_path
+        else:
+            logger.error(f"❌ FFmpeg error: {result.stderr}")
+            return None
+            
+    except subprocess.TimeoutExpired:
+        logger.error(f"❌ FFmpeg timeout while processing: {video_path}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ Error extracting highlight from {video_path}: {str(e)}")
+        return None
+
+def upload_clip_to_cloudinary(clip_path: str, movie_title: str, movie_id: str = None, transform_mode: str = "fit") -> Optional[str]:
+    """
+    Upload a video clip to Cloudinary with optimized settings
+    
+    Args:
+        clip_path (str): Path to the video clip file
+        movie_title (str): Movie title for naming
+        movie_id (str): Movie ID for unique identification
+        transform_mode (str): Transformation mode - "fit", "pad", "scale", or "auto"
+        
+    Returns:
+        str: Cloudinary URL of uploaded clip or None if failed
+    """
+    try:
+        # Create a clean filename from movie title
+        clean_title = re.sub(r'[^a-zA-Z0-9_-]', '_', movie_title.lower())
+        clean_title = re.sub(r'_+', '_', clean_title).strip('_')
+        
+        # Create unique public ID
+        public_id = f"movie_clips/{clean_title}_{movie_id}_10s" if movie_id else f"movie_clips/{clean_title}_10s"
+        
+        logger.info(f"☁️ Uploading clip to Cloudinary: {clip_path}")
+        logger.info(f"   Movie: {movie_title}")
+        logger.info(f"   Public ID: {public_id}")
+        logger.info(f"   Transform mode: {transform_mode}")
+        
+        # Different transformation options for better quality
+        transform_modes = {
+            "fit": [
+                {"width": 720, "height": 1280, "crop": "fit", "background": "black"},  # Fit with black bars, no cropping
+                {"quality": "auto:best"}
+            ],
+            "pad": [
+                {"width": 720, "height": 1280, "crop": "pad", "background": "auto"},   # Smart padding with auto background
+                {"quality": "auto:best"}
+            ],
+            "scale": [
+                {"width": 720, "height": 1280, "crop": "scale"},                      # Scale to fit (may distort aspect ratio)
+                {"quality": "auto:best"}
+            ],
+            "auto": [
+                {"width": 720, "height": 1280, "crop": "auto", "gravity": "center"},  # Smart auto crop from center
+                {"quality": "auto:best"},
+                {"format": "auto"}  # Auto format optimization
+            ]
+        }
+        
+        # Get the transformation based on mode
+        transformation = transform_modes.get(transform_mode, transform_modes["fit"])
+        
+        # Upload to Cloudinary with video optimization (using selected transformation)
+        upload_result = cloudinary.uploader.upload(
+            clip_path,
+            resource_type="video",
+            public_id=public_id,
+            folder="movie_clips",
+            overwrite=True,
+            quality="auto",              # Automatic quality optimization
+            format="mp4",               # Ensure MP4 format
+            video_codec="h264",         # Use H.264 codec for compatibility
+            audio_codec="aac",          # Use AAC audio codec
+            transformation=transformation
+        )
+        
+        cloudinary_url = upload_result.get('secure_url')
+        logger.info(f"✅ Successfully uploaded to Cloudinary: {cloudinary_url}")
+        
+        return cloudinary_url
+        
+    except Exception as e:
+        logger.error(f"❌ Error uploading {clip_path} to Cloudinary: {str(e)}")
+        return None
+
+def process_movie_trailers_to_clips(movie_data: List[Dict], max_movies: int = 3, transform_mode: str = "fit") -> Dict[str, str]:
+    """
+    Process movie trailers to create 10-second highlight clips and upload to Cloudinary
+    
+    Args:
+        movie_data (List[Dict]): List of movie data dictionaries with trailer_url
+        max_movies (int): Maximum number of movies to process
+        transform_mode (str): Transformation mode - "fit", "pad", "scale", or "auto"
+        
+    Returns:
+        Dict[str, str]: Dictionary mapping movie titles to Cloudinary clip URLs
+    """
+    clip_urls = {}
+    temp_dirs = ["temp_trailers", "temp_clips"]
+    
+    try:
+        # Create temporary directories
+        for temp_dir in temp_dirs:
+            os.makedirs(temp_dir, exist_ok=True)
+        
+        logger.info(f"🎬 PROCESSING MOVIE TRAILERS TO CLIPS")
+        logger.info(f"📋 Processing {min(len(movie_data), max_movies)} movies")
+        
+        # Process each movie (up to max_movies)
+        for i, movie in enumerate(movie_data[:max_movies]):
+            movie_title = movie.get('title', f'Movie_{i+1}')
+            movie_id = str(movie.get('id', i+1))
+            trailer_url = movie.get('trailer_url', '')
+            
+            logger.info(f"🎯 Processing Movie {i+1}: {movie_title}")
+            logger.info(f"   Movie ID: {movie_id}")
+            logger.info(f"   Trailer URL: {trailer_url}")
+            
+            if not trailer_url:
+                logger.warning(f"⚠️ No trailer URL for {movie_title}, skipping...")
+                continue
+            
+            # Step 1: Download YouTube trailer
+            downloaded_trailer = download_youtube_trailer(trailer_url)
+            if not downloaded_trailer:
+                logger.error(f"❌ Failed to download trailer for {movie_title}")
+                continue
+            
+            # Step 2: Extract 10-second highlight
+            highlight_clip = extract_10_second_highlight(downloaded_trailer)
+            if not highlight_clip:
+                logger.error(f"❌ Failed to extract highlight for {movie_title}")
+                continue
+            
+            # Step 3: Upload to Cloudinary
+            cloudinary_url = upload_clip_to_cloudinary(highlight_clip, movie_title, movie_id, transform_mode)
+            if cloudinary_url:
+                clip_urls[movie_title] = cloudinary_url
+                logger.info(f"✅ Successfully processed {movie_title}: {cloudinary_url}")
+            else:
+                logger.error(f"❌ Failed to upload clip for {movie_title}")
+        
+        logger.info(f"🏁 PROCESSING COMPLETE: {len(clip_urls)}/{min(len(movie_data), max_movies)} clips processed")
+        
+        return clip_urls
+        
+    except Exception as e:
+        logger.error(f"❌ Error in process_movie_trailers_to_clips: {str(e)}")
+        return clip_urls
+        
+    finally:
+        # Clean up temporary files
+        try:
+            import shutil
+            for temp_dir in temp_dirs:
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
+                    logger.info(f"🧹 Cleaned up temporary directory: {temp_dir}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not clean up temporary files: {str(e)}")
+
+# === EXISTING STREAMGANK HELPER FUNCTIONS ===
 
 def get_genre_mapping_by_country(country_code):
     """

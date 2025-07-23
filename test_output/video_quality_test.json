@@ -1,0 +1,25 @@
+{
+  "timestamp": "2025-07-23 19:56:08.937520",
+  "test_results": {
+    "fit": {
+      "url": "https://res.cloudinary.com/dodod8s0v/video/upload/v1753271742/movie_clips/movie_clips/sandman_quality_test_3917_10s.mp4",
+      "description": "📐 FIT: Resizes to fit dimensions, adds black bars if needed (preserves aspect ratio)",
+      "status": "success"
+    },
+    "pad": {
+      "url": "https://res.cloudinary.com/dodod8s0v/video/upload/v1753271749/movie_clips/movie_clips/sandman_quality_test_3917_10s.mp4",
+      "description": "📏 PAD: Smart padding with auto background color (preserves aspect ratio)",
+      "status": "success"
+    },
+    "scale": {
+      "url": "https://res.cloudinary.com/dodod8s0v/video/upload/v1753271758/movie_clips/movie_clips/sandman_quality_test_3917_10s.mp4",
+      "description": "📈 SCALE: Scales to exact dimensions (may distort aspect ratio)",
+      "status": "success"
+    },
+    "auto": {
+      "status": "failed",
+      "description": "🤖 AUTO: Smart auto-crop from center (may crop some content)"
+    }
+  },
+  "recommendation": "Use 'fit' mode for best quality without cropping"
+}

@@ -41,7 +41,8 @@ from streamgank_helpers import (
     get_genre_mapping_by_country,
     get_platform_mapping_by_country,
     get_content_type_mapping_by_country,
-    build_streamgank_url
+    build_streamgank_url,
+    process_movie_trailers_to_clips
 )
 
 # Logging configuration
@@ -1507,18 +1508,67 @@ def create_creatomate_video_from_heygen_urls(
         logger.error("CREATOMATE_API_KEY is not set in environment variables")
         return f"error_no_api_key_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
-    # Use default movie assets
-    movie_covers = [
-        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
-        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
-        "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
-    ]
-    
-    movie_clips = [
-        "https://res.cloudinary.com/dodod8s0v/video/upload/v1751353401/the_last_of_us_zljllt.mp4",
-        "https://res.cloudinary.com/dodod8s0v/video/upload/v1751355284/Stranger_Things_uyxt3a.mp4",
-        "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356566/The_Haunting_of_Hill_House_jhztq4.mp4"
-    ]
+    # === DYNAMIC MOVIE ASSETS BASED ON MOVIE_DATA ===
+    if movie_data and len(movie_data) >= 3:
+        logger.info("🎬 Using DYNAMIC movie assets from movie_data")
+        
+        # Use dynamic movie covers from movie_data
+        movie_covers = []
+        for i, movie in enumerate(movie_data[:3]):
+            cover_url = movie.get('cloudinary_poster_url') or movie.get('poster_url')
+            if cover_url:
+                movie_covers.append(cover_url)
+                logger.info(f"   Movie {i+1} cover: {movie['title']} -> {cover_url}")
+            else:
+                # Fallback to default if no cover available
+                fallback_covers = [
+                    "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
+                    "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
+                    "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
+                ]
+                movie_covers.append(fallback_covers[i])
+                logger.warning(f"   Movie {i+1} cover: Using fallback for {movie['title']}")
+        
+        # === DYNAMIC MOVIE CLIPS FROM TRAILERS ===
+        logger.info("🎞️ Processing dynamic movie clips from trailers...")
+        dynamic_clips = process_movie_trailers_to_clips(movie_data, max_movies=3, transform_mode="fit")
+        
+        # Create movie_clips array from dynamic processing
+        movie_clips = []
+        fallback_clips = [
+            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751353401/the_last_of_us_zljllt.mp4",
+            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751355284/Stranger_Things_uyxt3a.mp4",
+            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356566/The_Haunting_of_Hill_House_jhztq4.mp4"
+        ]
+        
+        for i, movie in enumerate(movie_data[:3]):
+            movie_title = movie.get('title', f'Movie_{i+1}')
+            
+            if movie_title in dynamic_clips:
+                # Use dynamically generated clip
+                movie_clips.append(dynamic_clips[movie_title])
+                logger.info(f"   Movie {i+1} clip: {movie_title} -> DYNAMIC CLIP")
+            else:
+                # Use fallback clip
+                movie_clips.append(fallback_clips[i])
+                logger.warning(f"   Movie {i+1} clip: {movie_title} -> FALLBACK CLIP")
+        
+        logger.info(f"✅ Dynamic assets prepared: {len(movie_covers)} covers, {len(movie_clips)} clips")
+        
+    else:
+        # === FALLBACK TO DEFAULT ASSETS ===
+        logger.warning("⚠️ Using DEFAULT movie assets (no movie_data provided)")
+        movie_covers = [
+            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
+            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
+            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
+        ]
+        
+        movie_clips = [
+            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751353401/the_last_of_us_zljllt.mp4",
+            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751355284/Stranger_Things_uyxt3a.mp4",
+            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356566/The_Haunting_of_Hill_House_jhztq4.mp4"
+        ]
     
     # Get HeyGen video URLs with fallbacks
     heygen_intro = heygen_video_urls.get(
@@ -1825,7 +1875,7 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
         
         # Step 2: Create Creatomate video
         logger.info("Step 2: Creating Creatomate video...")
-        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls)
+        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=movie_data)
         results['creatomate_id'] = creatomate_id
         
         if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
