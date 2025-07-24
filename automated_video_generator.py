@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-StreamGank Automated Video Generator
+Automated Video Generator for StreamGank
 
-A streamlined video generation pipeline that:
-1. Captures screenshots from StreamGank
-2. Extracts movie data from Supabase
-3. Generates AI-powered scripts
-4. Creates HeyGen avatar videos
-5. Composes final videos with Creatomate
+This script automates the end-to-end process of generating promotional videos for movies:
+1. Capturing screenshots from StreamGank
+2. Extracting movie data from Supabase
+3. Generating avatar video scripts (Intro+Movie1: ~30s, Movie2 & Movie3: max 20s each)
+4. Creating videos with HeyGen and Creatomate
 
-Author: StreamGang Team
-Version: 2.0 (Refactored)
+Usage:
+    python3 automated_video_generator.py --all
+    
+    # Optional parameters:
+    python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film
 """
 
 import os
@@ -55,9 +57,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # API configurations
-CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "dodod8s0v")
-CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "589374432754798")
-CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "iwOZJxSJ9SIE47BwVBsvQdYAfsg")
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
 
 cloudinary.config(
     cloud_name=CLOUDINARY_CLOUD_NAME,
@@ -396,7 +398,7 @@ def enrich_movie_data(movie_data, country=None, genre=None, platform=None, conte
             # Create prompt
             if is_french:
                 prompt = f"""
-                Génère une description courte et engageante pour le {content_type or 'film'} "{movie['title']}" pour une vidéo TikTok/YouTube.
+                Génère une description engageante pour le {content_type or 'film'} "{movie['title']}" pour une vidéo TikTok/YouTube.
                 
                 Informations:
                 - Titre: {movie['title']}
@@ -404,17 +406,21 @@ def enrich_movie_data(movie_data, country=None, genre=None, platform=None, conte
                 - Année: {movie['year']}
                 - Genres: {', '.join(movie.get('genres', ['Divers']))}
                 
-                Critères:
-                1. 1-2 phrases maximum (TRÈS COURT)
-                2. Ton décontracté qui accroche un public jeune
-                3. Mentionne le score IMDb et l'année
-                4. Ne révèle pas trop l'intrigue
+                Critères OBLIGATOIRES:
+                1. EXACTEMENT 2 phrases complètes (ni plus, ni moins)
+                2. Première phrase: Description captivante du {content_type or 'film'}
+                3. Deuxième phrase: Mention du score IMDb et de l'année
+                4. Ton décontracté qui accroche un public jeune
+                5. Ne révèle pas trop l'intrigue
                 
-                Réponds UNIQUEMENT avec le texte enrichi, sans préambule.
+                Exemple de format:
+                "Ce {content_type or 'film'} d'horreur vous fera frissonner avec son atmosphère terrifiante. Avec un score de 8.5/10 sur IMDb depuis 2019, c'est un incontournable !"
+                
+                Réponds UNIQUEMENT avec les 2 phrases, sans préambule.
                 """
             else:
                 prompt = f"""
-                Generate a short and engaging description for the {content_type or 'movie'} "{movie['title']}" for a TikTok/YouTube video.
+                Generate an engaging description for the {content_type or 'movie'} "{movie['title']}" for a TikTok/YouTube video.
                 
                 Information:
                 - Title: {movie['title']}
@@ -422,13 +428,17 @@ def enrich_movie_data(movie_data, country=None, genre=None, platform=None, conte
                 - Year: {movie['year']}
                 - Genres: {', '.join(movie.get('genres', ['Various']))}
                 
-                Criteria:
-                1. 1-2 sentences maximum (VERY SHORT)
-                2. Casual tone that hooks young audiences
-                3. Mention the IMDb score and year
-                4. Don't spoil too much of the plot
+                MANDATORY Criteria:
+                1. EXACTLY 2 complete sentences (no more, no less)
+                2. First sentence: Captivating description of the {content_type or 'movie'}
+                3. Second sentence: Mention the IMDb score and year
+                4. Casual tone that hooks young audiences
+                5. Don't spoil too much of the plot
                 
-                Respond ONLY with the enriched text, no preamble.
+                Example format:
+                "This horror {content_type or 'movie'} will give you chills with its terrifying atmosphere. With an 8.5/10 IMDb score since 2019, it's a must-watch!"
+                
+                Respond ONLY with the 2 sentences, no preamble.
                 """
             
             # Call OpenAI
@@ -439,7 +449,7 @@ def enrich_movie_data(movie_data, country=None, genre=None, platform=None, conte
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
-                max_tokens=100
+                max_tokens=200  # Increased from 100 to allow for 2 complete sentences
             )
             
             enriched_description = response.choices[0].message.content.strip()
@@ -448,11 +458,11 @@ def enrich_movie_data(movie_data, country=None, genre=None, platform=None, conte
             
         except Exception as e:
             logger.error(f"❌ Enrichment failed for {movie['title']}: {str(e)}")
-            # Fallback description
+            # Fallback description - 2 sentences as requested
             if is_french:
-                movie["enriched_description"] = f"Ce {content_type or 'film'} de {movie['year']} avec un score IMDb de {movie['imdb']} vous captivera !"
+                movie["enriched_description"] = f"Ce {content_type or 'film'} de {movie['year']} offre une expérience captivante avec ses {', '.join(movie.get('genres', ['divers'])[:2])} éléments. Avec un score IMDb de {movie['imdb']}, c'est un incontournable à découvrir !"
             else:
-                movie["enriched_description"] = f"This {content_type or 'movie'} from {movie['year']} with an IMDb score of {movie['imdb']} will captivate you!"
+                movie["enriched_description"] = f"This {content_type or 'movie'} from {movie['year']} offers a captivating experience with its {', '.join(movie.get('genres', ['various'])[:2])} elements. With an IMDb score of {movie['imdb']}, it's a must-watch to discover!"
     
     logger.info("✅ Movie data enrichment completed")
     return movie_data
@@ -485,34 +495,37 @@ def generate_script(enriched_movies, cloudinary_urls, country=None, genre=None, 
     lang_info = language_map.get(country or 'US', {'language': 'English', 'code': 'en'})
     is_french = lang_info['code'] == 'fr'
     
-    # Script timing rules for reels (based on 2.5 words/second)
+    # Script timing rules for concise reels (60-90 seconds total)
     script_rules = [
-        {
-            "name": "intro_movie1",
-            "duration": "35-40 seconds", 
-            "word_count": "85-100 words",
-            "movie_index": 0,
-            "type": "introduction + first movie highlight"
-        },
-        {
-            "name": "movie2", 
-            "duration": "15-25 seconds",
-            "word_count": "40-60 words", 
-            "movie_index": 1,
-            "type": "second movie mention"
-        },
-        {
-            "name": "movie3",
-            "duration": "15-25 seconds", 
-            "word_count": "40-60 words",
-            "movie_index": 2, 
-            "type": "third movie mention"
-        }
-    ]
+         {
+             "name": "intro_movie1",
+             "duration": "25-30 seconds", 
+             "word_count": "50-70 words",
+             "sentence_limit": "2 sentences maximum",
+             "movie_index": 0,
+             "type": "brief introduction + first movie (1-2 sentences)"
+         },
+         {
+             "name": "movie2", 
+             "duration": "15-20 seconds",
+             "word_count": "30-45 words", 
+             "sentence_limit": "1-2 sentences maximum",
+             "movie_index": 1,
+             "type": "second movie (1-2 sentences)"
+         },
+         {
+             "name": "movie3",
+             "duration": "15-20 seconds", 
+             "word_count": "30-45 words",
+             "sentence_limit": "1-2 sentences maximum",
+             "movie_index": 2, 
+             "type": "third movie (1-2 sentences)"
+         }
+     ]
     
-    logger.info(f"⏱️ Using reels timing rules:")
+    logger.info(f"⏱️ Using concise reels timing rules (60-90 seconds total):")
     for rule in script_rules:
-        logger.info(f"   {rule['name']}: {rule['duration']} ({rule['word_count']})")
+        logger.info(f"   {rule['name']}: {rule['duration']} ({rule['word_count']}) - {rule['sentence_limit']}")
     
     generated_scripts = {}
     
@@ -531,75 +544,79 @@ def generate_script(enriched_movies, cloudinary_urls, country=None, genre=None, 
             if is_french:
                 if rule["name"] == "intro_movie1":
                     prompt = f"""
-                    Crée un script TRÈS COURT pour un REEL de 60-90 secondes{f' sur {platform}' if platform else ''}.
+                    Crée un script ULTRA-COURT pour un REEL de 60-90 secondes{f' sur {platform}' if platform else ''}. 
                     
-                    CONTRAINTES CRITIQUES - REELS:
-                    - Durée: {rule['duration']} (MAXIMUM {rule['word_count']} - PAS UN MOT DE PLUS!)
-                    - Format: REEL court, punchy, accrocher immédiatement
+                    CONTRAINTES EXTRÊMES - VIDÉO COURTE:
+                    - Durée: {rule['duration']} (MAXIMUM {rule['word_count']} mots)
+                    - SENTENCES: {rule['sentence_limit']} - PAS PLUS!
+                    - Chaque phrase doit être TRÈS COURTE et PERCUTANTE
                     
                     CONTENU:
                     - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
                     
-                    STRUCTURE ULTRA-COURTE:
-                    1. Accroche rapide (5-10 mots)
-                    2. {movie['title']} + score + 1 phrase d'impact
-                    3. Teaser rapide des 2 autres
+                    STRUCTURE ULTRA-MINIMALE (2 phrases max):
+                    1. Phrase d'accroche (10-15 mots max): "Salut ! Découvrez 3 {content_type or 'contenus'} incontournables"
+                    2. Première recommandation (25-35 mots max): "{movie['title']} de {movie['year']} avec {movie.get('imdb', '7+')} - [1 mot-clé impact]"
                     
-                    RAPPEL: {rule['word_count']} MAXIMUM!
+                    IMPÉRATIF: EXACTEMENT 2 PHRASES COURTES - RIEN DE PLUS!
                     Réponds UNIQUEMENT avec le script final.
                     """
                 else:
                     prompt = f"""
-                    Crée un script ULTRA-COURT pour un REEL rapide{f' sur {platform}' if platform else ''}.
+                    Crée un script ULTRA-MINIMALISTE pour REEL{f' sur {platform}' if platform else ''}.
                     
-                    CONTRAINTES EXTRÊMES - REELS:
-                    - Durée: {rule['duration']} (MAXIMUM {rule['word_count']} - AUCUN MOT EN PLUS!)
+                    CONTRAINTS ABSOLUES:
+                    - Durée: {rule['duration']} (MAXIMUM {rule['word_count']} mots)
+                    - SENTENCES: {rule['sentence_limit']} - STRICTEMENT!
+                    - Une phrase = Une recommandation
                     
                     CONTENU:
                     - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
                     
-                    STRUCTURE MINIMAL:
-                    1. Transition (1-2 mots: "Ensuite" ou "Enfin")
-                    2. Titre + score + 1 mot-clé d'impact
+                    FORMAT OBLIGATOIRE (1-2 phrases très courtes):
+                    1. "{movie['title']} de {movie['year']}" (8-12 mots)
+                    2. "[Score + 1 mot d'impact]" (5-10 mots) - OPTIONNEL si place
                     
-                    IMPÉRATIF: {rule['word_count']} MAXIMUM!
+                    LIMITE ABSOLUE: {rule['sentence_limit']}!
                     Réponds UNIQUEMENT avec le script final.
                     """
             else:
                 if rule["name"] == "intro_movie1":
                     prompt = f"""
-                    Create a SUPER SHORT script for a 60-90 second REEL{f' on {platform}' if platform else ''}.
+                    Create an ULTRA-SHORT script for a 60-90 second REEL{f' on {platform}' if platform else ''}. 
                     
-                    CRITICAL CONSTRAINTS - REELS:
-                    - Duration: {rule['duration']} (MAXIMUM {rule['word_count']} - NOT ONE WORD MORE!)
-                    - Format: Short reel, punchy, hook immediately
+                    EXTREME CONSTRAINTS - SHORT VIDEO:
+                    - Duration: {rule['duration']} (MAXIMUM {rule['word_count']} words)
+                    - SENTENCES: {rule['sentence_limit']} - NO MORE!
+                    - Each sentence must be VERY SHORT and PUNCHY
                     
                     CONTENT:
                     - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
                     
-                    ULTRA-SHORT STRUCTURE:
-                    1. Quick hook (5-10 words)
-                    2. {movie['title']} + score + 1 impact phrase
-                    3. Quick tease of 2 others
+                    ULTRA-MINIMAL STRUCTURE (2 sentences max):
+                    1. Hook sentence (10-15 words max): "Hey! Check out 3 must-watch {content_type or 'shows'}"  
+                    2. First recommendation (25-35 words max): "{movie['title']} from {movie['year']} with {movie.get('imdb', '7+')} - [1 impact word]"
                     
-                    REMINDER: {rule['word_count']} MAXIMUM!
+                    IMPERATIVE: EXACTLY 2 SHORT SENTENCES - NOTHING MORE!
                     Respond ONLY with the final script.
                     """
                 else:
                     prompt = f"""
-                    Create an ULTRA-SHORT script for a fast REEL{f' on {platform}' if platform else ''}.
+                    Create an ULTRA-MINIMALIST script for REEL{f' on {platform}' if platform else ''}.
                     
-                    EXTREME CONSTRAINTS - REELS:
-                    - Duration: {rule['duration']} (MAXIMUM {rule['word_count']} - NO EXTRA WORDS!)
+                    ABSOLUTE CONSTRAINTS:
+                    - Duration: {rule['duration']} (MAXIMUM {rule['word_count']} words)
+                    - SENTENCES: {rule['sentence_limit']} - STRICTLY!
+                    - One sentence = One recommendation
                     
                     CONTENT:
                     - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
                     
-                    MINIMAL STRUCTURE:
-                    1. Transition (1-2 words: "Next" or "Finally")
-                    2. Title + score + 1 impact keyword
+                    MANDATORY FORMAT (1-2 very short sentences):
+                    1. "{movie['title']} from {movie['year']}" (8-12 words)
+                    2. "[Score + 1 impact word]" (5-10 words) - OPTIONAL if space allows
                     
-                    IMPERATIVE: {rule['word_count']} MAXIMUM!
+                    ABSOLUTE LIMIT: {rule['sentence_limit']}!
                     Respond ONLY with the final script.
                     """
             
@@ -624,11 +641,17 @@ def generate_script(enriched_movies, cloudinary_urls, country=None, genre=None, 
         except Exception as e:
             logger.error(f"❌ Script generation failed for {rule['name']}: {str(e)}")
             
-            # Fallback script
+            # Fallback script (short and concise)
             if is_french:
-                fallback = f"Découvrez {movie['title']} de {movie['year']}, un {content_type or 'film'} exceptionnel avec {movie.get('imdb', '7+')} sur IMDb."
+                if rule["name"] == "intro_movie1":
+                    fallback = f"Salut ! Découvrez {movie['title']} de {movie['year']} avec {movie.get('imdb', '7+')} sur IMDb."
+                else:
+                    fallback = f"{movie['title']} de {movie['year']} - {movie.get('imdb', '7+')}."
             else:
-                fallback = f"Discover {movie['title']} from {movie['year']}, an exceptional {content_type or 'movie'} with {movie.get('imdb', '7+')} on IMDb."
+                if rule["name"] == "intro_movie1":
+                    fallback = f"Hey! Check out {movie['title']} from {movie['year']} with {movie.get('imdb', '7+')} on IMDb."
+                else:
+                    fallback = f"{movie['title']} from {movie['year']} - {movie.get('imdb', '7+')}."
             
             generated_scripts[rule["name"]] = fallback
     

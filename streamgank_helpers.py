@@ -121,7 +121,7 @@ def extract_10_second_highlight(video_path: str, start_time: int = 30, output_di
         video_name = Path(video_path).stem
         output_path = os.path.join(output_dir, f"{video_name}_10s_highlight.mp4")
         
-        logger.info(f"🎞️ Extracting 10-second highlight from: {video_path}")
+        logger.info(f"🎞️ Extracting 5-second highlight from: {video_path}")
         logger.info(f"   Start time: {start_time}s")
         logger.info(f"   Output: {output_path}")
         
@@ -130,7 +130,7 @@ def extract_10_second_highlight(video_path: str, start_time: int = 30, output_di
             'ffmpeg',
             '-i', video_path,           # Input file
             '-ss', str(start_time),     # Start time
-            '-t', '10',                 # Duration (10 seconds)
+            '-t', '5',                 # Duration (5 seconds)
             '-c:v', 'libx264',         # Video codec
             '-c:a', 'aac',             # Audio codec
             '-crf', '16',              # Very high quality (16 = near-lossless for YouTube Shorts)
