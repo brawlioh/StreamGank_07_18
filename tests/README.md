@@ -50,11 +50,12 @@ python tests/run_all_tests.py --test creatomate
 
 ### ⏳ Slow Tests (run occasionally)
 
-| Test ID               | Description                           | Module                        |
-| --------------------- | ------------------------------------- | ----------------------------- |
-| `dynamic_clips`       | Dynamic movie trailer clip processing | `test_dynamic_clips.py`       |
-| `portrait_conversion` | Video portrait conversion             | `test_portrait_conversion.py` |
-| `video_quality`       | Video quality processing              | `test_video_quality.py`       |
+| Test ID               | Description                                          | Module                        |
+| --------------------- | ---------------------------------------------------- | ----------------------------- |
+| `dynamic_clips`       | Dynamic movie trailer clip processing                | `test_dynamic_clips.py`       |
+| `portrait_conversion` | Video portrait conversion                            | `test_portrait_conversion.py` |
+| `cinematic_portrait`  | **Cinematic portrait with Gaussian blur background** | `test_cinematic_portrait.py`  |
+| `video_quality`       | Video quality processing                             | `test_video_quality.py`       |
 
 ## Test Parameters
 
@@ -128,6 +129,7 @@ tests/
 ├── test_smooth_scrolling.py    # 6-second 60 FPS ultra video test ⭐
 ├── test_dynamic_clips.py       # Movie clips processing test
 ├── test_portrait_conversion.py # Portrait conversion test
+├── test_cinematic_portrait.py  # Cinematic portrait with Gaussian blur test
 └── test_video_quality.py       # Video quality test
 ```
 

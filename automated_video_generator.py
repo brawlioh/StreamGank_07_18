@@ -803,8 +803,9 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 logger.warning(f"   Movie {i+1} cover: Using fallback for {movie['title']}")
         
         # Dynamic movie clips
-        logger.info("🎞️ Processing dynamic movie clips from trailers")
-        logger.info("📱 Using YouTube Shorts quality: 1080x1920 with premium settings")
+        logger.info("🎞️ Processing dynamic CINEMATIC PORTRAIT clips from trailers")
+        logger.info("📱 Using Gaussian blur backgrounds + enhanced quality for TikTok/Instagram Reels")
+        logger.info("🎬 Format: 1080x1920 with premium settings")
         dynamic_clips = process_movie_trailers_to_clips(movie_data, max_movies=3, transform_mode="youtube_shorts")
         
         # Create clips array
@@ -894,7 +895,7 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 "type": "video",
                 "track": 3,              # Use track 3 to overlay on top of everything
                 "source": scroll_video_url,
-                "time": 4,        # Start at 4-seconds mark
+                "time": 4,               # Start at 4-seconds mark
                 "duration": 6,           # Play for 6 seconds
                 "width": "100%",         # Full screen width
                 "height": "100%",        # Full screen height

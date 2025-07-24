@@ -519,19 +519,21 @@ def download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers"
 
 def extract_10_second_highlight(video_path: str, start_time: int = 30, output_dir: str = "temp_clips") -> Optional[str]:
     """
-    Extract a 10-second highlight clip from a video and convert to PORTRAIT format (9:16)
+    Extract a 10-second highlight clip from a video and convert to CINEMATIC PORTRAIT format (9:16)
     
-    This function converts landscape YouTube trailers to portrait format by:
-    1. Scaling the video to ensure it covers the full 1080x1920 area
-    2. Cropping the center portion to create true portrait video
+    This function converts landscape YouTube trailers to portrait format using advanced techniques:
+    1. Creates a soft Gaussian-blurred background from the original video
+    2. Centers the original frame on top of the blurred background
+    3. Enhances contrast, clarity, and saturation for TikTok/Instagram Reels aesthetics
+    4. Maintains HD quality (1080x1920) without black bars
     
     Args:
         video_path (str): Path to the source video file (typically landscape YouTube trailer)
         start_time (int): Start time in seconds (default: 30s to skip intros)
-        output_dir (str): Directory to save the portrait highlight clip
+        output_dir (str): Directory to save the cinematic portrait highlight clip
         
     Returns:
-        str: Path to the extracted PORTRAIT highlight clip or None if failed
+        str: Path to the extracted CINEMATIC PORTRAIT highlight clip or None if failed
     """
     try:
         # Create output directory
@@ -541,28 +543,35 @@ def extract_10_second_highlight(video_path: str, start_time: int = 30, output_di
         video_name = Path(video_path).stem
         output_path = os.path.join(output_dir, f"{video_name}_10s_highlight.mp4")
         
-        logger.info(f"🎞️ Extracting 5-second highlight from: {video_path}")
+        logger.info(f"🎞️ Extracting 10-second CINEMATIC PORTRAIT highlight from: {video_path}")
         logger.info(f"   Start time: {start_time}s")
+        logger.info(f"   Technique: Gaussian blur background + centered frame")
+        logger.info(f"   Enhancement: Contrast, clarity, and saturation boost")
         logger.info(f"   Output: {output_path}")
         
-        # Use FFmpeg to extract 10-second clip with TRUE portrait conversion (crop landscape to portrait)
+        # Use FFmpeg with Gaussian blur background for cinematic portrait conversion
+        # Creates a soft blurred background instead of black bars for TikTok/Instagram Reels
         ffmpeg_cmd = [
             'ffmpeg',
             '-i', video_path,           # Input file
             '-ss', str(start_time),     # Start time
-            '-t', '5',                 # Duration (5 seconds)
+            '-t', '10',                 # Duration (10 seconds)
             '-c:v', 'libx264',         # Video codec
             '-c:a', 'aac',             # Audio codec
-            '-crf', '16',              # Very high quality (16 = near-lossless for YouTube Shorts)
+            '-crf', '15',              # Ultra-high quality for social media
             '-preset', 'slow',         # Better compression efficiency
             '-profile:v', 'high',      # H.264 high profile for better quality
             '-level:v', '4.0',         # H.264 level 4.0 for high resolution
             '-movflags', '+faststart', # Optimize for web streaming
             '-pix_fmt', 'yuv420p',     # Ensure compatibility
-            '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920', # Smart scale and center crop to portrait
+            # Complex filter for Gaussian blur background + centered original
+            '-filter_complex', 
+            '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=20[blurred];'
+            '[0:v]scale=1080:1920:force_original_aspect_ratio=decrease[scaled];'
+            '[blurred][scaled]overlay=(W-w)/2:(H-h)/2,unsharp=5:5:1.0:5:5:0.3,eq=contrast=1.1:brightness=0.05:saturation=1.2',
             '-r', '30',                # 30 FPS for smooth playback
-            '-maxrate', '3000k',       # Max bitrate for high quality
-            '-bufsize', '6000k',       # Buffer size
+            '-maxrate', '4000k',       # Higher bitrate for premium quality
+            '-bufsize', '8000k',       # Larger buffer size
             '-y',                       # Overwrite output file
             output_path
         ]
@@ -576,7 +585,9 @@ def extract_10_second_highlight(video_path: str, start_time: int = 30, output_di
         )
         
         if result.returncode == 0:
-            logger.info(f"✅ Successfully extracted 10-second highlight: {output_path}")
+            logger.info(f"✅ Successfully created CINEMATIC PORTRAIT highlight: {output_path}")
+            logger.info(f"   🎬 Format: 1080x1920 with Gaussian blur background")
+            logger.info(f"   🎨 Enhanced for TikTok/Instagram Reels aesthetics")
             return output_path
         else:
             logger.error(f"❌ FFmpeg error: {result.stderr}")
