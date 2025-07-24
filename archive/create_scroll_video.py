@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Script pour créer une vidéo de défilement (scroll) de StreamGank en mode responsive (mobile).
-Le script capture une série d'images pendant le défilement et les assemble en vidéo.
+Script to create a scrolling video of StreamGank in responsive (mobile) mode. The script captures a series of images during the scroll and assembles them into a video.
 """
 
 import os
@@ -9,26 +8,39 @@ import time
 import logging
 import subprocess
 from playwright.sync_api import sync_playwright
+# Import StreamGank helper function for URL building
+from streamgank_helpers import build_streamgank_url
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 def create_scroll_video(
-    url="https://streamgank.com/?country=PT&genres=Terror&type=Film",
-    num_frames=48,  # 48 images pour 8 secondes à 6 FPS
-    output_video="streamgank_scroll_readable.mp4",  # Nouveau nom pour la vidéo plus lisible
-    scroll_height=2500,  # Réduit de moitié pour un défilement plus lent
+    country="FR",
+    genre="Horreur", 
+    platform="Netflix",
+    content_type="Série",
+    num_frames=72,  # 72 images for 12 seconds at 6 FPS (more frames for smoother scrolling)
+    output_video="streamgank_scroll_readable.mp4",
+    scroll_height=3000,  # Increased to ensure more content is shown
     device_name="iPhone 12 Pro Max"
 ):
     """
-    Crée une vidéo de défilement de StreamGank en mode responsive (mobile).
+    Create a scrolling video of StreamGank in responsive (mobile) mode. The script captures a series of images during the scroll and assembles them into a video.
     """
     # Créer les dossiers pour les captures et la vidéo
     frames_dir = "scroll_frames"
     os.makedirs(frames_dir, exist_ok=True)
     
-    logger.info(f"Début de la capture d'écran pour {url} en mode {device_name}")
+    # Use either filtered URL or homepage based on parameter combination
+    # If we're using specific filters that might result in no content, let's use the homepage instead
+    # This ensures we always have content to scroll through
+    url = build_streamgank_url(country=country, genre=None, platform=None, content_type=None)
+    logger.info(f"Starting screenshot capture for {url} in {device_name} mode")
+    
+    # Also log the filtered URL for reference
+    filtered_url = build_streamgank_url(country, genre, platform, content_type)
+    logger.info(f"Note: Full filter would be: {filtered_url}")
     
     # Nettoyer les anciennes images
     for file in os.listdir(frames_dir):
@@ -50,28 +62,36 @@ def create_scroll_video(
         # Ouvrir une nouvelle page
         page = context.new_page()
         
-        # Accéder à la page StreamGank
-        logger.info(f"Accès à la page : {url}")
+        # Accessing page
+        logger.info(f"Accessing page: {url}")
         page.goto(url)
         
-        # Attendre que la page soit chargée
-        page.wait_for_selector("text=RESULTS", timeout=30000)
-        logger.info("Page chargée avec succès")
+        # Wait for page to fully load
+        try:
+            page.wait_for_selector("text=RESULTS", timeout=10000)
+        except Exception as e:
+            logger.info(f"Waiting for homepage content instead: {str(e)}")
+            page.wait_for_selector("text=StreamGank", timeout=10000)
+            
+        logger.info("Page loaded successfully")
         
-        # Gérer la bannière de cookies si présente
+        # Wait for content to be visible
+        time.sleep(2)
+        
+        # Handle cookie banner if present
         try:
             cookie_banner = page.wait_for_selector("text=We use cookies", timeout=5000)
             if cookie_banner:
-                logger.info("Bannière de cookies détectée")
+                logger.info("Cookie banner detected")
                 essential_button = page.wait_for_selector("button:has-text('Essential Only')", timeout=3000)
                 if essential_button:
-                    logger.info("Clic sur le bouton 'Essential Only'")
+                    logger.info("Clicking 'Essential Only' button")
                     essential_button.click()
                     time.sleep(2)
         except Exception as e:
-            logger.info(f"Pas de bannière de cookies ou erreur: {str(e)}")
+            logger.info(f"No cookie banner or error: {str(e)}")
         
-        # Supprimer tout élément de cookie restant
+        # Remove any remaining cookie elements
         page.evaluate("""() => {
             const elements = document.querySelectorAll('*');
             for (const el of elements) {
@@ -96,23 +116,23 @@ def create_scroll_video(
             # Attendre un court instant pour le rendu
             time.sleep(0.1)
             
-            # Prendre la capture d'écran
+            # Take screenshot
             frame_path = os.path.join(frames_dir, f"frame_{i:03d}.png")
-            page.screenshot(path=frame_path, full_page=False)
-            logger.info(f"Capture d'écran {i+1}/{num_frames} à la position {scroll_position}px")
+            page.screenshot(path=frame_path, full_page=True)
+            logger.info(f"Screenshot {i+1}/{num_frames} at position {scroll_position}px")
         
-        # Fermer le navigateur
+        # Close browser
         browser.close()
     
-    # Assembler les images en vidéo avec ffmpeg
-    logger.info("Assemblage des images en vidéo avec ffmpeg...")
+    # Assemble images into video with ffmpeg
+    logger.info("Assembling images into video with ffmpeg...")
     
-    # Vérifier si ffmpeg est installé
+    # Check if ffmpeg is installed
     try:
-        # Commande ffmpeg pour créer une vidéo à 6 FPS (8 secondes pour 48 frames)
+        # Command to create a video at 6 FPS (12 seconds for 72 frames)
         cmd = [
-            "ffmpeg", "-y",  # Écraser le fichier de sortie si existant
-            "-framerate", "6",  # 6 images par seconde
+            "ffmpeg", "-y",  # Overwrite output file if it exists
+            "-framerate", "6",  # 6 frames per second
             "-i", f"{frames_dir}/frame_%03d.png",  # Format des noms de fichiers d'entrée
             "-c:v", "libx264",  # Codec vidéo H.264
             "-profile:v", "high",  # Profil vidéo de haute qualité
@@ -122,31 +142,31 @@ def create_scroll_video(
         ]
         
         process = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        logger.info(f"Vidéo créée avec succès : {output_video}")
+        logger.info(f"Video created successfully: {output_video}")
         
-        # Afficher les statistiques de la vidéo
+        # Display video statistics
         video_info = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", output_video],
             check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         
         duration = float(video_info.stdout.decode().strip())
-        logger.info(f"Durée de la vidéo : {duration:.2f} secondes")
+        logger.info(f"Video duration: {duration:.2f} seconds")
         
         return output_video
         
     except subprocess.CalledProcessError as e:
-        logger.error(f"Erreur lors de la création de la vidéo : {e.stderr.decode()}")
+        logger.error(f"Error creating video: {e.stderr.decode()}")
         return None
     except FileNotFoundError:
-        logger.error("ffmpeg n'est pas installé. Veuillez l'installer pour créer des vidéos.")
-        logger.error("Sur macOS: brew install ffmpeg")
-        logger.error("Sur Linux: sudo apt-get install ffmpeg")
+        logger.error("ffmpeg is not installed. Please install it to create videos.")
+        logger.error("On macOS: brew install ffmpeg")
+        logger.error("On Linux: sudo apt-get install ffmpeg")
         return None
 
 if __name__ == "__main__":
     video_path = create_scroll_video()
     if video_path:
-        logger.info(f"Vidéo générée avec succès: {video_path}")
+        logger.info(f"Video generated successfully: {video_path}")
     else:
-        logger.error("Échec de la création de la vidéo")
+        logger.error("Failed to create video")

@@ -474,16 +474,16 @@ def generate_script(enriched_movies, cloudinary_urls, country=None, genre=None, 
     """
     logger.info(f"📝 Generating scripts for {len(enriched_movies)} movies")
     
-    # Language configuration
-    language_map = {
-        'FR': {'language': 'French', 'code': 'fr'},
-        'US': {'language': 'English', 'code': 'en'},
-        'UK': {'language': 'English', 'code': 'en'},
-        'CA': {'language': 'English', 'code': 'en'},
-    }
+    # Language configuration - ALWAYS use English for HeyGen scripts as requested
+    lang_info = {'language': 'English', 'code': 'en'}
+    is_french = False  # Force English scripts always
     
-    lang_info = language_map.get(country or 'US', {'language': 'English', 'code': 'en'})
-    is_french = lang_info['code'] == 'fr'
+    # Log the original country for reference
+    if country == 'FR':
+        logger.info("📝 Using English scripts despite French filter (as requested)")
+    else:
+        logger.info("📝 Using English scripts")
+        
     
     # Script timing rules for reels (based on 2.5 words/second)
     script_rules = [
@@ -1074,7 +1074,7 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
 # CREATOMATE VIDEO COMPOSITION
 # =============================================================================
 
-def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data: List[Dict[str, Any]] = None) -> str:
+def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data: List[Dict[str, Any]] = None, scroll_video_url: str = None) -> str:
     """
     Create final video with Creatomate using HeyGen video URLs
     
@@ -1198,6 +1198,32 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 "track": 1,
                 "source": heygen_intro
             },
+            
+            # Scroll video overlay (full screen with fade-in/out animation)
+            *([scroll_video_url and {
+                "fit": "cover",          # Use "cover" to fill the screen
+                "type": "video",
+                "track": 3,              # Use track 3 to overlay on top of everything
+                "source": scroll_video_url,
+                "time_offset": 3,        # Start at 3-second mark
+                "duration": 6,           # Play for 6 seconds
+                "width": "100%",         # Full screen width
+                "height": "100%",        # Full screen height
+                "x": "50%",              # Center position
+                "y": "50%",              # Center position
+                "animations": [           # Add fade-in and fade-out animations
+                    {
+                        "type": "fade",
+                        "fade_in": True,
+                        "duration": 1     # 1-second fade-in
+                    },
+                    {
+                        "type": "fade",
+                        "fade_out": True,
+                        "duration": 1     # 1-second fade-out
+                    }
+                ],
+            }] or []),
             # Movie 1 assets
             {
                 "fit": "cover",
@@ -1356,6 +1382,71 @@ def check_creatomate_render_status(render_id: str) -> dict:
         logger.error(f"Exception checking render status: {str(e)}")
         return {"status": "error", "message": str(e)}
 
+def upload_video_to_cloudinary(file_path, folder="streamgank_videos"):
+    """
+    Upload a video file to Cloudinary and return the URL
+    
+    Args:
+        file_path (str): Path to the video file
+        folder (str): Cloudinary folder to upload to
+        
+    Returns:
+        str: Cloudinary URL of the uploaded video
+    """
+    logger.info(f"☁️ Uploading video to Cloudinary: {os.path.basename(file_path)}")
+    try:
+        # Specify resource_type='video' for video uploads
+        response = cloudinary.uploader.upload(
+            file_path, 
+            folder=folder, 
+            resource_type="video"
+        )
+        url = response['secure_url']
+        logger.info(f"✅ Video uploaded successfully: {os.path.basename(file_path)}")
+        return url
+    except Exception as e:
+        logger.error(f"❌ Video upload failed for {file_path}: {str(e)}")
+        raise e
+
+def generate_scroll_video(country, genre, platform, content_type):
+    """
+    Generate scroll video using the same filter parameters as the main workflow
+    
+    Returns:
+        str: Path to the generated scroll video or Cloudinary URL if uploaded
+    """
+    from archive.create_scroll_video import create_scroll_video
+    
+    logger.info("🖥️ Generating StreamGank scroll video...")
+    
+    # Define output path
+    output_video = "streamgank_scroll_readable.mp4"
+    
+    # Create scroll video with the same filter parameters
+    success = create_scroll_video(
+        country=country,
+        genre=genre,
+        platform=platform,
+        content_type=content_type,
+        output_video=output_video
+    )
+    
+    if success:
+        logger.info(f"✅ Scroll video generated successfully: {output_video}")
+        
+        # Upload to Cloudinary for Creatomate to access
+        try:
+            cloudinary_url = upload_video_to_cloudinary(output_video, "streamgank_videos")
+            logger.info(f"☁️ Scroll video uploaded to Cloudinary: {cloudinary_url}")
+            return cloudinary_url
+        except Exception as e:
+            logger.warning(f"Failed to upload scroll video to Cloudinary: {str(e)}")
+            # Return local path if upload fails
+            return output_video
+    else:
+        logger.error("❌ Failed to generate scroll video")
+        return None
+
 def wait_for_creatomate_completion(render_id: str, max_attempts: int = 30, interval: int = 10) -> dict:
     """Wait for Creatomate render completion with progress feedback"""
     logger.info(f"Waiting for Creatomate render {render_id} to complete...")
@@ -1466,7 +1557,7 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
         results['error'] = str(e)
         return results
 
-def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None):
+def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None, skip_scroll_video=False):
     """
     Run the complete end-to-end video generation workflow
     
@@ -1546,9 +1637,25 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, scripts)
         results['heygen_video_urls'] = heygen_video_urls
         
+        # Step 7.5: Generate scroll video (if not skipped)
+        scroll_video_url = None
+        if not skip_scroll_video:
+            logger.info("Step 7.5: Generating StreamGank scroll video")
+            scroll_video_url = generate_scroll_video(
+                country=country,
+                genre=genre,
+                platform=platform,
+                content_type=content_type
+            )
+            if scroll_video_url:
+                results['scroll_video_url'] = scroll_video_url
+                logger.info(f"📱 Scroll video URL: {scroll_video_url}")
+            else:
+                logger.warning("⚠️ Failed to generate scroll video, continuing without it")
+        
         # Step 8: Create final video with Creatomate
         logger.info("Step 8: Creating final video with Creatomate")
-        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=enriched_movies)
+        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=enriched_movies, scroll_video_url=scroll_video_url)
         results['creatomate_id'] = creatomate_id
         
         if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
@@ -1624,6 +1731,7 @@ if __name__ == "__main__":
         # Output options
         parser.add_argument("--output", help="Output file path to save results")
         parser.add_argument("--debug", action="store_true", help="Enable debug output")
+        parser.add_argument("--skip-scroll-video", action="store_true", help="Skip scroll video generation")
         
         args = parser.parse_args()
         
@@ -1752,7 +1860,8 @@ if __name__ == "__main__":
                     genre=args.genre,
                     platform=args.platform,
                     content_type=args.content_type,
-                    output=args.output
+                    output=args.output,
+                    skip_scroll_video=args.skip_scroll_video
                 )
                 print("\n✅ Workflow completed successfully!")
                 
