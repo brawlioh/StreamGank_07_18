@@ -894,7 +894,7 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 "type": "video",
                 "track": 3,              # Use track 3 to overlay on top of everything
                 "source": scroll_video_url,
-                "time_offset": 4,        # Start at 4-seconds mark
+                "time": 4,        # Start at 4-seconds mark
                 "duration": 6,           # Play for 6 seconds
                 "width": "100%",         # Full screen width
                 "height": "100%",        # Full screen height
