@@ -4,10 +4,12 @@ StreamGank Helper Functions
 
 This module contains helper functions for StreamGank URL construction and country-specific mappings.
 Also includes dynamic movie trailer processing for creating 10-second highlight clips.
+Also includes AI content generation with dynamic language support.
 """
 
 import os
 import re
+import time
 import tempfile
 import logging
 import subprocess
@@ -16,9 +18,427 @@ import yt_dlp
 import cloudinary
 import cloudinary.uploader
 from pathlib import Path
+import openai
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# AI CONTENT GENERATION - DYNAMIC LANGUAGE SYSTEM
+# =============================================================================
+
+def get_translations():
+    """Get all translations for dynamic language support (descriptions + scripts)"""
+    return {
+        'en': {
+            # Movie Description Generation
+            'desc_expert_role': "You are a cinema expert who writes {focus} descriptions for social media.",
+            'desc_task_instruction': "You ALWAYS write exactly 2 complete sentences that precisely describe the given movie/series content.",
+            'desc_task_critical': "CRITICAL TASK: Write EXACTLY 2 precise sentences for \"{title}\".",
+            'desc_search_context': "SEARCH CONTEXT:",
+            'desc_user_search': "User search: {search}",
+            'desc_found_content': "This {content_type} found{platform}{country}",
+            'desc_precise_info': "PRECISE {content_type_upper} INFORMATION:",
+            'desc_exact_title': "Exact title: {title}",
+            'desc_imdb_score': "IMDb Score: {score}",
+            'desc_year': "Year: {year}",
+            'desc_actual_genres': "Actual genres: {genres}",
+            'desc_mandatory_instructions': "MANDATORY INSTRUCTIONS:",
+            'desc_first_sentence': "1. FIRST SENTENCE: Description of real {content_type} content (20-35 words)",
+            'desc_use_genres': "   - Use actual genres: {genres}",
+            'desc_mention_platform': "   - Mention{platform}{genre}",
+            'desc_authentic_content': "   - Describe authentic content, not generic",
+            'desc_second_sentence': "2. SECOND SENTENCE: Score + year + contextual recommendation (15-25 words)",
+            'desc_exact_score': "   - Exact score: {score}",
+            'desc_exact_year': "   - Exact year: {year}",
+            'desc_personalized_rec': "   - Personalized recommendation for your search",
+            'desc_response_instruction': "RESPONSE (2 precise sentences based on real content):",
+            'content_movie': "movie",
+            'content_series': "series",
+            'focus_detailed': "detailed and structured",
+            'focus_simple': "simple and direct", 
+            'focus_creative': "creative but focused",
+            
+            # Script Generation
+            'script_system_role': "You are a {genre} expert who creates engaging scripts for TikTok/YouTube videos. You follow timing and word count constraints PRECISELY.",
+            'script_intro_prompt': "Create a brief introduction and present the first {content_type}. Keep it conversational and engaging.",
+            'script_movie_prompt': "Present this {content_type} recommendation. Be concise and compelling.",
+            'script_constraints': "CONSTRAINTS: Duration: {duration} | Max words: {word_count} | Max sentences: {sentence_limit}",
+            'script_content_info': "Content: {title} ({year}) - IMDb: {imdb}",
+            'script_instruction': "Respond ONLY with the final script text.",
+            'script_fallback_intro': "Hey! Check out {title} from {year} with {imdb} on IMDb.",
+            'script_fallback_movie': "{title} from {year} - {imdb}."
+        },
+        'fr': {
+            # Movie Description Generation
+            'desc_expert_role': "Tu es un expert en cinéma qui écrit des descriptions {focus} pour les réseaux sociaux.",
+            'desc_task_instruction': "Tu écris TOUJOURS exactement 2 phrases complètes qui décrivent précisément le contenu du film/série donné.",
+            'desc_task_critical': "TÂCHE CRITIQUE: Écrire EXACTEMENT 2 phrases précises pour \"{title}\".",
+            'desc_search_context': "CONTEXTE DE RECHERCHE:",
+            'desc_user_search': "Recherche utilisateur: {search}",
+            'desc_found_content': "Ce {content_type} trouvé{platform}{country}",
+            'desc_precise_info': "INFORMATIONS PRÉCISES DU {content_type_upper}:",
+            'desc_exact_title': "Titre exact: {title}",
+            'desc_imdb_score': "Score IMDb: {score}",
+            'desc_year': "Année: {year}",
+            'desc_actual_genres': "Genres réels: {genres}",
+            'desc_mandatory_instructions': "INSTRUCTIONS OBLIGATOIRES:",
+            'desc_first_sentence': "1. PREMIÈRE PHRASE: Description du contenu réel du {content_type} (20-35 mots)",
+            'desc_use_genres': "   - Utilisez les genres réels: {genres}",
+            'desc_mention_platform': "   - Mentionnez{platform}{genre}",
+            'desc_authentic_content': "   - Décrivez le contenu authentique, pas générique",
+            'desc_second_sentence': "2. DEUXIÈME PHRASE: Score + année + recommandation contextuelle (15-25 mots)",
+            'desc_exact_score': "   - Score exact: {score}",
+            'desc_exact_year': "   - Année exacte: {year}",
+            'desc_personalized_rec': "   - Recommandation personnalisée pour votre recherche",
+            'desc_response_instruction': "RÉPONSE (2 phrases précises basées sur le vrai contenu):",
+            'content_film': "film",
+            'content_serie': "série",
+            'focus_detailed': "détaillées et structurées",
+            'focus_simple': "simples et directes",
+            'focus_creative': "créatives mais focalisées",
+            
+            # Script Generation
+            'script_system_role': "Tu es un expert en {genre} qui crée des scripts engageants pour des vidéos TikTok/YouTube. Tu respectes PRÉCISÉMENT les contraintes de timing et de nombre de mots.",
+            'script_intro_prompt': "Crée une brève introduction et présente le premier {content_type}. Reste conversationnel et engageant.",
+            'script_movie_prompt': "Présente cette recommandation de {content_type}. Sois concis et convaincant.",
+            'script_constraints': "CONTRAINTES: Durée: {duration} | Max mots: {word_count} | Max phrases: {sentence_limit}",
+            'script_content_info': "Contenu: {title} ({year}) - IMDb: {imdb}",
+            'script_instruction': "Réponds UNIQUEMENT avec le texte du script final.",
+            'script_fallback_intro': "Salut ! Découvrez {title} de {year} avec {imdb} sur IMDb.",
+            'script_fallback_movie': "{title} de {year} - {imdb}."
+        }
+    }
+
+def get_language_code(country):
+    """Get language code from country - simple mapping"""
+    return 'fr' if country == 'FR' else 'en'
+
+def build_context_elements(country, platform, genre, lang):
+    """Build context elements dynamically"""
+    t = get_translations()[lang]
+    
+    # Country context
+    if lang == 'fr':
+        country_ctx = " en France" if country == 'FR' else (f" en {country}" if country else "")
+        platform_ctx = f" sur {platform}" if platform else ""
+    else:
+        country_ctx = " in France" if country == 'FR' else (f" in {country}" if country and country != 'US' else "")
+        platform_ctx = f" on {platform}" if platform else ""
+    
+    genre_ctx = f" {genre.lower()}" if genre else ""
+    
+    return {
+        'country': country_ctx,
+        'platform': platform_ctx,
+        'genre': genre_ctx
+    }
+
+def create_dynamic_prompt(movie, search_summary, context_elements, content_type, lang):
+    """Create fully dynamic prompt using translations"""
+    t = get_translations()[lang]
+    
+    title = movie.get('title', 'Unknown')
+    genres = ', '.join(movie.get('genres', ['Divers'] if lang == 'fr' else ['Various']))
+    content_name = content_type or (t['content_film'] if lang == 'fr' else t['content_movie'])
+    content_upper = content_name.upper()
+    
+    return f"""{t['desc_task_critical'].format(title=title)}
+
+{t['desc_search_context']}
+- {t['desc_user_search'].format(search=search_summary)}
+- {t['desc_found_content'].format(content_type=content_name, platform=context_elements['platform'], country=context_elements['country'])}
+
+{t['desc_precise_info'].format(content_type_upper=content_upper)}
+- {t['desc_exact_title'].format(title=title)}
+- {t['desc_imdb_score'].format(score=movie['imdb'])}
+- {t['desc_year'].format(year=movie['year'])}
+- {t['desc_actual_genres'].format(genres=genres)}
+
+{t['desc_mandatory_instructions']}
+{t['desc_first_sentence'].format(content_type=content_name)}
+{t['desc_use_genres'].format(genres=genres)}
+{t['desc_mention_platform'].format(platform=context_elements['platform'], genre=context_elements['genre'])}
+{t['desc_authentic_content']}
+
+{t['desc_second_sentence']}
+{t['desc_exact_score'].format(score=movie['imdb'])}
+{t['desc_exact_year'].format(year=movie['year'])}
+{t['desc_personalized_rec']}
+
+{t['desc_response_instruction']}"""
+
+def generate_movie_description_simple(movie, search_summary, context_elements, content_type, lang, strategy):
+    """Generate description - simplified version"""
+    t = get_translations()[lang]
+    
+    # Get focus text dynamically
+    focus_map = {
+        'detailed_structured': t['focus_detailed'],
+        'simple_direct': t['focus_simple'],
+        'creative_flexible': t['focus_creative']
+    }
+    focus = focus_map.get(strategy['name'], t['focus_simple'])
+    
+    # Create messages
+    system_msg = f"{t['desc_expert_role'].format(focus=focus)} {t['desc_task_instruction']}"
+    user_prompt = create_dynamic_prompt(movie, search_summary, context_elements, content_type, lang)
+    
+    # Call OpenAI
+    response = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=strategy['temperature'],
+        max_tokens=strategy['max_tokens'],
+        presence_penalty=0.1,
+        frequency_penalty=0.1
+    )
+    
+    return response.choices[0].message.content.strip()
+
+def validate_and_fix_description(text):
+    """Simple validation and fix"""
+    sentences = [s.strip() for s in text.split('.') if s.strip()]
+    
+    if len(sentences) >= 2 and len(text) > 50:
+        return {
+            'valid': True,
+            'text': f"{sentences[0]}. {sentences[1]}.",
+            'count': len(sentences)
+        }
+    else:
+        return {
+            'valid': False,
+            'text': text,
+            'count': len(sentences)
+        }
+
+def enrich_movie_data(movie_data, country=None, genre=None, platform=None, content_type=None):
+    """
+    Simplified movie data enrichment with dynamic language support
+    """
+    logger.info(f"🤖 Enriching {len(movie_data)} movies with AI descriptions")
+    
+    # Get language and build context once
+    lang = get_language_code(country)
+    search_summary = ", ".join([f"{k}: {v}" for k, v in {
+        'country': country, 'genre': genre, 'platform': platform, 'type': content_type
+    }.items() if v and (k != 'country' or v != 'US')])
+    
+    context_elements = build_context_elements(country, platform, genre, lang)
+    
+    # Simple strategy list
+    strategies = [
+        {"name": "detailed_structured", "temperature": 0.3, "max_tokens": 300},
+        {"name": "simple_direct", "temperature": 0.1, "max_tokens": 250},
+        {"name": "creative_flexible", "temperature": 0.5, "max_tokens": 350}
+    ]
+    
+    # Process each movie
+    for movie in movie_data:
+        title = movie.get('title', 'Unknown')
+        logger.info(f"🎯 Processing: {title}")
+        
+        description = None
+        
+        # Try strategies until success
+        for i, strategy in enumerate(strategies):
+            try:
+                logger.info(f"   Strategy {i+1}/3: {strategy['name']}")
+                
+                # Generate description
+                generated = generate_movie_description_simple(
+                    movie, search_summary, context_elements, content_type, lang, strategy
+                )
+                
+                # Validate
+                result = validate_and_fix_description(generated)
+                
+                if result['valid']:
+                    description = result['text']
+                    logger.info(f"   ✅ SUCCESS: {result['count']} sentences")
+                    break
+                else:
+                    logger.warning(f"   ⚠️ Invalid: {result['count']} sentences")
+                    if i == len(strategies) - 1:
+                        logger.error(f"❌ All strategies failed for {title}")
+                        raise Exception(f"Failed to generate description for {title}")
+                    
+            except Exception as e:
+                logger.warning(f"   ⚠️ Error: {str(e)}")
+                if i == len(strategies) - 1:
+                    logger.error(f"❌ Critical failure for {title}")
+                    raise Exception(f"Critical: Failed for {title}")
+        
+        # Store result
+        if not description:
+            raise Exception(f"No description generated for {title}")
+            
+        movie["enriched_description"] = description
+        logger.info(f"✅ DONE: {title}")
+        logger.info(f"   Text: {description}")
+        
+        time.sleep(0.8)  # Rate limiting
+    
+    logger.info("✅ All movies enriched")
+    return movie_data
+
+# =============================================================================
+# SCRIPT GENERATION - DYNAMIC LANGUAGE SYSTEM
+# =============================================================================
+
+def create_script_prompt(movie, rule, content_type, genre, platform, lang):
+    """Create dynamic script prompt using translations"""
+    t = get_translations()[lang]
+    
+    title = movie.get('title', 'Unknown')
+    year = movie.get('year', 'Unknown')
+    imdb = movie.get('imdb', '7+')
+    
+    # Choose prompt type
+    if rule['name'] == 'intro_movie1':
+        prompt_type = t['script_intro_prompt']
+    else:
+        prompt_type = t['script_movie_prompt']
+    
+    return f"""{prompt_type.format(content_type=content_type or ('film' if lang == 'fr' else 'movie'))}
+
+{t['script_constraints'].format(
+    duration=rule['duration'],
+    word_count=rule['word_count'],
+    sentence_limit=rule['sentence_limit']
+)}
+
+{t['script_content_info'].format(title=title, year=year, imdb=imdb)}
+
+{t['script_instruction']}"""
+
+def generate_single_script(movie, rule, content_type, genre, platform, lang):
+    """Generate a single script section"""
+    t = get_translations()[lang]
+    
+    try:
+        # Create system message
+        system_msg = t['script_system_role'].format(genre=genre or ('divertissement' if lang == 'fr' else 'entertainment'))
+        
+        # Create user prompt
+        user_prompt = create_script_prompt(movie, rule, content_type, genre, platform, lang)
+        
+        # Generate script
+        max_tokens = 180 if rule["name"] == "intro_movie1" else 100
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=max_tokens
+        )
+        
+        generated_script = response.choices[0].message.content.strip()
+        word_count = len(generated_script.split())
+        logger.info(f"✅ Generated {rule['name']}: {word_count} words")
+        return generated_script
+        
+    except Exception as e:
+        logger.error(f"❌ Script generation failed for {rule['name']}: {str(e)}")
+        
+        # Simple fallback
+        title = movie.get('title', 'Unknown')
+        year = movie.get('year', 'Unknown')
+        imdb = movie.get('imdb', '7+')
+        
+        if rule['name'] == 'intro_movie1':
+            return t['script_fallback_intro'].format(title=title, year=year, imdb=imdb)
+        else:
+            return t['script_fallback_movie'].format(title=title, year=year, imdb=imdb)
+
+def generate_video_scripts(enriched_movies, country=None, genre=None, platform=None, content_type=None):
+    """
+    Generate scripts for video segments using dynamic language support
+    """
+    logger.info(f"📝 Generating scripts for {len(enriched_movies)} movies")
+    
+    # Get language
+    lang = get_language_code(country)
+    
+    # Script timing rules for reels (60-90 seconds total)
+    script_rules = [
+        {
+            "name": "intro_movie1",
+            "duration": "25-30 seconds", 
+            "word_count": "50-70",
+            "sentence_limit": "2",
+            "movie_index": 0
+        },
+        {
+            "name": "movie2", 
+            "duration": "15-20 seconds",
+            "word_count": "30-45", 
+            "sentence_limit": "1-2",
+            "movie_index": 1
+        },
+        {
+            "name": "movie3",
+            "duration": "15-20 seconds", 
+            "word_count": "30-45",
+            "sentence_limit": "1-2",
+            "movie_index": 2
+        }
+    ]
+    
+    # Generate scripts
+    generated_scripts = {}
+    
+    for rule in script_rules:
+        movie = enriched_movies[rule["movie_index"]]
+        script = generate_single_script(movie, rule, content_type, genre, platform, lang)
+        generated_scripts[rule["name"]] = script
+    
+    # Create scripts dictionary
+    scripts = {
+        "intro_movie1": {
+            "text": generated_scripts.get("intro_movie1", "Script generation failed."),
+            "path": "videos/script_intro_movie1.txt"
+        },
+        "movie2": {
+            "text": generated_scripts.get("movie2", "Script generation failed."),
+            "path": "videos/script_movie2.txt"
+        },
+        "movie3": {
+            "text": generated_scripts.get("movie3", "Script generation failed."),
+            "path": "videos/script_movie3.txt"
+        }
+    }
+    
+    # Save individual scripts
+    for key, script_data in scripts.items():
+        try:
+            with open(script_data["path"], "w", encoding='utf-8') as f:
+                f.write(script_data["text"])
+        except Exception as e:
+            logger.error(f"Failed to save script {key}: {str(e)}")
+    
+    # Create combined script
+    combined_script = "\n\n".join([scripts[key]["text"] for key in ["intro_movie1", "movie2", "movie3"]])
+    combined_path = "videos/combined_script.txt"
+    
+    try:
+        with open(combined_path, "w", encoding='utf-8') as f:
+            f.write(combined_script)
+    except Exception as e:
+        logger.error(f"Failed to save combined script: {str(e)}")
+    
+    logger.info("✅ Script generation completed")
+    return combined_script, combined_path, scripts
+
+# =============================================================================
+# EXISTING STREAMGANK HELPER FUNCTIONS
+# =============================================================================
 
 def extract_youtube_video_id(url: str) -> Optional[str]:
     """

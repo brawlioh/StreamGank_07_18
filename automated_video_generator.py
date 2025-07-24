@@ -42,7 +42,9 @@ from streamgank_helpers import (
     get_platform_mapping_by_country, 
     get_content_type_mapping_by_country,
     build_streamgank_url,
-    process_movie_trailers_to_clips
+    process_movie_trailers_to_clips,
+    enrich_movie_data,
+    generate_video_scripts
 )
 
 # =============================================================================
@@ -353,344 +355,8 @@ def _simulate_movie_data(num_movies=3):
     return base_movies[:num_movies]
 
 # =============================================================================
-# AI CONTENT GENERATION
+# HEYGEN VIDEO PROCESSING
 # =============================================================================
-
-def enrich_movie_data(movie_data, country=None, genre=None, platform=None, content_type=None):
-    """
-    Enrich movie data with AI-generated descriptions
-    
-    Args:
-        movie_data: List of movie data dictionaries
-        country (str): Country code for language context
-        genre (str): Genre for specialized prompts
-        platform (str): Platform for context
-        content_type (str): Film/Série for terminology
-        
-    Returns:
-        List of enriched movie data dictionaries
-    """
-    logger.info(f"🤖 Enriching {len(movie_data)} movies with AI descriptions")
-    
-    # Language mapping
-    language_map = {
-        'FR': {'language': 'French', 'code': 'fr'},
-        'US': {'language': 'English', 'code': 'en'},
-        'UK': {'language': 'English', 'code': 'en'},
-        'CA': {'language': 'English', 'code': 'en'},
-        'DE': {'language': 'German', 'code': 'de'},
-        'ES': {'language': 'Spanish', 'code': 'es'},
-        'IT': {'language': 'Italian', 'code': 'it'},
-    }
-    
-    lang_info = language_map.get(country or 'US', {'language': 'English', 'code': 'en'})
-    is_french = lang_info['code'] == 'fr'
-    
-    # Process each movie
-    for movie in movie_data:
-        try:
-            # Create system message
-            if is_french:
-                system_message = f"Tu es un expert en {genre or 'divertissement'} qui crée du contenu court et engageant pour les réseaux sociaux."
-            else:
-                system_message = f"You are a {genre or 'entertainment'} expert who creates short and engaging content for social media."
-            
-            # Create prompt
-            if is_french:
-                prompt = f"""
-                Génère une description engageante pour le {content_type or 'film'} "{movie['title']}" pour une vidéo TikTok/YouTube.
-                
-                Informations:
-                - Titre: {movie['title']}
-                - Score IMDb: {movie['imdb']}
-                - Année: {movie['year']}
-                - Genres: {', '.join(movie.get('genres', ['Divers']))}
-                
-                Critères OBLIGATOIRES:
-                1. EXACTEMENT 2 phrases complètes (ni plus, ni moins)
-                2. Première phrase: Description captivante du {content_type or 'film'}
-                3. Deuxième phrase: Mention du score IMDb et de l'année
-                4. Ton décontracté qui accroche un public jeune
-                5. Ne révèle pas trop l'intrigue
-                
-                Exemple de format:
-                "Ce {content_type or 'film'} d'horreur vous fera frissonner avec son atmosphère terrifiante. Avec un score de 8.5/10 sur IMDb depuis 2019, c'est un incontournable !"
-                
-                Réponds UNIQUEMENT avec les 2 phrases, sans préambule.
-                """
-            else:
-                prompt = f"""
-                Generate an engaging description for the {content_type or 'movie'} "{movie['title']}" for a TikTok/YouTube video.
-                
-                Information:
-                - Title: {movie['title']}
-                - IMDb Score: {movie['imdb']}
-                - Year: {movie['year']}
-                - Genres: {', '.join(movie.get('genres', ['Various']))}
-                
-                MANDATORY Criteria:
-                1. EXACTLY 2 complete sentences (no more, no less)
-                2. First sentence: Captivating description of the {content_type or 'movie'}
-                3. Second sentence: Mention the IMDb score and year
-                4. Casual tone that hooks young audiences
-                5. Don't spoil too much of the plot
-                
-                Example format:
-                "This horror {content_type or 'movie'} will give you chills with its terrifying atmosphere. With an 8.5/10 IMDb score since 2019, it's a must-watch!"
-                
-                Respond ONLY with the 2 sentences, no preamble.
-                """
-            
-            # Call OpenAI
-            response = openai.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=200  # Increased from 100 to allow for 2 complete sentences
-            )
-            
-            enriched_description = response.choices[0].message.content.strip()
-            movie["enriched_description"] = enriched_description
-            logger.info(f"✅ Enriched: {movie['title']}")
-            
-        except Exception as e:
-            logger.error(f"❌ Enrichment failed for {movie['title']}: {str(e)}")
-            # Fallback description - 2 sentences as requested
-            if is_french:
-                movie["enriched_description"] = f"Ce {content_type or 'film'} de {movie['year']} offre une expérience captivante avec ses {', '.join(movie.get('genres', ['divers'])[:2])} éléments. Avec un score IMDb de {movie['imdb']}, c'est un incontournable à découvrir !"
-            else:
-                movie["enriched_description"] = f"This {content_type or 'movie'} from {movie['year']} offers a captivating experience with its {', '.join(movie.get('genres', ['various'])[:2])} elements. With an IMDb score of {movie['imdb']}, it's a must-watch to discover!"
-    
-    logger.info("✅ Movie data enrichment completed")
-    return movie_data
-
-def generate_script(enriched_movies, cloudinary_urls, country=None, genre=None, platform=None, content_type=None):
-    """
-    Generate scripts for reels-style videos (60-90 seconds total)
-    
-    Args:
-        enriched_movies: List of enriched movie data
-        cloudinary_urls: Dictionary of image URLs
-        country (str): Country code for language context
-        genre (str): Genre for specialized terminology
-        platform (str): Platform for context
-        content_type (str): Film/Série for terminology
-        
-    Returns:
-        tuple: (combined_script, script_path, scripts_dict)
-    """
-    logger.info(f"📝 Generating scripts for {len(enriched_movies)} movies")
-    
-    # Language configuration
-    language_map = {
-        'FR': {'language': 'French', 'code': 'fr'},
-        'US': {'language': 'English', 'code': 'en'},
-        'UK': {'language': 'English', 'code': 'en'},
-        'CA': {'language': 'English', 'code': 'en'},
-    }
-    
-    lang_info = language_map.get(country or 'US', {'language': 'English', 'code': 'en'})
-    is_french = lang_info['code'] == 'fr'
-    
-    # Script timing rules for concise reels (60-90 seconds total)
-    script_rules = [
-         {
-             "name": "intro_movie1",
-             "duration": "25-30 seconds", 
-             "word_count": "50-70 words",
-             "sentence_limit": "2 sentences maximum",
-             "movie_index": 0,
-             "type": "brief introduction + first movie (1-2 sentences)"
-         },
-         {
-             "name": "movie2", 
-             "duration": "15-20 seconds",
-             "word_count": "30-45 words", 
-             "sentence_limit": "1-2 sentences maximum",
-             "movie_index": 1,
-             "type": "second movie (1-2 sentences)"
-         },
-         {
-             "name": "movie3",
-             "duration": "15-20 seconds", 
-             "word_count": "30-45 words",
-             "sentence_limit": "1-2 sentences maximum",
-             "movie_index": 2, 
-             "type": "third movie (1-2 sentences)"
-         }
-     ]
-    
-    logger.info(f"⏱️ Using concise reels timing rules (60-90 seconds total):")
-    for rule in script_rules:
-        logger.info(f"   {rule['name']}: {rule['duration']} ({rule['word_count']}) - {rule['sentence_limit']}")
-    
-    generated_scripts = {}
-    
-    # Generate each script section
-    for rule in script_rules:
-        movie = enriched_movies[rule["movie_index"]]
-        
-        try:
-            # System message
-            if is_french:
-                system_message = f"Tu es un expert en {genre or 'divertissement'} qui crée des scripts engageants pour des vidéos TikTok/YouTube. Tu respectes PRÉCISÉMENT les contraintes de timing et de nombre de mots."
-            else:
-                system_message = f"You are a {genre or 'entertainment'} expert who creates engaging scripts for TikTok/YouTube videos. You follow timing and word count constraints PRECISELY."
-            
-            # Create prompt based on script type
-            if is_french:
-                if rule["name"] == "intro_movie1":
-                    prompt = f"""
-                    Crée un script ULTRA-COURT pour un REEL de 60-90 secondes{f' sur {platform}' if platform else ''}. 
-                    
-                    CONTRAINTES EXTRÊMES - VIDÉO COURTE:
-                    - Durée: {rule['duration']} (MAXIMUM {rule['word_count']} mots)
-                    - SENTENCES: {rule['sentence_limit']} - PAS PLUS!
-                    - Chaque phrase doit être TRÈS COURTE et PERCUTANTE
-                    
-                    CONTENU:
-                    - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
-                    
-                    STRUCTURE ULTRA-MINIMALE (2 phrases max):
-                    1. Phrase d'accroche (10-15 mots max): "Salut ! Découvrez 3 {content_type or 'contenus'} incontournables"
-                    2. Première recommandation (25-35 mots max): "{movie['title']} de {movie['year']} avec {movie.get('imdb', '7+')} - [1 mot-clé impact]"
-                    
-                    IMPÉRATIF: EXACTEMENT 2 PHRASES COURTES - RIEN DE PLUS!
-                    Réponds UNIQUEMENT avec le script final.
-                    """
-                else:
-                    prompt = f"""
-                    Crée un script ULTRA-MINIMALISTE pour REEL{f' sur {platform}' if platform else ''}.
-                    
-                    CONTRAINTS ABSOLUES:
-                    - Durée: {rule['duration']} (MAXIMUM {rule['word_count']} mots)
-                    - SENTENCES: {rule['sentence_limit']} - STRICTEMENT!
-                    - Une phrase = Une recommandation
-                    
-                    CONTENU:
-                    - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
-                    
-                    FORMAT OBLIGATOIRE (1-2 phrases très courtes):
-                    1. "{movie['title']} de {movie['year']}" (8-12 mots)
-                    2. "[Score + 1 mot d'impact]" (5-10 mots) - OPTIONNEL si place
-                    
-                    LIMITE ABSOLUE: {rule['sentence_limit']}!
-                    Réponds UNIQUEMENT avec le script final.
-                    """
-            else:
-                if rule["name"] == "intro_movie1":
-                    prompt = f"""
-                    Create an ULTRA-SHORT script for a 60-90 second REEL{f' on {platform}' if platform else ''}. 
-                    
-                    EXTREME CONSTRAINTS - SHORT VIDEO:
-                    - Duration: {rule['duration']} (MAXIMUM {rule['word_count']} words)
-                    - SENTENCES: {rule['sentence_limit']} - NO MORE!
-                    - Each sentence must be VERY SHORT and PUNCHY
-                    
-                    CONTENT:
-                    - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
-                    
-                    ULTRA-MINIMAL STRUCTURE (2 sentences max):
-                    1. Hook sentence (10-15 words max): "Hey! Check out 3 must-watch {content_type or 'shows'}"  
-                    2. First recommendation (25-35 words max): "{movie['title']} from {movie['year']} with {movie.get('imdb', '7+')} - [1 impact word]"
-                    
-                    IMPERATIVE: EXACTLY 2 SHORT SENTENCES - NOTHING MORE!
-                    Respond ONLY with the final script.
-                    """
-                else:
-                    prompt = f"""
-                    Create an ULTRA-MINIMALIST script for REEL{f' on {platform}' if platform else ''}.
-                    
-                    ABSOLUTE CONSTRAINTS:
-                    - Duration: {rule['duration']} (MAXIMUM {rule['word_count']} words)
-                    - SENTENCES: {rule['sentence_limit']} - STRICTLY!
-                    - One sentence = One recommendation
-                    
-                    CONTENT:
-                    - {movie['title']} ({movie['year']}) - {movie.get('imdb', '7+')}
-                    
-                    MANDATORY FORMAT (1-2 very short sentences):
-                    1. "{movie['title']} from {movie['year']}" (8-12 words)
-                    2. "[Score + 1 impact word]" (5-10 words) - OPTIONAL if space allows
-                    
-                    ABSOLUTE LIMIT: {rule['sentence_limit']}!
-                    Respond ONLY with the final script.
-                    """
-            
-            # Generate script
-            max_tokens = 180 if rule["name"] == "intro_movie1" else 100
-            response = openai.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=max_tokens
-            )
-            
-            generated_script = response.choices[0].message.content.strip()
-            generated_scripts[rule["name"]] = generated_script
-            
-            word_count = len(generated_script.split())
-            logger.info(f"✅ Generated {rule['name']}: {word_count} words")
-            
-        except Exception as e:
-            logger.error(f"❌ Script generation failed for {rule['name']}: {str(e)}")
-            
-            # Fallback script (short and concise)
-            if is_french:
-                if rule["name"] == "intro_movie1":
-                    fallback = f"Salut ! Découvrez {movie['title']} de {movie['year']} avec {movie.get('imdb', '7+')} sur IMDb."
-                else:
-                    fallback = f"{movie['title']} de {movie['year']} - {movie.get('imdb', '7+')}."
-            else:
-                if rule["name"] == "intro_movie1":
-                    fallback = f"Hey! Check out {movie['title']} from {movie['year']} with {movie.get('imdb', '7+')} on IMDb."
-                else:
-                    fallback = f"{movie['title']} from {movie['year']} - {movie.get('imdb', '7+')}."
-            
-            generated_scripts[rule["name"]] = fallback
-    
-    # Create scripts dictionary
-    scripts = {
-        "intro_movie1": {
-            "text": generated_scripts.get("intro_movie1", "Script generation failed."),
-            "path": "videos/script_intro_movie1.txt"
-        },
-        "movie2": {
-            "text": generated_scripts.get("movie2", "Script generation failed."),
-            "path": "videos/script_movie2.txt"
-        },
-        "movie3": {
-            "text": generated_scripts.get("movie3", "Script generation failed."),
-            "path": "videos/script_movie3.txt"
-        }
-    }
-    
-    # Save individual scripts
-    for key, script_data in scripts.items():
-        try:
-            with open(script_data["path"], "w", encoding='utf-8') as f:
-                f.write(script_data["text"])
-        except Exception as e:
-            logger.error(f"Failed to save script {key}: {str(e)}")
-    
-    # Create combined script
-    combined_script = "\n\n".join([scripts[key]["text"] for key in ["intro_movie1", "movie2", "movie3"]])
-    combined_path = "videos/combined_script.txt"
-    
-    try:
-        with open(combined_path, "w", encoding='utf-8') as f:
-            f.write(combined_script)
-    except Exception as e:
-        logger.error(f"Failed to save combined script: {str(e)}")
-    
-    logger.info("✅ Script generation completed")
-    return combined_script, combined_path, scripts
 
 # =============================================================================
 # HEYGEN VIDEO PROCESSING
@@ -1097,7 +763,7 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
 # CREATOMATE VIDEO COMPOSITION
 # =============================================================================
 
-def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data: List[Dict[str, Any]] = None) -> str:
+def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data: List[Dict[str, Any]] = None, scroll_video_url: str = None) -> str:
     """
     Create final video with Creatomate using HeyGen video URLs
     
@@ -1221,6 +887,32 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 "track": 1,
                 "source": heygen_intro
             },
+            
+            # Scroll video overlay (full screen with fade-in/out animation)
+            *([scroll_video_url and {
+                "fit": "cover",          # Use "cover" to fill the screen
+                "type": "video",
+                "track": 3,              # Use track 3 to overlay on top of everything
+                "source": scroll_video_url,
+                "time_offset": 4,        # Start at 4-seconds mark
+                "duration": 6,           # Play for 6 seconds
+                "width": "100%",         # Full screen width
+                "height": "100%",        # Full screen height
+                "x": "50%",              # Center position
+                "y": "50%",              # Center position
+                "animations": [           # Add fade-in and fade-out animations
+                    {
+                        "type": "fade",
+                        "fade_in": True,
+                        "duration": 1     # 1-second fade-in
+                    },
+                    {
+                        "type": "fade",
+                        "fade_out": True,
+                        "duration": 1     # 1-second fade-out
+                    }
+                ],
+            }] or []),
             # Movie 1 assets
             {
                 "fit": "cover",
@@ -1379,6 +1071,80 @@ def check_creatomate_render_status(render_id: str) -> dict:
         logger.error(f"Exception checking render status: {str(e)}")
         return {"status": "error", "message": str(e)}
 
+def upload_video_to_cloudinary(file_path, folder="streamgank_videos"):
+    """
+    Upload a video file to Cloudinary and return the URL
+    
+    Args:
+        file_path (str): Path to the video file
+        folder (str): Cloudinary folder to upload to
+        
+    Returns:
+        str: Cloudinary URL of the uploaded video
+    """
+    logger.info(f"☁️ Uploading video to Cloudinary: {os.path.basename(file_path)}")
+    try:
+        # Specify resource_type='video' for video uploads
+        response = cloudinary.uploader.upload(
+            file_path, 
+            folder=folder, 
+            resource_type="video"
+        )
+        url = response['secure_url']
+        logger.info(f"✅ Video uploaded successfully: {os.path.basename(file_path)}")
+        return url
+    except Exception as e:
+        logger.error(f"❌ Video upload failed for {file_path}: {str(e)}")
+        raise e
+
+def generate_scroll_video(country, genre, platform, content_type, smooth=True, scroll_distance=1.5):
+    """
+    Generate scroll video using the same filter parameters as the main workflow
+    Now with ULTRA 60 FPS MICRO-SCROLLING for perfectly readable content!
+    
+    Args:
+        country: Country filter
+        genre: Genre filter
+        platform: Platform filter
+        content_type: Content type filter
+        smooth: Enable micro-scrolling animation (default: True)
+        scroll_distance: Viewport multiplier for scroll amount (default: 1.5 = minimal readable)
+    
+    Returns:
+        str: Path to the generated scroll video or Cloudinary URL if uploaded
+    """
+    from archive.create_scroll_video import create_scroll_video
+    
+    logger.info(f"🖥️ Generating StreamGank ULTRA 60 FPS MICRO-SCROLL video (DISTANCE: {scroll_distance}x)...")
+    
+    # Create scroll video with unique filename + auto-cleanup (FIXED 6 seconds at 60 FPS)
+    video_path = create_scroll_video(
+        country=country,
+        genre=genre,
+        platform=platform,
+        content_type=content_type,
+        output_video=None,  # Auto-generate unique filename
+        smooth_scroll=smooth,
+        target_duration=6,  # Always 6 seconds duration
+        scroll_distance=scroll_distance  # Control scroll amount
+    )
+    
+    if video_path:
+        logger.info(f"✅ Scroll video generated successfully: {video_path}")
+        
+        # Upload to Cloudinary for Creatomate to access
+        try:
+            cloudinary_url = upload_video_to_cloudinary(video_path, "streamgank_videos")
+            logger.info(f"☁️ Scroll video uploaded to Cloudinary: {cloudinary_url}")
+            return cloudinary_url
+        except Exception as e:
+            logger.warning(f"Failed to upload scroll video to Cloudinary: {str(e)}")
+            # Return local path if upload fails
+            return video_path
+    else:
+        logger.error("❌ Failed to generate scroll video")
+        return None
+
 def wait_for_creatomate_completion(render_id: str, max_attempts: int = 30, interval: int = 10) -> dict:
     """Wait for Creatomate render completion with progress feedback"""
     logger.info(f"Waiting for Creatomate render {render_id} to complete...")
@@ -1489,7 +1255,7 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
         results['error'] = str(e)
         return results
 
-def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None):
+def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None, skip_scroll_video=False, smooth_scroll=True, scroll_distance=1.5):
     """
     Run the complete end-to-end video generation workflow
     
@@ -1554,7 +1320,7 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         
         # Step 5: Generate scripts
         logger.info("Step 5: Generating AI-powered scripts")
-        combined_script, script_path, scripts = generate_script(enriched_movies, results['cloudinary_urls'], country, genre, platform, content_type)
+        combined_script, script_path, scripts = generate_video_scripts(enriched_movies, country, genre, platform, content_type)
         results['script'] = combined_script
         results['script_path'] = script_path
         results['script_sections'] = scripts
@@ -1569,9 +1335,27 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, scripts)
         results['heygen_video_urls'] = heygen_video_urls
         
+        # Step 7.5: Generate scroll video (if not skipped)
+        scroll_video_url = None
+        if not skip_scroll_video:
+            logger.info("Step 7.5: Generating StreamGank scroll video")
+            scroll_video_url = generate_scroll_video(
+                country=country,
+                genre=genre,
+                platform=platform,
+                content_type=content_type,
+                smooth=smooth_scroll,
+                scroll_distance=scroll_distance
+            )
+            if scroll_video_url:
+                results['scroll_video_url'] = scroll_video_url
+                logger.info(f"📱 Scroll video URL: {scroll_video_url}")
+            else:
+                logger.warning("⚠️ Failed to generate scroll video, continuing without it")
+        
         # Step 8: Create final video with Creatomate
         logger.info("Step 8: Creating final video with Creatomate")
-        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=enriched_movies)
+        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=enriched_movies, scroll_video_url=scroll_video_url)
         results['creatomate_id'] = creatomate_id
         
         if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
@@ -1647,6 +1431,12 @@ if __name__ == "__main__":
         # Output options
         parser.add_argument("--output", help="Output file path to save results")
         parser.add_argument("--debug", action="store_true", help="Enable debug output")
+        parser.add_argument("--skip-scroll-video", action="store_true", help="Skip scroll video generation")
+        
+        # Smooth scrolling options
+        parser.add_argument("--smooth-scroll", action="store_true", default=True, help="Enable smooth scrolling animation (default: True)")
+        parser.add_argument("--no-smooth-scroll", action="store_false", dest="smooth_scroll", help="Disable smooth scrolling")
+        parser.add_argument("--scroll-distance", type=float, default=1.5, help="Scroll distance as viewport multiplier (default: 1.5 = minimal readable, 1.0 = very short, 2.0 = longer)")
         
         args = parser.parse_args()
         
@@ -1775,7 +1565,10 @@ if __name__ == "__main__":
                     genre=args.genre,
                     platform=args.platform,
                     content_type=args.content_type,
-                    output=args.output
+                    output=args.output,
+                    skip_scroll_video=args.skip_scroll_video,
+                    smooth_scroll=args.smooth_scroll,
+                    scroll_distance=args.scroll_distance
                 )
                 print("\n✅ Workflow completed successfully!")
                 
