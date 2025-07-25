@@ -1,0 +1,61 @@
+{
+  "timestamp": "2025-07-25 00:21:46.211067",
+  "processed_posters": 3,
+  "enhanced_poster_urls": {
+    "Stranger Things": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753374097/enhanced_posters/enhanced_posters/stranger_things_12345.png",
+    "The Last of Us": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753374102/enhanced_posters/enhanced_posters/the_last_of_us_67890.png",
+    "Wednesday": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753374105/enhanced_posters/enhanced_posters/wednesday_11111.png"
+  },
+  "original_movie_data": [
+    {
+      "id": 12345,
+      "title": "Stranger Things",
+      "year": 2016,
+      "imdb_score": 8.6,
+      "runtime": "1h 1min",
+      "platform": "Netflix",
+      "poster_url": "https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg",
+      "genres": [
+        "Drama",
+        "Fantastique",
+        "Horreur",
+        "Mystère & Thriller"
+      ],
+      "imdb_votes": 1465600,
+      "content_type": "Série"
+    },
+    {
+      "id": 67890,
+      "title": "The Last of Us",
+      "year": 2023,
+      "imdb_score": 8.5,
+      "runtime": "0h 58min",
+      "platform": "Max",
+      "poster_url": "https://image.tmdb.org/t/p/w500/uKvVjHNqB5VmOrdxqAt2F7J78ED.jpg",
+      "genres": [
+        "Action & Adventure",
+        "Drama",
+        "Horreur",
+        "Mystère & Thriller"
+      ],
+      "imdb_votes": 685100,
+      "content_type": "Série"
+    },
+    {
+      "id": 11111,
+      "title": "Wednesday",
+      "year": 2022,
+      "imdb_score": 8.1,
+      "runtime": "0h 52min",
+      "platform": "Netflix",
+      "poster_url": "https://image.tmdb.org/t/p/w500/9PFonBhy4cQy7Jz20NpMygczOkv.jpg",
+      "genres": [
+        "Comedy",
+        "Crime",
+        "Family"
+      ],
+      "imdb_votes": 234500,
+      "content_type": "Série"
+    }
+  ]
+}

@@ -44,7 +44,8 @@ from streamgank_helpers import (
     build_streamgank_url,
     process_movie_trailers_to_clips,
     enrich_movie_data,
-    generate_video_scripts
+    generate_video_scripts,
+    create_enhanced_movie_posters
 )
 
 # =============================================================================
@@ -785,22 +786,29 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
     if movie_data and len(movie_data) >= 3:
         logger.info("🎬 Using dynamic movie assets from movie_data")
         
-        # Movie covers
+        # Create enhanced movie poster cards with metadata
+        logger.info("🎨 Creating ENHANCED MOVIE POSTERS with metadata overlays")
+        logger.info("📱 Style: Professional TikTok/Instagram Reels format with aspect ratio preservation")
+        logger.info("🖼️ Features: Platform badges, genres, IMDb scores, runtime, year")
+        enhanced_posters = create_enhanced_movie_posters(movie_data, max_movies=3)
+        
+        # Movie covers (enhanced posters with metadata)
         movie_covers = []
+        fallback_covers = [
+            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
+            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
+            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
+        ]
+        
         for i, movie in enumerate(movie_data[:3]):
-            cover_url = movie.get('poster_url') or movie.get('cloudinary_poster_url') 
-            if cover_url:
-                movie_covers.append(cover_url)
-                logger.info(f"   Movie {i+1} cover: {movie['title']} -> {cover_url}")
+            movie_title = movie.get('title', f'Movie_{i+1}')
+            
+            if movie_title in enhanced_posters:
+                movie_covers.append(enhanced_posters[movie_title])
+                logger.info(f"   Movie {i+1} cover: {movie_title} -> ENHANCED POSTER WITH METADATA")
             else:
-                # Fallback covers
-                fallback_covers = [
-                    "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
-                    "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
-                    "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
-                ]
                 movie_covers.append(fallback_covers[i])
-                logger.warning(f"   Movie {i+1} cover: Using fallback for {movie['title']}")
+                logger.warning(f"   Movie {i+1} cover: {movie_title} -> FALLBACK POSTER")
         
         # Dynamic movie clips
         logger.info("🎞️ Processing dynamic CINEMATIC PORTRAIT clips from trailers")
@@ -826,7 +834,8 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 movie_clips.append(fallback_clips[i])
                 logger.warning(f"   Movie {i+1} clip: {movie_title} -> FALLBACK CLIP")
         
-        logger.info(f"✅ Dynamic assets prepared: {len(movie_covers)} covers, {len(movie_clips)} clips")
+        logger.info(f"✅ Dynamic assets prepared: {len(movie_covers)} enhanced posters, {len(movie_clips)} clips")
+        logger.info(f"🎨 Enhanced posters include: Platform badges, genres, IMDb scores, metadata")
         
     else:
         # Default assets
@@ -914,9 +923,9 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                     }
                 ],
             }] or []),
-            # Movie 1 assets
+            # Movie 1 assets (enhanced poster with metadata)
             {
-                "fit": "cover",
+                "fit": "contain",  # Preserve aspect ratio of enhanced poster
                 "type": "image", 
                 "track": 1,
                 "source": movie_covers[0],
@@ -937,9 +946,9 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 "track": 1,
                 "source": heygen_movie2
             },
-            # Movie 2 assets
+            # Movie 2 assets (enhanced poster with metadata)
             {
-                "fit": "cover",
+                "fit": "contain",  # Preserve aspect ratio of enhanced poster
                 "type": "image",
                 "track": 1,
                 "source": movie_covers[1],
@@ -960,9 +969,9 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 "track": 1,
                 "source": heygen_movie3
             },
-            # Movie 3 assets
+            # Movie 3 assets (enhanced poster with metadata)
             {
-                "fit": "cover",
+                "fit": "contain",  # Preserve aspect ratio of enhanced poster
                 "type": "image",
                 "track": 1,
                 "source": movie_covers[2],
