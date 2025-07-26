@@ -1065,7 +1065,7 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
     total_video_length = 1 + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + heygen_durations["heygen3"] + clip_durations["clip3"] + 3
         
     # Branding duration = total - intro(1s) - outro(3s)
-    branding_duration = total_video_length - 1 - 3 - 1 # -1 is the duration of the fade in and out of heygen 1st video
+    branding_duration = total_video_length - 1 - 3 - 1 - 0.5 - 0.5 # -1 is duration of the fade outro, 0.5 os for the 2nd and 3rd heygen video
         
     logger.info(f"📊 Total video length: {total_video_length:.1f}s (using ACTUAL clip durations)")
     logger.info(f"🏷️ BRANDING duration: {branding_duration:.1f}s (starts at 1s, ends at {1 + branding_duration:.1f}s)")
@@ -1288,7 +1288,7 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
                 "type": "composition",
                 "track": 3,
                 "time": 1,
-                "duration": branding_duration - 0.5 - 0.5, # please dont delete this comment - 0.5 is the duration of the fade in and out of heygen 2nd and 3rd video
+                "duration": branding_duration,
                 "elements": [
                     # STREAMGANK LOGO TEXT "Stream" - Green colored, persistent overlay
                     {
