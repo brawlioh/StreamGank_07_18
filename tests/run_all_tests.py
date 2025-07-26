@@ -47,6 +47,12 @@ AVAILABLE_TESTS = {
         'description': 'Test video quality processing',
         'module': 'test_video_quality.py',
         'quick': False
+    },
+    'enhanced_intro': {
+        'name': 'Enhanced Cinematic Intro Prompts',
+        'description': 'Test new enhanced cinematic intro prompts for TikTok/YouTube style videos',
+        'module': 'test_enhanced_intro_prompts.py',
+        'quick': False
     }
 }
 

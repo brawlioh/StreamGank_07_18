@@ -1,0 +1,92 @@
+{
+  "enriched_movies": [
+    {
+      "id": 7299,
+      "title": "Godzilla Minus One",
+      "year": 2023,
+      "imdb": "7.7/10 (174773 votes)",
+      "imdb_score": 7.7,
+      "imdb_votes": 174773,
+      "runtime": "124 min",
+      "platform": "Netflix",
+      "poster_url": "https://images.justwatch.com/poster/307410526/s332/godzilla-minus-one.avif",
+      "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1742896159/movie-posters/cf5f1812aa28d27febf656e07e2282d2.avif",
+      "trailer_url": "https://www.youtube.com/watch?v=nAYKaslCXPc",
+      "streaming_url": "https://www.netflix.com/title/81767635",
+      "genres": [
+        "Horror"
+      ],
+      "content_type": "Film",
+      "enriched_description": "\"Godzilla Minus One\" is a gripping horror film on Netflix that plunges viewers into a post-war Japan, where the terrifying re-emergence of Godzilla threatens humanity's fragile recovery. With an IMDb score of 7."
+    },
+    {
+      "id": 33495,
+      "title": "Train to Busan",
+      "year": 2016,
+      "imdb": "7.6/10 (289239 votes)",
+      "imdb_score": 7.6,
+      "imdb_votes": 289239,
+      "runtime": "118 min",
+      "platform": "Netflix",
+      "poster_url": "https://images.justwatch.com/poster/164866704/s332/train-to-busan.webp",
+      "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1751459107/movie-posters/f0f07f9e33ab865dc3edb66ded174009.webp",
+      "trailer_url": "https://www.youtube.com/watch?v=1ovgxN2VWNc",
+      "streaming_url": "https://www.netflix.com/title/80117824",
+      "genres": [
+        "Horror"
+      ],
+      "content_type": "Film",
+      "enriched_description": "\"Train to Busan\" is a gripping horror film on Netflix that follows passengers on a train to Busan as they struggle to survive a sudden zombie outbreak. With an IMDb score of 7."
+    },
+    {
+      "id": 33496,
+      "title": "The Wailing",
+      "year": 2016,
+      "imdb": "7.4/10 (85629 votes)",
+      "imdb_score": 7.4,
+      "imdb_votes": 85629,
+      "runtime": "156 min",
+      "platform": "Netflix",
+      "poster_url": "https://images.justwatch.com/poster/204249971/s332/the-wailing.webp",
+      "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1751459109/movie-posters/2973b8a79b07ff67fb541dbe61480106.webp",
+      "trailer_url": "https://www.youtube.com/watch?v=43uAputjI4k",
+      "streaming_url": "https://www.netflix.com/title/80108974",
+      "genres": [
+        "Horror"
+      ],
+      "content_type": "Film",
+      "enriched_description": "\"The Wailing is a chilling horror film on Netflix that delves into a mysterious series of deaths in a small Korean village, leading a local policeman to confront a sinister force. With an IMDb score of 7."
+    }
+  ],
+  "script": "\"Horror fans, brace yourselves! StreamGank's unearthed 3 tantalizing thrillers from 2016-2023, guaranteed to make your spine tingle! Among them is the bone-chilling, 'Godzilla Minus One' that rocked 2016 with a whopping 7.7 IMDb rating. This isn't just a collection, it's a ticket to the nerve-racking world of horror! Stay tuned, it’s time to face your fears!\"\n\n\"Board the 'Train to Busan,' a 2016 thrill-ride that redefines the zombie genre! 7.6 on IMDb, it's a journey of fear, survival, and heart you won't forget!\"\n\n\"Dive into the eerie unknown with The Wailing, a chilling 2016 horror film. With a 7.4 IMDb rating, it's a spine-tingling spectacle you can't afford to miss!\"",
+  "script_path": "videos/combined_script.txt",
+  "script_sections": {
+    "movie1": {
+      "text": "\"Horror fans, brace yourselves! StreamGank's unearthed 3 tantalizing thrillers from 2016-2023, guaranteed to make your spine tingle! Among them is the bone-chilling, 'Godzilla Minus One' that rocked 2016 with a whopping 7.7 IMDb rating. This isn't just a collection, it's a ticket to the nerve-racking world of horror! Stay tuned, it’s time to face your fears!\"",
+      "path": "videos/script_movie1.txt"
+    },
+    "movie2": {
+      "text": "\"Board the 'Train to Busan,' a 2016 thrill-ride that redefines the zombie genre! 7.6 on IMDb, it's a journey of fear, survival, and heart you won't forget!\"",
+      "path": "videos/script_movie2.txt"
+    },
+    "movie3": {
+      "text": "\"Dive into the eerie unknown with The Wailing, a chilling 2016 horror film. With a 7.4 IMDb rating, it's a spine-tingling spectacle you can't afford to miss!\"",
+      "path": "videos/script_movie3.txt"
+    }
+  },
+  "video_ids": {
+    "movie1": "57d7af1534b844bd9c367b52cbee704d",
+    "movie2": "2ea96e6312ca401997c0a16d357b9dab",
+    "movie3": "e78579ae975a41caaa0d71ec9551a4e2"
+  },
+  "heygen_video_urls": {
+    "movie1": "https://files2.heygen.ai/aws_pacific/avatar_tmp/fc001c501c65419385a406d9281db788/57d7af1534b844bd9c367b52cbee704d.mp4?Expires=1754147605&Signature=pFkTnuDZVZ6elkuZKb7BsL-OB-Ste8dFHZvciEb7EnBXuqSIvmOQnlrRHrUwGAtWyRAJLj6B4Q1xSMo1cjU-GiDUDTaUow191X3HWcIuYHLhLWLzOJMnI7q0zkzEdTZsqWykJ9eONWgz3wk~1w5pfVUiXkZwZnlEHDlJOH-pSPxH1fRVa-J42hxYU5adRL8HF08KIAx~SZ5OlFereCfpWaqtnIkOcxXYzW~Eb2dWqI8fVG9QS5Y3202T1ZUZbk0SwmqhkGzg6picjl-Ijy5ZtFls1jm8AIfZE27-vI8BCusAM8FQ46ueN6fK-MTaIda9CbygX3ndgKHwQnLLmAOlhQ__&Key-Pair-Id=K38HBHX5LX3X2H",
+    "movie2": "https://files2.heygen.ai/aws_pacific/avatar_tmp/fc001c501c65419385a406d9281db788/2ea96e6312ca401997c0a16d357b9dab.mp4?Expires=1754147606&Signature=mHU~wEKg7j2r6gTH5PT5uoUP2WM~ux2OpNlv~amGWmSlI4RdscWkfTev9IDk6Yzi1fEUQVMn5zAgbnof6jL958090TRNPK~WwKvihVvnGjpw90yudbKmqHQY0IaXBOUYh90Dq~9Qp21iGYONYGBGhHubzclobAIlPwo0sAxrTFbrw2UrQ-cAGYTkGBm46y2raH-5dkuCq6AzAJMcOWrxIBS~YE9Qpf7AwBxdrHnLlBMyEC~63oTSInL8hmS6JjX8GDFPVf8TTZ6u8QuLPgtOMnmgjgz8ldFpFq6oaLpz2ho3vIeVbWgVwxJBYjKMN1UL7F4XGsDc9AzbqsjwCc9Dbg__&Key-Pair-Id=K38HBHX5LX3X2H",
+    "movie3": "https://files2.heygen.ai/aws_pacific/avatar_tmp/fc001c501c65419385a406d9281db788/e78579ae975a41caaa0d71ec9551a4e2.mp4?Expires=1754147607&Signature=Kisr1bPKAvLQExPY6VWL3kcp5KkfkSVCcm6Zp-zG~LVM03pETL5muBUX-1OvoTkMChYR6s-Vy0WrcSTYr9~V7K1myMR2QcEKuAJOvQlCb3V4SBia53930HO4hMymIu13SWiFNuEQ0FUWmFV7o1mwj8wcWINENYeNozQGjHFsH3RYXPVKzw8RIf2NNF5Cbt3vrbdDEveIZFcZnP1LMw86uoXe0qMj0khdQSt96uyMQvhP6G~MCKnYg74oAqJB1Tc5FHGvVG3w1pHWI2IWZZRZkTlF3cgyMwMmzDaEVgarmfpOihu54pCF0q8bINfcIrCoG9gLlaHVa9jpxQ4WSbUciQ__&Key-Pair-Id=K38HBHX5LX3X2H"
+  },
+  "scroll_video_url": "https://res.cloudinary.com/dodod8s0v/video/upload/v1753542957/streamgank_videos/pwfvvbwv2fofssgdwz5g.mp4",
+  "creatomate_id": "7b2371a9-f39f-4ced-b838-2991ef7ab0ac",
+  "creatomate_status": "submitted",
+  "status_check_command": "python automated_video_generator.py --check-creatomate 7b2371a9-f39f-4ced-b838-2991ef7ab0ac",
+  "group_id": "workflow_20250726_231749"
+}
