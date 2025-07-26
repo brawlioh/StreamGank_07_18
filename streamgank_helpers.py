@@ -71,8 +71,7 @@ def get_translations():
             'script_constraints': "CONSTRAINTS: Duration: {duration} | Max words: {word_count} | Max sentences: {sentence_limit}",
             'script_content_info': "Content: {title} ({year}) - IMDb: {imdb}",
             'script_instruction': "Respond ONLY with the final script text.",
-            'script_fallback_intro': "Hey! Check out {title} from {year} with {imdb} on IMDb.",
-            'script_fallback_movie': "{title} from {year} - {imdb}."
+            
         },
         'fr': {
             # Movie Description Generation
@@ -110,8 +109,7 @@ def get_translations():
             'script_constraints': "CONTRAINTES: Durée: {duration} | Max mots: {word_count} | Max phrases: {sentence_limit}",
             'script_content_info': "Contenu: {title} ({year}) - IMDb: {imdb}",
             'script_instruction': "Réponds UNIQUEMENT avec le texte du script final.",
-            'script_fallback_intro': "Salut ! Découvrez {title} de {year} avec {imdb} sur IMDb.",
-            'script_fallback_movie': "{title} de {year} - {imdb}."
+            
         }
     }
 
@@ -304,7 +302,7 @@ def create_script_prompt(movie, rule, content_type, genre, platform, lang):
     imdb = movie.get('imdb', '7+')
     
     # Choose prompt type
-    if rule['name'] == 'intro_movie1':
+    if rule['name'] == 'movie1':
         prompt_type = t['script_intro_prompt']
     else:
         prompt_type = t['script_movie_prompt']
@@ -333,7 +331,7 @@ def generate_single_script(movie, rule, content_type, genre, platform, lang):
         user_prompt = create_script_prompt(movie, rule, content_type, genre, platform, lang)
         
         # Generate script
-        max_tokens = 180 if rule["name"] == "intro_movie1" else 100
+        max_tokens = 180 if rule["name"] == "movie1" else 100
         response = openai.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -351,16 +349,9 @@ def generate_single_script(movie, rule, content_type, genre, platform, lang):
         
     except Exception as e:
         logger.error(f"❌ Script generation failed for {rule['name']}: {str(e)}")
-        
-        # Simple fallback
-        title = movie.get('title', 'Unknown')
-        year = movie.get('year', 'Unknown')
-        imdb = movie.get('imdb', '7+')
-        
-        if rule['name'] == 'intro_movie1':
-            return t['script_fallback_intro'].format(title=title, year=year, imdb=imdb)
-        else:
-            return t['script_fallback_movie'].format(title=title, year=year, imdb=imdb)
+        logger.error(f"❌ STRICT MODE - No fallback allowed for script generation")
+        # Return None to indicate failure - let caller handle the error
+        return None
 
 def generate_video_scripts(enriched_movies, country=None, genre=None, platform=None, content_type=None):
     """
@@ -374,7 +365,7 @@ def generate_video_scripts(enriched_movies, country=None, genre=None, platform=N
     # Script timing rules for reels (60-90 seconds total)
     script_rules = [
         {
-            "name": "intro_movie1",
+            "name": "movie1",
             "duration": "25-30 seconds", 
             "word_count": "50-70",
             "sentence_limit": "2",
@@ -396,26 +387,33 @@ def generate_video_scripts(enriched_movies, country=None, genre=None, platform=N
         }
     ]
     
-    # Generate scripts
+    # Generate scripts - STRICT MODE (NO FALLBACKS)
     generated_scripts = {}
     
     for rule in script_rules:
         movie = enriched_movies[rule["movie_index"]]
         script = generate_single_script(movie, rule, content_type, genre, platform, lang)
+        
+        # STRICT VALIDATION - Fail if any script generation fails
+        if script is None:
+            logger.error(f"❌ Script generation failed for {rule['name']} - STRICT MODE")
+            logger.error(f"❌ Cannot continue without all scripts - returning None")
+            return None
+            
         generated_scripts[rule["name"]] = script
     
-    # Create scripts dictionary
+    # Create scripts dictionary (all scripts validated and generated successfully)
     scripts = {
-        "intro_movie1": {
-            "text": generated_scripts.get("intro_movie1", "Script generation failed."),
-            "path": "videos/script_intro_movie1.txt"
+        "movie1": {
+            "text": generated_scripts["movie1"],  # Direct access - we know it exists
+            "path": "videos/script_movie1.txt"
         },
         "movie2": {
-            "text": generated_scripts.get("movie2", "Script generation failed."),
+            "text": generated_scripts["movie2"],  # Direct access - we know it exists
             "path": "videos/script_movie2.txt"
         },
         "movie3": {
-            "text": generated_scripts.get("movie3", "Script generation failed."),
+            "text": generated_scripts["movie3"],  # Direct access - we know it exists
             "path": "videos/script_movie3.txt"
         }
     }
@@ -429,7 +427,7 @@ def generate_video_scripts(enriched_movies, country=None, genre=None, platform=N
             logger.error(f"Failed to save script {key}: {str(e)}")
     
     # Create combined script
-    combined_script = "\n\n".join([scripts[key]["text"] for key in ["intro_movie1", "movie2", "movie3"]])
+    combined_script = "\n\n".join([scripts[key]["text"] for key in ["movie1", "movie2", "movie3"]])
     combined_path = "videos/combined_script.txt"
     
     try:
@@ -522,9 +520,9 @@ def download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers"
         logger.error(f"❌ Error downloading YouTube trailer {trailer_url}: {str(e)}")
         return None
 
-def extract_10_second_highlight(video_path: str, start_time: int = 30, output_dir: str = "temp_clips") -> Optional[str]:
+def extract_second_highlight(video_path: str, start_time: int = 30, output_dir: str = "temp_clips") -> Optional[str]:
     """
-    Extract a 10-second highlight clip from a video and convert to CINEMATIC PORTRAIT format (9:16)
+    Extract a highlight clip from a video and convert to CINEMATIC PORTRAIT format (9:16)
     
     This function converts landscape YouTube trailers to portrait format using advanced techniques:
     1. Creates a soft Gaussian-blurred background from the original video
@@ -548,7 +546,7 @@ def extract_10_second_highlight(video_path: str, start_time: int = 30, output_di
         video_name = Path(video_path).stem
         output_path = os.path.join(output_dir, f"{video_name}_10s_highlight.mp4")
         
-        logger.info(f"🎞️ Extracting 10-second CINEMATIC PORTRAIT highlight from: {video_path}")
+        logger.info(f"🎞️ Extracting CINEMATIC PORTRAIT highlight from: {video_path}")
         logger.info(f"   Start time: {start_time}s")
         logger.info(f"   Technique: Gaussian blur background + centered frame")
         logger.info(f"   Enhancement: Contrast, clarity, and saturation boost")
@@ -560,7 +558,7 @@ def extract_10_second_highlight(video_path: str, start_time: int = 30, output_di
             'ffmpeg',
             '-i', video_path,           # Input file
             '-ss', str(start_time),     # Start time
-            '-t', '10',                 # Duration (10 seconds)
+            '-t', '15',                 # Duration
             '-c:v', 'libx264',         # Video codec
             '-c:a', 'aac',             # Audio codec
             '-crf', '15',              # Ultra-high quality for social media
@@ -741,8 +739,8 @@ def process_movie_trailers_to_clips(movie_data: List[Dict], max_movies: int = 3,
                 logger.error(f"❌ Failed to download trailer for {movie_title}")
                 continue
             
-            # Step 2: Extract 10-second highlight
-            highlight_clip = extract_10_second_highlight(downloaded_trailer)
+            # Step 2: Extract highlight
+            highlight_clip = extract_second_highlight(downloaded_trailer)
             if not highlight_clip:
                 logger.error(f"❌ Failed to extract highlight for {movie_title}")
                 continue
@@ -1228,6 +1226,34 @@ def _add_light_rays(canvas: Image.Image, center_x: int, center_y: int):
     
     canvas.paste(rays, (0, 0), rays)
 
+# 🔧 COMPREHENSIVE VOTE FORMATTING - Support thousands AND millions
+def format_votes(votes):
+    """Format votes with proper k/M suffix based on magnitude"""
+
+    if not isinstance(votes, (int, float)):
+        return str(votes)
+    
+    votes = int(votes)  # Ensure integer for proper formatting
+
+    if votes < 1000:
+        # Less than 1000: Show as-is (e.g., 800 → "800")
+        return str(votes)
+    elif votes < 10000:
+        # 1000-9999: Show as X.Xk (e.g., 8240 → "8.2k")
+        return f"{votes/1000:.1f}k"
+    elif votes < 1000000:
+        # 10000-999999: Show as XXXk (e.g., 82400 → "82k", 234567 → "235k")  
+        return f"{int(votes/1000)}k"
+    elif votes < 10000000:
+        # 1M-9.9M: Show as X.XM (e.g., 1500000 → "1.5M", 8240000 → "8.2M")
+        return f"{votes/1000000:.1f}M"
+    elif votes < 100000000:
+        # 10M-99.9M: Show as XX.XM (e.g., 15000000 → "15.0M", 25600000 → "25.6M")
+        return f"{votes/1000000:.1f}M"
+    else:
+        # 100M+: Show as XXXM (e.g., 156000000 → "156M")
+        return f"{int(votes/1000000)}M"
+            
 def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "temp_posters") -> Optional[str]:
     """
     Create an enhanced movie poster card with metadata overlay for TikTok/Instagram Reels
@@ -1508,10 +1534,12 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "temp_poste
         # Step 9: Create ROUNDED and TRANSPARENT metadata panel
         metadata_y = current_y + 30  # More spacing before metadata
         
+        formatted_votes = format_votes(imdb_votes)
+        
         metadata_items = [
             ("Date:", str(year)),
             ("IMDb:", f"{imdb_score}/10"),
-            ("Votes:", f"{imdb_votes}k" if isinstance(imdb_votes, (int, float)) else str(imdb_votes)),
+            ("Votes:", formatted_votes),  # ✅ FIXED: Proper vote formatting
             ("Time:", runtime)
         ]
         

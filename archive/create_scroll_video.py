@@ -147,15 +147,13 @@ def create_scroll_video(
     logger.info(f"📁 Using unique frames directory: {frames_dir}")
     logger.info(f"   🛡️ Multi-script safe - no frame conflicts!")
     
-    # STEP 1: Try the ACTUAL FILTERED URL first (this is the key change!)
+    # STRICT MODE: Only use filtered URL - NO FALLBACKS
     filtered_url = build_streamgank_url(country, genre, platform, content_type)
-    fallback_url = build_streamgank_url(country=country, genre=None, platform=None, content_type=None)
     
-    logger.info(f"🎯 DYNAMIC SCROLL VIDEO GENERATION (SMOOTH: {smooth_scroll})")
+    logger.info(f"🎯 DYNAMIC SCROLL VIDEO GENERATION - STRICT MODE (NO FALLBACKS)")
     logger.info(f"   🎬 FIXED DURATION: {target_duration} seconds")
-    logger.info(f"   Primary (filtered): {filtered_url}")
-    logger.info(f"   Fallback (homepage): {fallback_url}")
-    logger.info(f"   Scroll Speed: Ultra")
+    logger.info(f"   Target URL (filtered): {filtered_url}")
+    logger.info(f"   Scroll Speed: Ultra - Smooth: {smooth_scroll}")
     
     # Clean old frames
     for file in os.listdir(frames_dir):
@@ -194,9 +192,8 @@ def create_scroll_video(
             document.head.appendChild(style);
         }""")
         
-        # STEP 2: Try filtered URL first
+        # STEP 2: Use filtered URL only - STRICT MODE
         url_to_use = filtered_url
-        use_fallback = False
         
         try:
             logger.info(f"🌐 Trying filtered URL: {filtered_url}")
@@ -227,80 +224,49 @@ def create_scroll_video(
             logger.info(f"   Page height: {content_info['page_height']}px")
             logger.info(f"   Needs scrolling: {content_info['needs_scrolling']}")
             
-            # STEP 4: Decide if we need fallback
+            # STEP 4: STRICT VALIDATION - No fallbacks allowed
             if not content_info['has_content'] or content_info['has_no_results']:
-                logger.warning("⚠️ No content found with filters, falling back to homepage")
-                use_fallback = True
-            else:
-                logger.info("🎉 Using filtered results for scroll video!")
-                # Calculate OPTIMAL scroll height for smooth 6-second scrolling
-                if scroll_height is None:
-                    viewport_height = content_info['viewport_height']
-                    page_height = content_info['page_height']
-                    
-                    # OPTIMAL SCROLL CALCULATION FOR 6 SECONDS
-                    # Rule: 2.5x viewport height for natural scrolling speed
-                    optimal_scroll = viewport_height * scroll_distance
-                    
-                    # Cap based on actual page content, but prioritize smooth speed
-                    max_reasonable_scroll = min(page_height * 0.7, optimal_scroll * 1.2)  # Don't exceed 70% of page or 1.2x optimal
-                    
-                    scroll_height = min(optimal_scroll, max_reasonable_scroll)
-                    
-                    # Ensure minimum scrolling for very short pages
-                    if scroll_height < viewport_height * 1.5:
-                        scroll_height = viewport_height * 1.5
-                    
-                    logger.info(f"📏 OPTIMAL SCROLL CALCULATION:")
-                    logger.info(f"   Viewport height: {viewport_height}px")
-                    logger.info(f"   Page height: {page_height}px")
-                    logger.info(f"   Optimal scroll (2.5x viewport): {optimal_scroll:.0f}px")
-                    logger.info(f"   Final scroll height: {scroll_height:.0f}px")
-                    logger.info(f"   Scroll speed: {scroll_height/6:.0f}px/second (SMOOTH!)")
-                    
-                    if not content_info['needs_scrolling']:
-                        # Very short page - use minimal scrolling
-                        scroll_height = viewport_height * 1.2
-                        logger.info(f"   ⚠️ Short page detected - using minimal scroll: {scroll_height:.0f}px")
-                
-        except Exception as e:
-            logger.warning(f"⚠️ Error with filtered URL: {str(e)}")
-            use_fallback = True
-        
-        # STEP 5: Use fallback if needed
-        if use_fallback:
-            try:
-                logger.info(f"🔄 Falling back to homepage: {fallback_url}")
-                page.goto(fallback_url)
-                page.wait_for_selector("text=StreamGank", timeout=10000)
-                url_to_use = fallback_url
-                
-                time.sleep(2)
-                content_info = detect_content_availability(page)
-                
-                # Set OPTIMAL scroll parameters for homepage using same logic
-                if scroll_height is None:
-                    viewport_height = content_info['viewport_height']
-                    page_height = content_info['page_height']
-                    
-                    # Use same optimal calculation as filtered page
-                    optimal_scroll = viewport_height * scroll_distance
-                    max_reasonable_scroll = min(page_height * 0.7, optimal_scroll * 1.2)
-                    scroll_height = min(optimal_scroll, max_reasonable_scroll)
-                    
-                    # Ensure minimum scrolling
-                    if scroll_height < viewport_height * 1.5:
-                        scroll_height = viewport_height * 1.5
-                    
-                    logger.info(f"📏 FALLBACK SCROLL CALCULATION:")
-                    logger.info(f"   Viewport height: {viewport_height}px")
-                    logger.info(f"   Optimal scroll: {scroll_height:.0f}px")
-                    logger.info(f"   Scroll speed: {scroll_height/6:.0f}px/second")
-                
-            except Exception as e:
-                logger.error(f"❌ Even fallback failed: {str(e)}")
+                logger.error("❌ No content found with filters - NO FALLBACK ALLOWED")
+                logger.error(f"   Content details: has_content={content_info['has_content']}, has_no_results={content_info['has_no_results']}")
                 browser.close()
                 return None
+            
+            logger.info("✅ Content found - proceeding with scroll video generation!")
+            # Calculate OPTIMAL scroll height for smooth 6-second scrolling
+            if scroll_height is None:
+                viewport_height = content_info['viewport_height']
+                page_height = content_info['page_height']
+                
+                # OPTIMAL SCROLL CALCULATION FOR 6 SECONDS
+                # Rule: 2.5x viewport height for natural scrolling speed
+                optimal_scroll = viewport_height * scroll_distance
+                
+                # Cap based on actual page content, but prioritize smooth speed
+                max_reasonable_scroll = min(page_height * 0.7, optimal_scroll * 1.2)  # Don't exceed 70% of page or 1.2x optimal
+                
+                scroll_height = min(optimal_scroll, max_reasonable_scroll)
+                
+                # Ensure minimum scrolling for very short pages
+                if scroll_height < viewport_height * 1.5:
+                    scroll_height = viewport_height * 1.5
+                
+                logger.info(f"📏 OPTIMAL SCROLL CALCULATION:")
+                logger.info(f"   Viewport height: {viewport_height}px")
+                logger.info(f"   Page height: {page_height}px")
+                logger.info(f"   Optimal scroll (2.5x viewport): {optimal_scroll:.0f}px")
+                logger.info(f"   Final scroll height: {scroll_height:.0f}px")
+                logger.info(f"   Scroll speed: {scroll_height/6:.0f}px/second (SMOOTH!)")
+                
+                if not content_info['needs_scrolling']:
+                    # Very short page - use minimal scrolling
+                    scroll_height = viewport_height * 1.2
+                    logger.info(f"   ⚠️ Short page detected - using minimal scroll: {scroll_height:.0f}px")
+                
+        except Exception as e:
+            logger.error(f"❌ Error with filtered URL: {str(e)}")
+            logger.error("❌ STRICT MODE - No fallback allowed, returning None")
+            browser.close()
+            return None
         
         # STEP 6: Handle cookies
         try:
@@ -406,7 +372,7 @@ def create_scroll_video(
         logger.info(f"   Quality: CRF 12 (maximum quality for readable text)")
         logger.info(f"   Scroll distance: {scroll_distance}x viewport (MINIMAL)")
         logger.info(f"   Pixels per frame: {scroll_height/num_frames:.1f}px (MICRO!)")
-        logger.info(f"   Content: {'Filtered results' if not use_fallback else 'Homepage fallback'}")
+        logger.info(f"   Content: Filtered results (STRICT MODE)")
         logger.info(f"   URL captured: {url_to_use}")
         
         # 🗑️ CLEANUP: Delete all screenshot frames after successful video creation

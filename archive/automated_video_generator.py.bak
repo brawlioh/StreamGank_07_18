@@ -333,7 +333,7 @@ def generate_script(enriched_movies, cloudinary_urls):
     logger.info("Generating scripts for avatar videos (intro+movie1, movie2, movie3)...")
     
     # Create separate scripts for intro+movie1, movie2, and movie3
-    script_intro_movie1 = f"""Hello horror movie fans! Here are the top horror films to watch on Netflix France right now!
+    script_movie1 = f"""Hello horror movie fans! Here are the top horror films to watch on Netflix France right now!
 
 First, let's check out {enriched_movies[0]['title']} from {enriched_movies[0]['year']} with an IMDb score of {enriched_movies[0]['imdb']}. {enriched_movies[0]['enriched_description']}"""
     
@@ -344,9 +344,9 @@ First, let's check out {enriched_movies[0]['title']} from {enriched_movies[0]['y
     # Conclusion
     # Save to separate files
     scripts = {
-        "intro_movie1": {
-            "text": script_intro_movie1,
-            "path": "videos/intro_movie1_script.txt"
+        "movie1": {
+            "text": script_movie1,
+            "path": "videos/movie1_script.txt"
         },
         "movie2": {
             "text": script_movie2,
@@ -366,7 +366,7 @@ First, let's check out {enriched_movies[0]['title']} from {enriched_movies[0]['y
     logger.info(f"Scripts generated and saved to videos directory")
     
     # Return combined script for compatibility with existing functions
-    combined_script = script_intro_movie1 + "\n\n" + script_movie2 + "\n\n" + script_movie3
+    combined_script = script_movie1 + "\n\n" + script_movie2 + "\n\n" + script_movie3
     combined_path = "videos/combined_script.txt"
     with open(combined_path, "w") as f:
         f.write(combined_script)
@@ -472,8 +472,8 @@ def get_video_duration(video_url: str) -> float:
         # If it's a Cloudinary URL, we can parse the public ID and use Cloudinary API
         if "cloudinary" in video_url and "/video/upload/" in video_url:
             # Improved extraction of public ID from Cloudinary URL
-            # Example URL: https://res.cloudinary.com/dodod8s0v/video/upload/v1752582467/intro_movie1_kegi9p.mp4
-            # or: https://res.cloudinary.com/dodod8s0v/video/upload/intro_movie1_kegi9p.mp4
+            # Example URL: https://res.cloudinary.com/dodod8s0v/video/upload/v1752582467/movie1_kegi9p.mp4
+            # or: https://res.cloudinary.com/dodod8s0v/video/upload/movie1_kegi9p.mp4
             parts = video_url.split("/upload/")
             if len(parts) == 2:
                 # Extract everything after /upload/ and before file extension if present
@@ -504,7 +504,7 @@ def get_video_duration(video_url: str) -> float:
         # Since accurately determining video duration is critical for preventing overlap,
         # use these known durations for specific videos we're working with
         video_durations = {
-            "intro_movie1_kegi9p": 15.5,  # Duration in seconds for intro+movie1
+            "movie1_kegi9p": 15.5,  # Duration in seconds for intro+movie1
             "movie2_knfyfm": 14.2,      # Duration in seconds for movie2
             "movie3_m5h4ta": 13.8       # Duration in seconds for movie3
         }
@@ -770,7 +770,7 @@ def create_creatomate_video(
     
     # For each video position, check if we have a valid HeyGen video ID
     # If yes, download and upload to Cloudinary, otherwise use a public placeholder video
-    for key in ['intro_movie1', 'movie2', 'movie3']:
+    for key in ['movie1', 'movie2', 'movie3']:
         video_id = heygen_videos.get(key, '')
         if video_id and video_id != 'placeholder':
             logger.info(f"Processing HeyGen video for {key} with ID: {video_id}")
@@ -897,14 +897,14 @@ def create_creatomate_video(
     
     # Define the HeyGen video URLs
     heygen_videos = {
-        "intro_movie1": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752582467/intro_movie1_kegi9p.mp4",
+        "movie1": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752582467/movie1_kegi9p.mp4",
         "movie2": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752582475/movie2_knfyfm.mp4",
         "movie3": "https://res.cloudinary.com/dodod8s0v/video/upload/v1752582467/movie3_m5h4ta.mp4"
     }
     
     # Get durations of the HeyGen videos    # Define the HeyGen video URLs
     heygen_videos = {
-        "intro_movie1": heygen_cloudinary_urls.get("intro_movie1", DEFAULT_VIDEO_URL),
+        "movie1": heygen_cloudinary_urls.get("movie1", DEFAULT_VIDEO_URL),
         "movie2": heygen_cloudinary_urls.get("movie2", DEFAULT_VIDEO_URL),
         "movie3": heygen_cloudinary_urls.get("movie3", DEFAULT_VIDEO_URL)
     }
@@ -930,7 +930,7 @@ def create_creatomate_video(
     else:
         # Use default HeyGen video IDs if none provided
         heygen_video_ids = {
-            "intro_movie1": "placeholder_intro_movie1",
+            "movie1": "placeholder_movie1",
             "movie2": "placeholder_movie2",
             "movie3": "placeholder_movie3"
         }

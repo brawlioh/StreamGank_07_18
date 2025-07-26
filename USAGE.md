@@ -59,7 +59,7 @@ python automated_video_generator.py --all --output results.json
 python automated_video_generator.py --process-heygen heygen_videos.json
 
 # From command line JSON
-python automated_video_generator.py --heygen-ids '{"intro_movie1":"video_id_1","movie2":"video_id_2","movie3":"video_id_3"}'
+python automated_video_generator.py --heygen-ids '{"movie1":"video_id_1","movie2":"video_id_2","movie3":"video_id_3"}'
 ```
 
 ## 🔧 Key Features
@@ -182,7 +182,7 @@ python automated_video_generator.py --country FR --platform Netflix --genre Horr
 ```json
 // heygen_videos.json
 {
-    "intro_movie1": "abc123def456",
+    "movie1": "abc123def456",
     "movie2": "def456ghi789",
     "movie3": "ghi789jkl012"
 }

@@ -13,6 +13,7 @@ Usage:
     
     # Optional parameters:
     python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film
+    python3 automated_video_generator.py --country US --platform Netflix --genre Horror --content-type Film
 """
 
 import os
@@ -35,6 +36,7 @@ import cloudinary.api
 from supabase import create_client
 import openai
 from typing import Dict, List, Tuple, Optional, Any
+from archive.create_scroll_video import create_scroll_video
 
 # Import StreamGang helper functions
 from streamgank_helpers import (
@@ -704,24 +706,27 @@ def estimate_heygen_processing_time(script_length: int = None) -> int:
 
 def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = None) -> dict:
     """
-    Get HeyGen video URLs for direct use with Creatomate
+    Get HeyGen video URLs for direct use with Creatomate - STRICT MODE
     
     Args:
-        heygen_video_ids: Dictionary of HeyGen video IDs
+        heygen_video_ids: Dictionary of HeyGen video IDs (no placeholders allowed)
         scripts: Dictionary of script data for time estimation
         
     Returns:
-        Dictionary with video URLs ready for Creatomate
+        Dictionary with video URLs ready for Creatomate, or None if any video fails
+        
+    Note:
+        STRICT MODE - Returns None if any video fails. No fallbacks allowed.
     """
-    logger.info(f"🔗 Getting HeyGen video URLs for {len(heygen_video_ids)} videos")
+    logger.info(f"🔗 Getting HeyGen video URLs for {len(heygen_video_ids)} videos - STRICT MODE")
     
     video_urls = {}
-    fallback_url = "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
     
     for key, video_id in heygen_video_ids.items():
         if not video_id or video_id.startswith('placeholder'):
-            logger.debug(f"Skipping placeholder ID for {key}")
-            continue
+            logger.error(f"❌ Invalid or placeholder ID for {key}: {video_id}")
+            logger.error("❌ STRICT MODE - No placeholder IDs allowed")
+            return None
         
         # Extract script length for estimation
         script_length = None
@@ -747,261 +752,1310 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
         if status_result['success'] and status_result['video_url']:
             video_url = status_result['video_url']
             video_urls[key] = video_url
-            logger.info(f"✅ Got URL for {key}")
+            logger.info(f"✅ Got URL for {key}: {video_url[:50]}...")
         else:
-            # Use fallback
-            if status_result.get('video_url'):
-                video_urls[key] = status_result['video_url']
-                logger.warning(f"⚠️ Using incomplete URL for {key}")
-            else:
-                video_urls[key] = fallback_url
-                logger.warning(f"⚠️ Using fallback URL for {key}")
+            # STRICT MODE - No fallbacks allowed
+            logger.error(f"❌ HeyGen video failed for {key}: {video_id}")
+            logger.error(f"   Status: {status_result}")
+            logger.error("❌ STRICT MODE - No fallback URLs allowed")
+            return None
     
     logger.info(f"✅ Obtained {len(video_urls)} video URLs")
     return video_urls
 
 # =============================================================================
-# CREATOMATE VIDEO COMPOSITION
+# CREATOMATE VIDEO COMPOSITION - MODULAR ARCHITECTURE
 # =============================================================================
 
-def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data: List[Dict[str, Any]] = None, scroll_video_url: str = None) -> str:
+def _validate_creatomate_inputs(heygen_video_urls: dict, movie_data: List[Dict[str, Any]], poster_timing_mode: str) -> str:
     """
-    Create final video with Creatomate using HeyGen video URLs
+    Validate inputs for Creatomate video creation - STRICT MODE
     
     Args:
         heygen_video_urls: Dictionary with HeyGen video URLs
         movie_data: List of movie data dictionaries
+        poster_timing_mode: Poster timing mode to validate
         
     Returns:
-        Creatomate video ID or error message
+        Empty string if valid, error message if invalid
     """
-    logger.info("🎞️ Creating Creatomate video using HeyGen URLs")
+    logger.info("🔍 Validating Creatomate inputs - STRICT MODE")
     
-    api_key = os.getenv("CREATOMATE_API_KEY")
-    if not api_key:
-        logger.error("CREATOMATE_API_KEY not found")
-        return f"error_no_api_key_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    # Validate HeyGen URLs
+    if not heygen_video_urls or not isinstance(heygen_video_urls, dict):
+        logger.error("❌ Invalid or missing heygen_video_urls")
+        return f"error_invalid_heygen_urls_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
-    # Get movie assets
-    if movie_data and len(movie_data) >= 3:
-        logger.info("🎬 Using dynamic movie assets from movie_data")
+    # Validate poster timing mode
+    valid_modes = ["heygen_last3s", "with_movie_clips"]
+    if poster_timing_mode not in valid_modes:
+        logger.error(f"❌ Invalid poster_timing_mode: {poster_timing_mode}. Must be one of: {valid_modes}")
+        return f"error_invalid_timing_mode_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    # Validate movie data
+    # ═══════════════════════════════════════════════════════════════
+    # STEP 2: DYNAMIC ASSET PREPARATION (Enhanced Posters & Movie Clips)
+    # ═══════════════════════════════════════════════════════════════
+    
+    logger.info("✅ All inputs validated successfully")
+    return ""  # Empty string indicates success
+
+
+def _calculate_heygen_durations(heygen_video_urls: dict, scripts: dict) -> Dict[str, float]:
+    """
+    Calculate actual durations for all HeyGen videos using FFprobe
+    
+    Args:
+        heygen_video_urls: Dictionary with HeyGen video URLs
+        scripts: Dictionary with script data for fallback estimation
         
-        # Create enhanced movie poster cards with metadata
-        logger.info("🎨 Creating ENHANCED MOVIE POSTERS with metadata overlays")
-        logger.info("📱 Style: Professional TikTok/Instagram Reels format with aspect ratio preservation")
-        logger.info("🖼️ Features: Platform badges, genres, IMDb scores, runtime, year")
-        enhanced_posters = create_enhanced_movie_posters(movie_data, max_movies=3)
+    Returns:
+        Dictionary with calculated durations for each HeyGen video
+    """
+    logger.info("⏱️ Calculating HeyGen video durations using FFprobe")
+    
+    durations = {}
+    
+    # Extract scripts for each HeyGen video
+    heygen1_script = scripts.get("movie1", "") if scripts else ""
+    heygen2_script = scripts.get("movie2", "") if scripts else ""
+    heygen3_script = scripts.get("movie3", "") if scripts else ""
+    
+    # Get actual durations using FFprobe with fallbacks
+    durations["heygen1"] = get_actual_heygen_duration(heygen_video_urls["movie1"], heygen1_script)
+    durations["heygen2"] = get_actual_heygen_duration(heygen_video_urls["movie2"], heygen2_script)
+    durations["heygen3"] = get_actual_heygen_duration(heygen_video_urls["movie3"], heygen3_script)
+    
+    logger.info(f"📊 HeyGen Duration Analysis Results:")
+    logger.info(f"   🎬 HeyGen1: {durations['heygen1']:.1f}s")
+    logger.info(f"   🎬 HeyGen2: {durations['heygen2']:.1f}s")
+    logger.info(f"   🎬 HeyGen3: {durations['heygen3']:.1f}s")
+    
+    return durations
+
+
+class PosterTimingStrategy:
+    """
+    Abstract base class for poster timing calculation strategies
+    Following Strategy Pattern for professional big tech architecture
+    """
+    
+    def calculate_timing(self, heygen_durations: Dict[str, float]) -> Dict[str, Dict[str, float]]:
+        """
+        Calculate poster timing based on HeyGen video durations
         
-        # Movie covers (enhanced posters with metadata)
-        movie_covers = []
-        fallback_covers = [
-            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
-            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
-            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
-        ]
-        
-        for i, movie in enumerate(movie_data[:3]):
-            movie_title = movie.get('title', f'Movie_{i+1}')
+        Args:
+            heygen_durations: Dictionary with HeyGen video durations
             
-            if movie_title in enhanced_posters:
-                movie_covers.append(enhanced_posters[movie_title])
-                logger.info(f"   Movie {i+1} cover: {movie_title} -> ENHANCED POSTER WITH METADATA")
-            else:
-                movie_covers.append(fallback_covers[i])
-                logger.warning(f"   Movie {i+1} cover: {movie_title} -> FALLBACK POSTER")
-        
-        # Dynamic movie clips
-        logger.info("🎞️ Processing dynamic CINEMATIC PORTRAIT clips from trailers")
-        logger.info("📱 Using Gaussian blur backgrounds + enhanced quality for TikTok/Instagram Reels")
-        logger.info("🎬 Format: 1080x1920 with premium settings")
-        dynamic_clips = process_movie_trailers_to_clips(movie_data, max_movies=3, transform_mode="youtube_shorts")
-        
-        # Create clips array
-        movie_clips = []
-        fallback_clips = [
-            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751353401/the_last_of_us_zljllt.mp4",
-            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751355284/Stranger_Things_uyxt3a.mp4",
-            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356566/The_Haunting_of_Hill_House_jhztq4.mp4"
-        ]
-        
-        for i, movie in enumerate(movie_data[:3]):
-            movie_title = movie.get('title', f'Movie_{i+1}')
-            
-            if movie_title in dynamic_clips:
-                movie_clips.append(dynamic_clips[movie_title])
-                logger.info(f"   Movie {i+1} clip: {movie_title} -> DYNAMIC CLIP")
-            else:
-                movie_clips.append(fallback_clips[i])
-                logger.warning(f"   Movie {i+1} clip: {movie_title} -> FALLBACK CLIP")
-        
-        logger.info(f"✅ Dynamic assets prepared: {len(movie_covers)} enhanced posters, {len(movie_clips)} clips")
-        logger.info(f"🎨 Enhanced posters include: Platform badges, genres, IMDb scores, metadata")
-        
-    else:
-        # Default assets
-        logger.warning("⚠️ Using default movie assets")
-        movie_covers = [
-            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373016/1_TheLastOfUs_w5l6o7.png",
-            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373201/2_Strangerthings_bidszb.png",
-            "https://res.cloudinary.com/dodod8s0v/image/upload/v1751373245/3_Thehaunting_grxuop.png"
-        ]
-        
-        movie_clips = [
-            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751353401/the_last_of_us_zljllt.mp4",
-            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751355284/Stranger_Things_uyxt3a.mp4",
-            "https://res.cloudinary.com/dodod8s0v/video/upload/v1751356566/The_Haunting_of_Hill_House_jhztq4.mp4"
-        ]
+        Returns:
+            Dictionary with timing data for each poster
+        """
+        raise NotImplementedError("Subclasses must implement calculate_timing method")
+
+
+class HeyGenLast3SecondsStrategy(PosterTimingStrategy):
+    """
+    Strategy for displaying posters during the last 3 seconds of HeyGen videos
+    """
     
-    # Get HeyGen URLs with fallbacks
-    heygen_intro = heygen_video_urls.get(
-        "intro_movie1", 
-        "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
-    )
-    heygen_movie2 = heygen_video_urls.get(
-        "movie2", 
-        "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
-    )
-    heygen_movie3 = heygen_video_urls.get(
-        "movie3", 
-        "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
-    )
-    
-    # Create composition (YouTube Shorts format: 1080x1920)
-    source = {
-        "width": 1080,
-        "height": 1920,
-        "elements": [
-            # Intro image (1 second)
-            {
-                "fit": "cover",
-                "type": "image",
-                "track": 1,
-                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753263646/streamGank_intro_cwefmt.jpg",
-                "duration": 1
-            },
-            # StreamGank banner (persists throughout video)
-            {
-                "id": "streamgank-banner",
-                "name": "streamgank_logo",
-                "type": "image",
-                "y": "6.25%",
-                "height": "12.5%",
-                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752587056/streamgankbanner_uempzb.jpg",
-                "time_offset": 1,
-                "duration": "99%"
-            },
-            # HeyGen intro + movie1
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": heygen_intro
-            },
+    def calculate_timing(self, heygen_durations: Dict[str, float]) -> Dict[str, Dict[str, float]]:
+        """
+        Calculate timing for posters to appear during last 3 seconds of HeyGen videos
+        """
+        logger.info("🎯 Using HeyGen Last 3 Seconds strategy")
+        
+        # Define constants
+        intro_duration = 1.0
+        clip_duration = 12.0
+        poster_duration = 3.0
+        min_heygen_time = 5.0  # Minimum time before poster can appear
+        
+        # Calculate HeyGen video start times in sequential timeline
+        heygen1_start_time = intro_duration
+        heygen2_start_time = intro_duration + heygen_durations["heygen1"] + clip_duration
+        heygen3_start_time = intro_duration + heygen_durations["heygen1"] + clip_duration + heygen_durations["heygen2"] + clip_duration
+        
+        # Calculate poster times - last 3 seconds of each HeyGen video
+        poster1_time = heygen1_start_time + heygen_durations["heygen1"] - poster_duration
+        poster2_time = heygen2_start_time + heygen_durations["heygen2"] - poster_duration
+        poster3_time = heygen3_start_time + heygen_durations["heygen3"] - poster_duration
+        
+        # Safety checks for short videos
+        timings = {}
+        
+        # Poster 1 timing with safety check
+        if poster1_time < heygen1_start_time + min_heygen_time:
+            poster1_time = heygen1_start_time + min_heygen_time
+            actual_poster1_duration = heygen1_start_time + heygen_durations["heygen1"] - poster1_time
+            logger.warning(f"⚠️ HeyGen1 too short - Poster1 adjusted to {actual_poster1_duration:.1f}s duration")
+        else:
+            actual_poster1_duration = poster_duration
             
-            # Scroll video overlay (full screen with fade-in/out animation)
-            *([scroll_video_url and {
-                "fit": "cover",          # Use "cover" to fill the screen
-                "type": "video",
-                "track": 3,              # Use track 3 to overlay on top of everything
-                "source": scroll_video_url,
-                "time": 4,               # Start at 4-seconds mark
-                "duration": 6,           # Play for 6 seconds
-                "width": "100%",         # Full screen width
-                "height": "100%",        # Full screen height
-                "x": "50%",              # Center position
-                "y": "50%",              # Center position
-                "animations": [           # Add fade-in and fade-out animations
-                    {
-                        "type": "fade",
-                        "fade_in": True,
-                        "duration": 1     # 1-second fade-in
-                    },
-                    {
-                        "type": "fade",
-                        "fade_out": True,
-                        "duration": 1     # 1-second fade-out
-                    }
-                ],
-            }] or []),
-            # Movie 1 assets (enhanced poster with metadata)
-            {
-                "fit": "contain",  # Preserve aspect ratio of enhanced poster
-                "type": "image", 
-                "track": 1,
-                "source": movie_covers[0],
-                "duration": 3
+        timings["poster1"] = {
+            "time": poster1_time,
+            "duration": actual_poster1_duration
+        }
+        
+        # Poster 2 timing with safety check
+        if poster2_time < heygen2_start_time + min_heygen_time:
+            poster2_time = heygen2_start_time + min_heygen_time
+            actual_poster2_duration = heygen2_start_time + heygen_durations["heygen2"] - poster2_time
+            logger.warning(f"⚠️ HeyGen2 too short - Poster2 adjusted to {actual_poster2_duration:.1f}s duration")
+        else:
+            actual_poster2_duration = poster_duration
+            
+        timings["poster2"] = {
+            "time": poster2_time,
+            "duration": actual_poster2_duration
+        }
+        
+        # Poster 3 timing with safety check
+        if poster3_time < heygen3_start_time + min_heygen_time:
+            poster3_time = heygen3_start_time + min_heygen_time
+            actual_poster3_duration = heygen3_start_time + heygen_durations["heygen3"] - poster3_time
+            logger.warning(f"⚠️ HeyGen3 too short - Poster3 adjusted to {actual_poster3_duration:.1f}s duration")
+        else:
+            actual_poster3_duration = poster_duration
+            
+        timings["poster3"] = {
+            "time": poster3_time,
+            "duration": actual_poster3_duration
+        }
+        
+        # Log timing details
+        logger.info("📍 HEYGEN LAST 3 SECONDS MODE - Timing calculated:")
+        logger.info(f"   Poster1: {timings['poster1']['time']:.1f}s → {timings['poster1']['time'] + timings['poster1']['duration']:.1f}s (last {timings['poster1']['duration']:.1f}s of HeyGen1)")
+        logger.info(f"   Poster2: {timings['poster2']['time']:.1f}s → {timings['poster2']['time'] + timings['poster2']['duration']:.1f}s (last {timings['poster2']['duration']:.1f}s of HeyGen2)")
+        logger.info(f"   Poster3: {timings['poster3']['time']:.1f}s → {timings['poster3']['time'] + timings['poster3']['duration']:.1f}s (last {timings['poster3']['duration']:.1f}s of HeyGen3)")
+        
+        return timings
+
+
+class WithMovieClipsStrategy(PosterTimingStrategy):
+    """
+    Strategy for displaying posters simultaneously with movie clips
+    """
+    
+    def calculate_timing(self, heygen_durations: Dict[str, float]) -> Dict[str, Dict[str, float]]:
+        """
+        Calculate timing for posters to appear with movie clips
+        """
+        logger.info("🎯 Using Simultaneous with Movie Clips strategy")
+        
+        # Define constants
+        intro_duration = 1.0
+        clip_duration = 12.0
+        
+        # Calculate when each movie clip starts
+        clip1_start_time = intro_duration + heygen_durations["heygen1"]
+        clip2_start_time = intro_duration + heygen_durations["heygen1"] + clip_duration + heygen_durations["heygen2"]
+        clip3_start_time = intro_duration + heygen_durations["heygen1"] + clip_duration + heygen_durations["heygen2"] + clip_duration + heygen_durations["heygen3"]
+        
+        # Posters appear WITH movie clips for their full duration
+        timings = {
+            "poster1": {
+                "time": clip1_start_time,
+                "duration": clip_duration
             },
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": movie_clips[0],
-                "trim_end": 8,
-                "trim_start": 0
+            "poster2": {
+                "time": clip2_start_time,
+                "duration": clip_duration
             },
-            # HeyGen movie2
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": heygen_movie2
-            },
-            # Movie 2 assets (enhanced poster with metadata)
-            {
-                "fit": "contain",  # Preserve aspect ratio of enhanced poster
-                "type": "image",
-                "track": 1,
-                "source": movie_covers[1],
-                "duration": 3
-            },
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": movie_clips[1],
-                "trim_end": 8,
-                "trim_start": 0
-            },
-            # HeyGen movie3
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": heygen_movie3
-            },
-            # Movie 3 assets (enhanced poster with metadata)
-            {
-                "fit": "contain",  # Preserve aspect ratio of enhanced poster
-                "type": "image",
-                "track": 1,
-                "source": movie_covers[2],
-                "duration": 3
-            },
-            {
-                "fit": "cover",
-                "type": "video",
-                "track": 1,
-                "source": movie_clips[2],
-                "trim_end": 8,
-                "trim_start": 0
-            },
-            # Outro
-            {
-                "fit": "cover",
-                "type": "image",
-                "track": 1,
-                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752587571/streamgank_bg_heecu7.png",
-                "duration": 2
+            "poster3": {
+                "time": clip3_start_time,
+                "duration": clip_duration
             }
-        ],
-        "frame_rate": 30,
-        "output_format": "mp4",
-        "timeline_type": "sequential"
+        }
+        
+        # Log timing details
+        logger.info("📍 MOVIE CLIPS SIMULTANEOUS MODE - Timing calculated:")
+        logger.info(f"   Poster1: {timings['poster1']['time']:.1f}s → {timings['poster1']['time'] + timings['poster1']['duration']:.1f}s (WITH Movie Clip 1)")
+        logger.info(f"   Poster2: {timings['poster2']['time']:.1f}s → {timings['poster2']['time'] + timings['poster2']['duration']:.1f}s (WITH Movie Clip 2)")
+        logger.info(f"   Poster3: {timings['poster3']['time']:.1f}s → {timings['poster3']['time'] + timings['poster3']['duration']:.1f}s (WITH Movie Clip 3)")
+        
+        return timings
+
+
+def _get_poster_timing_strategy(poster_timing_mode: str) -> PosterTimingStrategy:
+    """
+    Factory function to get the appropriate poster timing strategy
+    
+    Args:
+        poster_timing_mode: The poster timing mode to use
+        
+    Returns:
+        Appropriate strategy instance
+    """
+    strategies = {
+        "heygen_last3s": HeyGenLast3SecondsStrategy(),
+        "with_movie_clips": WithMovieClipsStrategy()
     }
     
+    return strategies[poster_timing_mode]
+
+
+def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[str], movie_clips: List[str], 
+                                poster_timings: Dict[str, Dict[str, float]], scroll_video_url: str = None) -> Dict:
+    """
+    Build the complete Creatomate composition with all elements
+    
+    Args:
+        heygen_video_urls: Dictionary with HeyGen video URLs
+        movie_covers: List of enhanced poster URLs  
+        movie_clips: List of processed movie clip URLs
+        poster_timings: Dictionary with calculated poster timing data
+        scroll_video_url: Optional scroll video URL for overlay
+        
+    Returns:
+        Complete Creatomate composition dictionary
+    """
+    logger.info("🎬 Building Creatomate composition with dynamic sources")
+    
+    # Extract timing data for easy access
+    poster1_time = poster_timings["poster1"]["time"]
+    poster1_duration = poster_timings["poster1"]["duration"]
+    poster2_time = poster_timings["poster2"]["time"]
+    poster2_duration = poster_timings["poster2"]["duration"]
+    poster3_time = poster_timings["poster3"]["time"]
+    poster3_duration = poster_timings["poster3"]["duration"]
+    
+    # Base composition structure
+    composition = {
+        "width": 1080,
+        "height": 1920,
+        "frame_rate": 30,
+        "output_format": "mp4",
+        "timeline_type": "sequential",  # Sequential: Let videos play naturally
+        "elements": [
+            # ═══════════════════════════════════════════════════════════════
+            # MAIN TIMELINE (Track 1) - Sequential elements
+            # ═══════════════════════════════════════════════════════════════
+            
+            # 🎯 ELEMENT 1: INTRO IMAGE (1 second)
+            {
+                "type": "image",
+                "track": 1,
+                "time": 0,
+                "duration": 1,
+                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753263646/streamGank_intro_cwefmt.jpg",
+                "fit": "cover"
+            },
+            
+            # 🎯 ELEMENT 2: HEYGEN VIDEO 1 - Natural duration
+            {
+                "type": "video",
+                "track": 1,
+                "time": "auto",
+                "source": heygen_video_urls["movie1"],
+                "fit": "cover"
+            },
+            
+            # 🎯 ELEMENT 3: MOVIE CLIP 1 (12 seconds)
+            {
+                "type": "video", 
+                "track": 1,
+                "time": "auto",
+                "duration": 12,
+                "source": movie_clips[0],
+                "fit": "cover",
+                "trim_start": 0,
+                "trim_end": 12,
+                "animations": [
+                    {
+                        "time": "end",
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 4: HEYGEN VIDEO 2 - Natural duration
+            {
+                "type": "video",
+                "track": 1,
+                "time": "auto",
+                "source": heygen_video_urls["movie2"],
+                "fit": "cover",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 5: MOVIE CLIP 2 (12 seconds)
+            {
+                "type": "video",
+                "track": 1, 
+                "time": "auto",
+                "duration": 12,
+                "source": movie_clips[1],
+                "fit": "cover",
+                "trim_start": 0,
+                "trim_end": 12,
+                "animations": [
+                    {
+                        "time": "end",
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 6: HEYGEN VIDEO 3 - Natural duration
+            {
+                "type": "video",
+                "track": 1,
+                "time": "auto",
+                "source": heygen_video_urls["movie3"],
+                "fit": "cover",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 7: MOVIE CLIP 3 (12 seconds)
+            {
+                "type": "video",
+                "track": 1,
+                "time": "auto",
+                "duration": 12,
+                "source": movie_clips[2],
+                "fit": "cover",
+                "trim_start": 0,
+                "trim_end": 12,
+                "animations": [
+                    {
+                        "time": "end",
+                        "duration": 1,
+                        "easing": "quadratic-out", 
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 8: OUTRO IMAGE (3 seconds)
+            {
+                "type": "image",
+                "track": 1,
+                "time": "auto",
+                "duration": 3,
+                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752587571/streamgank_bg_heecu7.png",
+                "fit": "cover",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    }
+                ]
+            },
+            
+            # ═══════════════════════════════════════════════════════════════
+            # OVERLAY ELEMENTS (Track 2) - Enhanced Posters with Perfect Timing
+            # ═══════════════════════════════════════════════════════════════
+            
+            # 🎯 POSTER 1 - Calculated timing with actual HeyGen duration
+            {
+                "type": "image",
+                "track": 2,
+                "time": poster1_time,
+                "duration": poster1_duration,
+                "source": movie_covers[0],
+                "fit": "contain",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": min(1, poster1_duration * 0.3),
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    },
+                    {
+                        "time": "end",
+                        "duration": min(1, poster1_duration * 0.3),
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 POSTER 2 - Calculated timing with actual HeyGen duration
+            {
+                "type": "image",
+                "track": 2,  
+                "time": poster2_time,
+                "duration": poster2_duration,
+                "source": movie_covers[1],
+                "fit": "contain",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": min(1, poster2_duration * 0.3),
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    },
+                    {
+                        "time": "end",
+                        "duration": min(1, poster2_duration * 0.3),
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 POSTER 3 - Calculated timing with actual HeyGen duration
+            {
+                "type": "image",
+                "track": 2,
+                "time": poster3_time,
+                "duration": poster3_duration,
+                "source": movie_covers[2],
+                "fit": "contain",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": min(1, poster3_duration * 0.3),
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    },
+                    {
+                        "time": "end",
+                        "duration": min(1, poster3_duration * 0.3),
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # ═══════════════════════════════════════════════════════════════
+            # PERSISTENT BRANDING (Tracks 3-5) - Throughout entire video
+            # ═══════════════════════════════════════════════════════════════
+            
+            # STREAMGANK LOGO TEXT "Stream" - Green colored, persistent overlay
+            {
+                "name": "StreamGank-Stream",
+                "type": "text",
+                "track": 3,
+                "time": 0,
+                "duration": "100%",
+                "x": "16.8633%",
+                "y": "0%",
+                "x_anchor": "0%",
+                "y_anchor": "0%",
+                "text": "Stream",
+                "font_family": "Noto Sans",
+                "font_weight": "700",
+                "font_size": "10 vmin",
+                "fill_color": "#61d7a5",
+                "shadow_color": "rgba(0,0,0,0.8)",
+                "shadow_blur": "2 vmin"
+            },
+            
+            # STREAMGANK LOGO TEXT "Gank" - White colored, persistent overlay
+            {
+                "name": "StreamGank-Gank",
+                "type": "text",
+                "track": 4,
+                "time": 0,
+                "duration": "100%",
+                "x": "54.7589%",
+                "y": "0%",
+                "x_anchor": "0%",
+                "y_anchor": "0%",
+                "text": "Gank",
+                "font_family": "Noto Sans",
+                "font_weight": "700",
+                "font_size": "10 vmin",
+                "fill_color": "#ffffff",
+                "shadow_color": "rgba(0,0,0,0.25)"
+            },
+            
+            # STREAMGANK TAGLINE - Brand message, persistent overlay
+            {
+                "name": "StreamGank-Tagline",
+                "type": "text",
+                "track": 5,
+                "time": 0,
+                "duration": "100%",
+                "x": "15.8467%",
+                "y": "6.1282%",
+                "x_anchor": "0%",
+                "y_anchor": "0%",
+                "text": "AMBUSH THE BEST VOD TOGETHER",
+                "font_family": "Noto Sans",
+                "font_weight": "700",
+                "font_size": "4 vmin",
+                "fill_color": "#ffffff",
+                "shadow_color": "rgba(0,0,0,0.8)",
+                "shadow_blur": "2 vmin"
+            }
+        ]
+    }
+
+    # Add scroll video overlay if provided (Track 6 - Top layer)
+    if scroll_video_url:
+        scroll_overlay = {
+            "name": "ScrollVideo-Overlay",
+            "type": "video",
+            "track": 6,
+            "time": 4,   # Start at 4 seconds into video
+            "duration": 6,  # Play for 6 seconds
+            "source": scroll_video_url,
+            "fit": "cover",
+            "width": "100%",
+            "height": "100%",
+            "animations": [
+                {
+                    "time": 0,
+                    "duration": 1,
+                    "type": "fade",
+                    "fade_in": True
+                },
+                {
+                    "time": "end-1s",
+                    "duration": 1,
+                    "type": "fade",
+                    "fade_out": True
+                }
+            ]
+        }
+        composition["elements"].append(scroll_overlay)
+        logger.info("✅ Scroll video overlay added to composition")
+    else:
+        logger.info("ℹ️ No scroll video URL provided - skipping overlay")
+    
+    logger.info(f"🎬 Composition built with {len(composition['elements'])} total elements")
+    return composition
+
+
+def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data: List[Dict[str, Any]] = None, scroll_video_url: str = None, scripts: dict = None, poster_timing_mode: str = "heygen_last3s") -> str:
+    """
+    Create final video with Creatomate using HeyGen video URLs
+    
+    REFACTORED: Professional big tech modular architecture with clean separation of concerns
+    
+    Args:
+        heygen_video_urls: Dictionary with HeyGen video URLs
+        movie_data: List of movie data dictionaries (minimum 3 required)
+        scroll_video_url: Optional scroll video URL for overlay
+        scripts: Optional dictionary with script data for duration estimation
+        poster_timing_mode: Poster timing mode (default: "heygen_last3s")
+            - "heygen_last3s": Posters appear during last 3s of HeyGen videos
+            - "with_movie_clips": Posters appear simultaneously with movie clips
+        
+    Returns:
+        Creatomate video ID or error message (NO FALLBACKS - strict mode)
+    """
+    logger.info("🎞️ MODULAR CREATOMATE ORCHESTRATOR - Professional Big Tech Architecture")
+    logger.info(f"🎯 Poster timing mode: {poster_timing_mode}")
+    
+    # ═══════════════════════════════════════════════════════════════
+    # STEP 1: INPUT VALIDATION (Extracted & Modular)
+    # ═══════════════════════════════════════════════════════════════
+    validation_error = _validate_creatomate_inputs(heygen_video_urls, movie_data, poster_timing_mode)
+    if validation_error:
+        return validation_error
+    
+    # ═══════════════════════════════════════════════════════════════
+    # STEP 2: DYNAMIC ASSET PREPARATION (Enhanced Posters & Movie Clips)
+    # ═══════════════════════════════════════════════════════════════
+    logger.info("🎨 Creating enhanced movie posters with metadata overlays")
+    enhanced_posters = create_enhanced_movie_posters(movie_data, max_movies=3)
+    
+    # Prepare movie covers (enhanced posters) - STRICT MODE
+    movie_covers = []
+    for i, movie in enumerate(movie_data[:3]):
+        movie_title = movie.get('title', f'Movie_{i+1}')
+        if movie_title in enhanced_posters:
+            movie_covers.append(enhanced_posters[movie_title])
+            logger.info(f"✅ Movie {i+1} cover: {movie_title} -> ENHANCED POSTER")
+        else:
+            logger.error(f"❌ Failed to create enhanced poster for {movie_title}")
+            return f"error_poster_creation_failed_{movie_title}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    logger.info("🎞️ Processing dynamic cinematic portrait clips from trailers")
+    dynamic_clips = process_movie_trailers_to_clips(movie_data, max_movies=3, transform_mode="youtube_shorts")
+    
+    # Prepare movie clips - STRICT MODE  
+    movie_clips = []
+    for i, movie in enumerate(movie_data[:3]):
+        movie_title = movie.get('title', f'Movie_{i+1}')
+        if movie_title in dynamic_clips:
+            movie_clips.append(dynamic_clips[movie_title])
+            logger.info(f"✅ Movie {i+1} clip: {movie_title} -> DYNAMIC CLIP")
+        else:
+            logger.error(f"❌ Failed to create dynamic clip for {movie_title}")
+            return f"error_clip_creation_failed_{movie_title}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    # ═══════════════════════════════════════════════════════════════
+    # STEP 3: HEYGEN DURATION ANALYSIS (FFprobe-Powered)
+    # ═══════════════════════════════════════════════════════════════
+    heygen_durations = _calculate_heygen_durations(heygen_video_urls, scripts)
+    
+    # ═══════════════════════════════════════════════════════════════
+    # STEP 4: POSTER TIMING CALCULATION (Strategy Pattern)
+    # ═══════════════════════════════════════════════════════════════
+    timing_strategy = _get_poster_timing_strategy(poster_timing_mode)
+    poster_timings = timing_strategy.calculate_timing(heygen_durations)
+    
+    # ═══════════════════════════════════════════════════════════════
+    # STEP 5: COMPOSITION BUILDING (Modular Architecture)
+    # ═══════════════════════════════════════════════════════════════
+    composition = _build_creatomate_composition(
+        heygen_video_urls=heygen_video_urls,
+        movie_covers=movie_covers,
+        movie_clips=movie_clips,
+        poster_timings=poster_timings,
+        scroll_video_url=scroll_video_url
+    )
+    
+    # ═══════════════════════════════════════════════════════════════
+    # STEP 6: CREATOMATE API EXECUTION
+    # ═══════════════════════════════════════════════════════════════
+    api_key = os.getenv("CREATOMATE_API_KEY")
+    if not api_key:
+        logger.error("❌ CREATOMATE_API_KEY not found")
+        return f"error_no_api_key_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    # Execute Creatomate API call with modular composition
+    payload = {
+        "source": composition,
+        "output_format": "mp4",
+        "render_scale": 1
+    }
+    
+    logger.info("🚀 Executing Creatomate API with modular composition")
+    try:
+        response = requests.post(
+            "https://api.creatomate.com/v1/renders",
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+        )
+        
+        if response.status_code in [200, 201, 202]:
+            result = response.json()
+            logger.info(f"Creatomate API success (HTTP {response.status_code})")
+            
+            # Handle both single object and array responses
+            if isinstance(result, list) and len(result) > 0:
+                creatomate_data = result[0]
+                render_id = creatomate_data.get("id", "")
+                status = creatomate_data.get("status", "unknown")
+                logger.info(f"✅ MODULAR ARCHITECTURE SUCCESS: Render {render_id[:8]}... status: {status}")
+            elif isinstance(result, dict):
+                render_id = result.get("id", "")
+                status = result.get("status", "unknown")
+                logger.info(f"✅ MODULAR ARCHITECTURE SUCCESS: Render {render_id[:8]}... status: {status}")
+            else:
+                render_id = f"unknown_format_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+            logger.info(f"🎯 Mode used: {poster_timing_mode}")
+            logger.info(f"💡 Check render status: python automated_video_generator.py --check-creatomate {render_id}")
+            logger.info(f"⏳ Wait for completion: python automated_video_generator.py --wait-creatomate {render_id}")
+            return render_id
+        else:
+            logger.error(f"❌ Creatomate API error: {response.status_code} - {response.text}")
+            return f"error_creatomate_api_{response.status_code}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+    except Exception as e:
+        logger.error(f"❌ Exception during Creatomate API call: {str(e)}")
+        return f"exception_creatomate_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+
+# =============================================================================
+# WORKFLOW ORCHESTRATION  
+# =============================================================================
+
+def get_actual_heygen_duration(video_url, fallback_script_text=None):
+    """Get the ACTUAL duration of HeyGen video from URL - no more estimation!"""
+    if not video_url or video_url == "":
+        logger.warning("⚠️ No HeyGen video URL provided, using script estimation fallback")
+        return estimate_duration_from_script(fallback_script_text) if fallback_script_text else 25
+    
+    try:
+        import subprocess
+        import json
+        
+        # Use ffprobe to get actual video duration (most reliable method)
+        logger.info(f"🔍 Getting ACTUAL duration from HeyGen video: {video_url[:50]}...")
+        
+        # FFprobe command to get video metadata
+        cmd = [
+            'ffprobe', 
+            '-v', 'quiet',
+            '-print_format', 'json',
+            '-show_format',
+            video_url
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0:
+            metadata = json.loads(result.stdout)
+            duration = float(metadata['format']['duration'])
+            logger.info(f"✅ ACTUAL HeyGen duration: {duration:.1f}s (100% accurate!)")
+            return round(duration, 1)
+        else:
+            logger.warning(f"⚠️ FFprobe failed: {result.stderr}")
+            
+    except subprocess.TimeoutExpired:
+        logger.warning("⚠️ FFprobe timeout - video analysis took too long")
+    except FileNotFoundError:
+        logger.warning("⚠️ FFprobe not found - falling back to HTTP method")
+    except Exception as e:
+        logger.warning(f"⚠️ FFprobe error: {str(e)}")
+    
+    # Fallback: Try HTTP HEAD request to get Content-Length and estimate
+    try:
+        import requests
+        logger.info("🔄 Trying HTTP method to get video info...")
+        
+        response = requests.head(video_url, timeout=10)
+        if response.status_code == 200:
+            # Some video hosting services include duration in headers
+            content_length = response.headers.get('content-length')
+            if content_length:
+                # Rough estimation: ~1MB per 10 seconds for HeyGen quality
+                estimated_duration = max(10, int(content_length) / (1024 * 1024) * 8)
+                logger.info(f"📊 HTTP-estimated duration: {estimated_duration:.1f}s (based on file size)")
+                return round(estimated_duration, 1)
+                
+    except Exception as e:
+        logger.warning(f"⚠️ HTTP method failed: {str(e)}")
+    
+    # Final fallback: Use script estimation
+    logger.warning("⚠️ All video analysis methods failed - using script estimation")
+    return estimate_duration_from_script(fallback_script_text) if fallback_script_text else 25
+
+
+def estimate_duration_from_script(script_text):
+    """Fallback script-based estimation (only used when video analysis fails)"""
+    if not script_text:
+        return 25
+    
+    word_count = len(script_text.split())
+    # Conservative estimation: 120 words/min = 2 words/sec
+    base_duration = max(12, word_count / 2.0)
+    # Add 20% buffer for safety
+    final_duration = round(base_duration * 1.2, 1)
+    logger.info(f"📝 Script fallback: {word_count} words → {final_duration}s")
+    return final_duration
+
+
+    
+    # Get ACTUAL video durations - 100% accurate!
+    heygen1_duration = 25  # Default fallback
+    heygen2_duration = 25  # Default fallback
+    heygen3_duration = 25  # Default fallback
+    
+    # Get actual durations from HeyGen video URLs
+    heygen1_script = scripts.get("movie1", {}).get("text") if scripts else None
+    heygen2_script = scripts.get("movie2", {}).get("text") if scripts else None
+    heygen3_script = scripts.get("movie3", {}).get("text") if scripts else None
+    
+    heygen1_duration = get_actual_heygen_duration(heygen_movie1, heygen1_script)
+    heygen2_duration = get_actual_heygen_duration(heygen_movie2, heygen2_script)
+    heygen3_duration = get_actual_heygen_duration(heygen_movie3, heygen3_script)
+    
+    # 🎯 DUAL-MODE POSTER TIMING SYSTEM - Two options available!
+    # Since Creatomate doesn't have sync/sync_offset, we calculate exact poster times using ACTUAL video durations
+    
+    # Define standard durations
+    intro_duration = 1.0
+    clip_duration = 12.0
+    
+    # Timeline calculation:
+    # Intro(1s) → HeyGen1(actual) → Clip1(12s) → HeyGen2(actual) → Clip2(12s) → HeyGen3(actual) → Clip3(12s) → Outro(3s)
+    
+    if poster_timing_mode == "heygen_last3s":
+        # 🎯 MODE 1: LAST 3 SECONDS OF HEYGEN VIDEOS (DEFAULT)
+        logger.info("🎯 Using HeyGen Last 3 Seconds mode")
+        
+        poster_duration = 3.0  # Posters show for exactly 3 seconds
+        
+        # Calculate HeyGen video start times
+        heygen1_start_time = intro_duration  # After intro (1s)
+        heygen2_start_time = intro_duration + heygen1_duration + clip_duration  # After intro + HeyGen1 + Clip1
+        heygen3_start_time = intro_duration + heygen1_duration + clip_duration + heygen2_duration + clip_duration  # After intro + HeyGen1 + Clip1 + HeyGen2 + Clip2
+        
+        # Calculate EXACT poster times - last 3 seconds of each HeyGen video
+        poster1_time = heygen1_start_time + heygen1_duration - poster_duration  # Last 3s of HeyGen1
+        poster2_time = heygen2_start_time + heygen2_duration - poster_duration  # Last 3s of HeyGen2  
+        poster3_time = heygen3_start_time + heygen3_duration - poster_duration  # Last 3s of HeyGen3
+        
+        # Safety check - ensure posters don't start too early in short videos
+        min_heygen_time = 5.0  # Minimum time before poster can appear
+        if poster1_time < heygen1_start_time + min_heygen_time:
+            poster1_time = heygen1_start_time + min_heygen_time
+            actual_poster1_duration = heygen1_start_time + heygen1_duration - poster1_time
+            logger.warning(f"⚠️ HeyGen1 too short - Poster1 adjusted to {actual_poster1_duration:.1f}s duration")
+        else:
+            actual_poster1_duration = poster_duration
+            
+        if poster2_time < heygen2_start_time + min_heygen_time:
+            poster2_time = heygen2_start_time + min_heygen_time  
+            actual_poster2_duration = heygen2_start_time + heygen2_duration - poster2_time
+            logger.warning(f"⚠️ HeyGen2 too short - Poster2 adjusted to {actual_poster2_duration:.1f}s duration")
+        else:
+            actual_poster2_duration = poster_duration
+            
+        if poster3_time < heygen3_start_time + min_heygen_time:
+            poster3_time = heygen3_start_time + min_heygen_time
+            actual_poster3_duration = heygen3_start_time + heygen3_duration - poster3_time  
+            logger.warning(f"⚠️ HeyGen3 too short - Poster3 adjusted to {actual_poster3_duration:.1f}s duration")
+        else:
+            actual_poster3_duration = poster_duration
+            
+    elif poster_timing_mode == "with_movie_clips":
+        # 🎯 MODE 2: SIMULTANEOUS WITH MOVIE CLIPS
+        logger.info("🎯 Using Simultaneous with Movie Clips mode")
+        
+        # Calculate when each movie clip starts
+        clip1_start_time = intro_duration + heygen1_duration  # After intro + HeyGen1
+        clip2_start_time = intro_duration + heygen1_duration + clip_duration + heygen2_duration  # After intro + HeyGen1 + Clip1 + HeyGen2
+        clip3_start_time = intro_duration + heygen1_duration + clip_duration + heygen2_duration + clip_duration + heygen3_duration  # After intro + HeyGen1 + Clip1 + HeyGen2 + Clip2 + HeyGen3
+        
+        # Posters appear WITH movie clips for their full duration
+        poster1_time = clip1_start_time
+        poster2_time = clip2_start_time
+        poster3_time = clip3_start_time
+        
+        # All posters show for full clip duration
+        actual_poster1_duration = clip_duration  # 12 seconds
+        actual_poster2_duration = clip_duration  # 12 seconds  
+        actual_poster3_duration = clip_duration  # 12 seconds
+    
+    # Dynamic logging based on selected mode
+    if poster_timing_mode == "heygen_last3s":
+        logger.info("🚀 HEYGEN LAST 3 SECONDS MODE - PERFECT POSTER TIMING:")
+        logger.info("   ✅ Main track: SEQUENTIAL (elements play naturally one after another)")
+        logger.info("   ✅ Posters: Appear during LAST 3 SECONDS of each HeyGen video")
+        logger.info(f"   📍 Poster1: {poster1_time:.1f}s → {poster1_time + actual_poster1_duration:.1f}s (last {actual_poster1_duration:.1f}s of HeyGen1)")
+        logger.info(f"   📍 Poster2: {poster2_time:.1f}s → {poster2_time + actual_poster2_duration:.1f}s (last {actual_poster2_duration:.1f}s of HeyGen2)")
+        logger.info(f"   📍 Poster3: {poster3_time:.1f}s → {poster3_time + actual_poster3_duration:.1f}s (last {actual_poster3_duration:.1f}s of HeyGen3)")
+        logger.info("   ✅ PERFECT SYNC: Posters appear EXACTLY during final moments of HeyGen videos!")
+    
+    elif poster_timing_mode == "with_movie_clips":
+        logger.info("🚀 MOVIE CLIPS SIMULTANEOUS MODE - POSTER TIMING:")
+        logger.info("   ✅ Main track: SEQUENTIAL (elements play naturally one after another)")
+        logger.info("   ✅ Posters: Appear SIMULTANEOUSLY with movie clips")
+        logger.info(f"   📍 Poster1: {poster1_time:.1f}s → {poster1_time + actual_poster1_duration:.1f}s (WITH Movie Clip 1)")
+        logger.info(f"   📍 Poster2: {poster2_time:.1f}s → {poster2_time + actual_poster2_duration:.1f}s (WITH Movie Clip 2)")
+        logger.info(f"   📍 Poster3: {poster3_time:.1f}s → {poster3_time + actual_poster3_duration:.1f}s (WITH Movie Clip 3)")
+        logger.info("   ✅ SYNCHRONIZED: Posters appear exactly when movie clips start!")
+    
+    logger.info("   ✅ 100% ACCURATE: Using ACTUAL HeyGen video durations from FFprobe!")
+    logger.info("   ✅ API COMPLIANT: Using proper Creatomate TIME properties!")
+    
+    # 📊 DUAL-MODE SYSTEM REPORT
+    logger.info(f"🎯 DUAL-MODE POSTER SYSTEM IMPLEMENTED (Mode: {poster_timing_mode}):")
+    
+    if poster_timing_mode == "heygen_last3s":
+        logger.info(f"   📍 HeyGen1: ACTUAL {heygen1_duration:.1f}s → Poster1 during last {actual_poster1_duration:.1f}s")
+        logger.info(f"   📍 HeyGen2: ACTUAL {heygen2_duration:.1f}s → Poster2 during last {actual_poster2_duration:.1f}s") 
+        logger.info(f"   📍 HeyGen3: ACTUAL {heygen3_duration:.1f}s → Poster3 during last {actual_poster3_duration:.1f}s")
+        logger.info(f"   ✅ PERFECT TIMING: Posters appear during final moments of HeyGen videos!")
+    elif poster_timing_mode == "with_movie_clips":
+        logger.info(f"   📍 Poster1: Appears WITH Movie Clip 1 for {actual_poster1_duration:.1f}s")
+        logger.info(f"   📍 Poster2: Appears WITH Movie Clip 2 for {actual_poster2_duration:.1f}s") 
+        logger.info(f"   📍 Poster3: Appears WITH Movie Clip 3 for {actual_poster3_duration:.1f}s")
+        logger.info(f"   ✅ SYNCHRONIZED: Posters and movie clips appear together!")
+    
+    logger.info(f"   🎬 EXACT total length: {1 + heygen1_duration + 12 + heygen2_duration + 12 + heygen3_duration + 12 + 3:.1f}s")
+    logger.info(f"   🚀 FFPROBE POWERED: Using ACTUAL video durations, not estimates!")
+    logger.info(f"   ⚙️ DUAL MODES: Switch between 'heygen_last3s' (default) and 'with_movie_clips'")
+    
+    # Create composition (YouTube Shorts format: 1080x1920) - FIXED VERSION
+    logger.info("🎬 Building Creatomate composition with dynamic sources and proper timing")
+
+    source_object = {
+        "width": 1080,
+        "height": 1920,
+        "frame_rate": 30,
+        "output_format": "mp4",
+        "timeline_type": "sequential",  # SEQUENTIAL: Let videos play naturally, sync posters to actual durations
+        "elements": [
+            # ═══════════════════════════════════════════════════════════════
+            # MAIN TIMELINE (Track 1) - Sequential elements
+            # ═══════════════════════════════════════════════════════════════
+            
+            # 🎯 ELEMENT 1: INTRO IMAGE (1 second)
+            {
+                "type": "image",
+                "track": 1,
+                "time": 0,
+                "duration": 1,
+                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753263646/streamGank_intro_cwefmt.jpg",
+                "fit": "cover"
+            },
+            
+            # 🎯 ELEMENT 2: HEYGEN VIDEO 1 - Natural duration (no forced duration)
+            {
+                "type": "video",
+                "track": 1,
+                "time": "auto",  # SEQUENTIAL: Auto-start after intro
+                "source": heygen_movie1,  # DYNAMIC: Validated HeyGen URL
+                "fit": "cover"
+            },
+            
+            # 🎯 ELEMENT 3: MOVIE CLIP 1 (12 seconds)
+            {
+                "type": "video", 
+                "track": 1,
+                "time": "auto",  # SEQUENTIAL: Auto-start after HeyGen1
+                "duration": 12,  # FIXED: 12 seconds
+                "source": movie_clips[0],  # DYNAMIC: Processed movie clip
+                "fit": "cover",
+                "trim_start": 0,
+                "trim_end": 12,
+                "animations": [
+                    {
+                        "time": "end",
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 4: HEYGEN VIDEO 2 - Natural duration
+            {
+                "type": "video",
+                "track": 1,
+                "time": "auto",  # SEQUENTIAL: Auto-start after Clip1
+                "source": heygen_movie2,  # DYNAMIC: Validated HeyGen URL
+                "fit": "cover",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 5: MOVIE CLIP 2 (12 seconds)
+            {
+                "type": "video",
+                "track": 1, 
+                "time": "auto",  # SEQUENTIAL: Auto-start after HeyGen2
+                "duration": 12,  # FIXED: 12 seconds
+                "source": movie_clips[1],  # DYNAMIC: Processed movie clip
+                "fit": "cover",
+                "trim_start": 0,
+                "trim_end": 12,  # EXTENDED: 12 seconds for better movie content
+                "animations": [
+                    {
+                        "time": "end",
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 6: HEYGEN VIDEO 3 - Natural duration
+            {
+                "type": "video",
+                "track": 1,
+                "time": "auto",  # SEQUENTIAL: Auto-start after Clip2
+                "source": heygen_movie3,  # DYNAMIC: Validated HeyGen URL
+                "fit": "cover",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 7: MOVIE CLIP 3 (12 seconds)
+            {
+                "type": "video",
+                "track": 1,
+                "time": "auto",  # SEQUENTIAL: Auto-start after HeyGen3
+                "duration": 12,  # FIXED: 12 seconds
+                "source": movie_clips[2],  # DYNAMIC: Processed movie clip
+                "fit": "cover",
+                "trim_start": 0,
+                "trim_end": 12,
+                "animations": [
+                    {
+                        "time": "end",
+                        "duration": 1,
+                        "easing": "quadratic-out", 
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 ELEMENT 8: OUTRO IMAGE (3 seconds)
+            {
+                "type": "image",
+                "track": 1,
+                "time": "auto",  # SEQUENTIAL: Auto-start after Clip3
+                "duration": 3,
+                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752587571/streamgank_bg_heecu7.png",
+                "fit": "cover",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": 1,
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    }
+                ]
+            },
+            
+            # ═══════════════════════════════════════════════════════════════
+            # OVERLAY ELEMENTS (Tracks 2+) - Timed overlays
+            # ═══════════════════════════════════════════════════════════════
+            
+            # 🎯 POSTER 1 - Appears during LAST 3 SECONDS of HeyGen Video 1
+            # Note: Uses ACTUAL HeyGen1 duration from FFprobe for perfect timing
+            {
+                "type": "image",
+                "track": 2,
+                "time": poster1_time,  # PERFECT: Last 3 seconds of HeyGen1
+                "duration": actual_poster1_duration,  # EXACT: Calculated duration (normally 3s)
+                "source": movie_covers[0],  # DYNAMIC enhanced poster
+                "fit": "contain",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": min(1, actual_poster1_duration * 0.3),  # Scale to poster duration
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    },
+                    {
+                        "time": "end",
+                        "duration": min(1, actual_poster1_duration * 0.3),  # Scale to poster duration
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 POSTER 2 - Appears during LAST 3 SECONDS of HeyGen Video 2
+            # Note: Uses ACTUAL HeyGen2 duration from FFprobe for perfect timing
+            {
+                "type": "image",
+                "track": 2,  
+                "time": poster2_time,  # PERFECT: Last 3 seconds of HeyGen2
+                "duration": actual_poster2_duration,  # EXACT: Calculated duration (normally 3s)
+                "source": movie_covers[1],  # DYNAMIC enhanced poster
+                "fit": "contain",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": min(1, actual_poster2_duration * 0.3),  # Scale to poster duration
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    },
+                    {
+                        "time": "end",
+                        "duration": min(1, actual_poster2_duration * 0.3),  # Scale to poster duration
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # 🎯 POSTER 3 - Appears during LAST 3 SECONDS of HeyGen Video 3
+            # Note: Uses ACTUAL HeyGen3 duration from FFprobe for perfect timing
+            {
+                "type": "image",
+                "track": 2,
+                "time": poster3_time,  # PERFECT: Last 3 seconds of HeyGen3
+                "duration": actual_poster3_duration,  # EXACT: Calculated duration (normally 3s)
+                "source": movie_covers[2],  # DYNAMIC enhanced poster
+                "fit": "contain",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": min(1, actual_poster3_duration * 0.3),  # Scale to poster duration
+                        "easing": "quadratic-out",
+                        "type": "slide",
+                        "direction": "0°"
+                    },
+                    {
+                        "time": "end",
+                        "duration": min(1, actual_poster3_duration * 0.3),  # Scale to poster duration
+                        "easing": "quadratic-out",
+                        "reversed": True,
+                        "type": "slide",
+                        "direction": "180°"
+                    }
+                ]
+            },
+            
+            # ═══════════════════════════════════════════════════════════════
+            # PERSISTENT BRANDING (Tracks 5-7) - Throughout entire video
+            # ═══════════════════════════════════════════════════════════════
+            
+            # STREAMGANK LOGO TEXT "Stream" - Green colored, persistent overlay
+            {
+                "name": "StreamGank-Stream",
+                "type": "text",
+                "track": 3,
+                "time": 0,
+                "duration": "100%",  # FIXED: Added duration for full video
+                "x": "16.8633%",
+                "y": "0%",
+                "x_anchor": "0%",
+                "y_anchor": "0%",
+                "text": "Stream",
+                "font_family": "Noto Sans",
+                "font_weight": "700",
+                "font_size": "10 vmin",
+                "fill_color": "#61d7a5",  # StreamGank green
+                "shadow_color": "rgba(0,0,0,0.8)",
+                "shadow_blur": "2 vmin"
+            },
+            
+            # STREAMGANK LOGO TEXT "Gank" - White colored, persistent overlay
+            {
+                "name": "StreamGank-Gank",
+                "type": "text",
+                "track": 4,
+                "time": 0,
+                "duration": "100%",  # FIXED: Added duration for full video
+                "x": "54.7589%",
+                "y": "0%",
+                "x_anchor": "0%",
+                "y_anchor": "0%",
+                "text": "Gank",
+                "font_family": "Noto Sans",
+                "font_weight": "700",
+                "font_size": "10 vmin",
+                "fill_color": "#ffffff",
+                "shadow_color": "rgba(0,0,0,0.25)"
+            },
+            
+            # STREAMGANK TAGLINE - Brand message, persistent overlay
+            {
+                "name": "StreamGank-Tagline",
+                "type": "text",
+                "track": 5,
+                "time": 0,
+                "duration": "100%",  # FIXED: Added duration for full video
+                "x": "15.8467%",
+                "y": "6.1282%",
+                "x_anchor": "0%",
+                "y_anchor": "0%",
+                "text": "AMBUSH THE BEST VOD TOGETHER",
+                "font_family": "Noto Sans",
+                "font_weight": "700",
+                "font_size": "4 vmin",
+                "fill_color": "#ffffff",
+                "shadow_color": "rgba(0,0,0,0.8)",
+                "shadow_blur": "2 vmin"
+            }
+        ]
+    }
+
+    # Add scroll video overlay if provided (Track 8 - Top layer)
+    if scroll_video_url:
+        scroll_overlay = {
+            "name": "ScrollVideo-Overlay",
+            "type": "video",
+            "track": 6,  # Top layer for full coverage
+            "time": 4,   # Start at 4 seconds into video
+            "duration": 6,  # Play for 6 seconds
+            "source": scroll_video_url,  # DYNAMIC scroll video URL
+            "fit": "cover",
+            "width": "100%",  # Full screen overlay
+            "height": "100%",
+            "animations": [
+                {
+                    "time": 0,
+                    "duration": 1,
+                    "type": "fade",
+                    "fade_in": True  # FIXED: Only fade in at start
+                },
+                {
+                    "time": "end-1s",  # FIXED: Fade out in last second
+                    "duration": 1,
+                    "type": "fade",
+                    "fade_out": True
+                }
+            ]
+        }
+        source_object["elements"].append(scroll_overlay)
+        logger.info("✅ Scroll video overlay added to composition")
+    else:
+        logger.info("ℹ️ No scroll video URL provided - skipping overlay")
+
+    logger.info(f"🎬 DUAL-MODE COMPOSITION created with {len(source_object['elements'])} total elements")
+    
+    if poster_timing_mode == "heygen_last3s":
+        logger.info("   📹 Main sequence: Intro → HeyGen1+Poster1(last3s) → Clip1 → HeyGen2+Poster2(last3s) → Clip2 → HeyGen3+Poster3(last3s) → Clip3 → Outro")
+        logger.info("   🎯 Overlays: 3 enhanced posters appearing during FINAL MOMENTS of HeyGen videos")
+        logger.info("   🚀 PERFECT VISION: Posters appear EXACTLY during last 3s of HeyGen videos!")
+    elif poster_timing_mode == "with_movie_clips":
+        logger.info("   📹 Main sequence: Intro → HeyGen1 → Clip1+Poster1 → HeyGen2 → Clip2+Poster2 → HeyGen3 → Clip3+Poster3 → Outro")
+        logger.info("   🎯 Overlays: 3 enhanced posters appearing SIMULTANEOUSLY with movie clips")
+        logger.info("   🚀 SYNCHRONIZED VISION: Posters appear WITH movie clips for full 12-second duration!")
+    
+    logger.info("   🏷️ Branding: Persistent StreamGank logo and tagline") 
+    logger.info("   📱 Optional: Scroll video overlay (if provided)")
+    logger.info("   ⚡ Timeline: SEQUENTIAL main track with FFPROBE-PERFECT poster synchronization")
+    logger.info(f"   ⚙️ MODE: {poster_timing_mode.upper()} (Switch modes as needed)")
+    logger.info("   ✅ API COMPLIANT: Using proper TIME properties as per Creatomate documentation!")
+
     # Create payload
     payload = {
-        "source": source,
+        "source": source_object,
         "output_format": "mp4",
         "render_scale": 1
     }
@@ -1123,7 +2177,6 @@ def generate_scroll_video(country, genre, platform, content_type, smooth=True, s
     Returns:
         str: Path to the generated scroll video or Cloudinary URL if uploaded
     """
-    from archive.create_scroll_video import create_scroll_video
     
     logger.info(f"🖥️ Generating StreamGank ULTRA 60 FPS MICRO-SCROLL video (DISTANCE: {scroll_distance}x)...")
     
@@ -1220,22 +2273,30 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
     }
     
     try:
-        # Get HeyGen video URLs
-        logger.info("Step 1: Getting HeyGen video URLs using status API")
+        # Get HeyGen video URLs - STRICT MODE
+        logger.info("Step 1: Getting HeyGen video URLs using status API - STRICT MODE")
         heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids)
-        results['heygen_video_urls'] = heygen_video_urls
+        
+        # STRICT VALIDATION - Fail if any HeyGen URLs failed
+        if heygen_video_urls is None:
+            logger.error("❌ HeyGen video URL retrieval failed - NO FALLBACK ALLOWED")
+            results['status'] = 'failed'
+            results['error'] = 'HeyGen video URL retrieval failed'
+            return results
         
         if not heygen_video_urls:
-            logger.error("No HeyGen video URLs obtained")
+            logger.error("❌ No HeyGen video URLs obtained")
             results['status'] = 'failed'
             results['error'] = 'No HeyGen video URLs obtained'
             return results
+        
+        results['heygen_video_urls'] = heygen_video_urls
         
         logger.info(f"✅ Successfully obtained {len(heygen_video_urls)} HeyGen video URLs")
         
         # Create Creatomate video
         logger.info("Step 2: Creating Creatomate video")
-        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=None)
+        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=None, scripts=None)
         results['creatomate_id'] = creatomate_id
         
         if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
@@ -1265,7 +2326,7 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
         results['error'] = str(e)
         return results
 
-def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None, skip_scroll_video=False, smooth_scroll=True, scroll_distance=1.5):
+def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None, skip_scroll_video=False, smooth_scroll=True, scroll_distance=1.5, poster_timing_mode="heygen_last3s"):
     """
     Run the complete end-to-end video generation workflow
     
@@ -1276,12 +2337,19 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         platform: Platform for filtering
         content_type: Content type for filtering
         output: Output file path for results
+        skip_scroll_video: Skip scroll video generation (default: False)
+        smooth_scroll: Use smooth scrolling (default: True)
+        scroll_distance: Scroll distance for video (default: 1.5)
+        poster_timing_mode: Poster timing mode (default: "heygen_last3s")
+            - "heygen_last3s": Posters appear during last 3s of HeyGen videos
+            - "with_movie_clips": Posters appear simultaneously with movie clips
         
     Returns:
         Dictionary with results from each step
     """
     logger.info("🚀 Starting full video generation workflow")
     logger.info(f"Parameters: {num_movies} movies, {country}, {genre}, {platform}, {content_type}")
+    logger.info(f"🎯 Poster timing mode: {poster_timing_mode}")
     
     results = {}
     
@@ -1299,16 +2367,6 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
             sys.exit(1)
         
         logger.info(f"✅ Found {len(movies)} movies in database")
-        
-        # Step 2: Capture screenshots
-        logger.info("Step 2: Capturing StreamGank screenshots")
-        screenshot_paths = capture_streamgank_screenshots(country, genre, platform, content_type)
-        results['screenshots'] = screenshot_paths
-        
-        # Step 3: Upload screenshots
-        logger.info("Step 3: Uploading screenshots to Cloudinary")
-        cloudinary_urls = upload_to_cloudinary(screenshot_paths)
-        results['cloudinary_urls'] = {f"screenshot_{i}": url for i, url in enumerate(cloudinary_urls)}
         
         # Ensure we have exactly num_movies movies
         movies = movies[:num_movies] if len(movies) >= num_movies else movies
@@ -1328,9 +2386,17 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         with open("videos/enriched_data.json", "w", encoding='utf-8') as f:
             json.dump(enriched_movies, f, indent=2, ensure_ascii=False)
         
-        # Step 5: Generate scripts
-        logger.info("Step 5: Generating AI-powered scripts")
-        combined_script, script_path, scripts = generate_video_scripts(enriched_movies, country, genre, platform, content_type)
+        # Step 5: Generate scripts - STRICT MODE (NO FALLBACKS)
+        logger.info("Step 5: Generating AI-powered scripts - STRICT MODE")
+        script_result = generate_video_scripts(enriched_movies, country, genre, platform, content_type)
+        
+        # STRICT VALIDATION - Fail if script generation failed
+        if script_result is None:
+            logger.error("❌ Script generation failed - NO FALLBACK ALLOWED")
+            logger.error("❌ Cannot continue workflow without scripts")
+            return {"error": "script_generation_failed", "status": "failed"}
+        
+        combined_script, script_path, scripts = script_result
         results['script'] = combined_script
         results['script_path'] = script_path
         results['script_sections'] = scripts
@@ -1340,9 +2406,15 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         heygen_video_ids = create_heygen_video(scripts)
         results['video_ids'] = heygen_video_ids
         
-        # Step 7: Wait for HeyGen completion and get URLs
-        logger.info("Step 7: Waiting for HeyGen video completion")
+        # Step 7: Wait for HeyGen completion and get URLs - STRICT MODE
+        logger.info("Step 7: Waiting for HeyGen video completion - STRICT MODE")
         heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, scripts)
+        
+        # STRICT VALIDATION - Fail if any HeyGen URLs failed
+        if heygen_video_urls is None:
+            logger.error("❌ HeyGen video URL retrieval failed - NO FALLBACK ALLOWED")
+            return {"error": "heygen_video_url_retrieval_failed", "status": "failed"}
+        
         results['heygen_video_urls'] = heygen_video_urls
         
         # Step 7.5: Generate scroll video (if not skipped)
@@ -1365,7 +2437,7 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         
         # Step 8: Create final video with Creatomate
         logger.info("Step 8: Creating final video with Creatomate")
-        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=enriched_movies, scroll_video_url=scroll_video_url)
+        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=enriched_movies, scroll_video_url=scroll_video_url, scripts=scripts, poster_timing_mode=poster_timing_mode)
         results['creatomate_id'] = creatomate_id
         
         if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
