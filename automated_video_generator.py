@@ -12,7 +12,7 @@ Usage:
     python3 automated_video_generator.py --all
     
     # Optional parameters:
-    python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film
+    python3 automated_video_generator.py # User will be prompted interactively for these settings when the script runs
 """
 
 import os
@@ -877,25 +877,81 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 "type": "image",
                 "track": 1,
                 "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753263646/streamGank_intro_cwefmt.jpg",
-                "duration": 1
+                "duration": 1,
+                "animations": [
+                    {
+                        "type": "fade",
+                        "fade_out": True,
+                        "duration": 1     # 1-second fade-out
+                    }
+                ]
             },
-            # StreamGank banner (persists throughout video)
+            # StreamGank banner text top
             {
-                "id": "streamgank-banner",
-                "name": "streamgank_logo",
-                "type": "image",
-                "y": "6.25%",
-                "height": "12.5%",
-                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752587056/streamgankbanner_uempzb.jpg",
-                "time_offset": 1,
-                "duration": "99%"
+                "name": "stream",
+                "type": "text",
+                "track": 5,
+                "time": 2,
+                "x": "16.8633%",
+                "y": "0%",
+                "x_anchor": "0%",
+                "y_anchor": "0%",
+                "text": "Stream",
+                "font_family": "Noto Sans",
+                "font_weight": "700",
+                "font_size": "10 vmin",
+                "fill_color": "#61d7a5",
+                "shadow_color": "rgba(0,0,0,0.8)",
+                "shadow_blur": "2 vmin"
             },
+            {
+                "name": "slogan",
+                "type": "text",
+                "track": 6,
+                "time": 2,
+                "x": "15.8467%",
+                "y": "6.1282%",
+                "x_anchor": "0%",
+                "y_anchor": "0%",
+                "text": "AMBUSH THE BEST VOD TOGETHER",
+                "font_family": "Noto Sans",
+                "font_weight": "700",
+                "font_size": "4 vmin",
+                "fill_color": "#ffffff",
+                "shadow_color": "rgba(0,0,0,0.8)",
+                "shadow_blur": "2 vmin"
+            },
+            {
+                "name": "Gank",
+                "type": "text",
+                "track": 7,
+                "time": 2,
+                "x": "54.7589%",
+                "y": "0%",
+                "x_anchor": "0%",
+                "y_anchor": "0%",
+                "text": "Gank",
+                "font_family": "Noto Sans",
+                "font_weight": "700",
+                "font_size": "10 vmin",
+                "fill_color": "#ffffff",
+                "shadow_color": "rgba(0,0,0,0.8)"
+            },
+            
             # HeyGen intro + movie1
             {
                 "fit": "cover",
                 "type": "video",
                 "track": 1,
-                "source": heygen_intro
+                "source": heygen_intro,
+                "animations": [
+                    
+                    {
+                        "type": "fade",
+                        "fade_out": True,
+                        "duration": 1     # 1-second fade-out
+                    }
+                ]
             },
             
             # Scroll video overlay (full screen with fade-in/out animation)
@@ -944,7 +1000,14 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 "fit": "cover",
                 "type": "video",
                 "track": 1,
-                "source": heygen_movie2
+                "source": heygen_movie2,
+                "animations": [
+                    {
+                        "type": "fade",
+                        "fade_out": True,
+                        "duration": 1     # 1-second fade-out
+                    }
+                ]
             },
             # Movie 2 assets (enhanced poster with metadata)
             {
@@ -967,7 +1030,14 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
                 "fit": "cover",
                 "type": "video",
                 "track": 1,
-                "source": heygen_movie3
+                "source": heygen_movie3,
+                "animations": [
+                    {
+                        "type": "fade",
+                        "fade_out": True,
+                        "duration": 1     # 1-second fade-out
+                    }
+                ]
             },
             # Movie 3 assets (enhanced poster with metadata)
             {
@@ -1107,32 +1177,37 @@ def upload_video_to_cloudinary(file_path, folder="streamgank_videos"):
         logger.error(f"❌ Video upload failed for {file_path}: {str(e)}")
         raise e
 
-def generate_scroll_video(country, genre, platform, content_type, smooth=True, scroll_distance=1.5):
+def generate_scroll_video(country, genre, platform, content_type, smooth=True, scroll_distance=1.0):
     """
-    Generate scroll video using the same filter parameters as the main workflow
-    Now with ULTRA 60 FPS MICRO-SCROLLING for perfectly readable content!
+    Generate a scroll video for StreamGank
     
     Args:
-        country: Country filter
+        country: Country code
         genre: Genre filter
         platform: Platform filter
         content_type: Content type filter
-        smooth: Enable micro-scrolling animation (default: True)
-        scroll_distance: Viewport multiplier for scroll amount (default: 1.5 = minimal readable)
-    
+        smooth: Whether to use smooth scrolling
+        scroll_distance: Scroll distance multiplier (how far to scroll)
+        
     Returns:
-        str: Path to the generated scroll video or Cloudinary URL if uploaded
+        str: URL of uploaded video or None if failed
     """
     from archive.create_scroll_video import create_scroll_video
     
-    logger.info(f"🖥️ Generating StreamGank ULTRA 60 FPS MICRO-SCROLL video (DISTANCE: {scroll_distance}x)...")
+    logger.info(f"💻 Generating StreamGank ULTRA 60 FPS MICRO-SCROLL video (DISTANCE: {scroll_distance}x)...")
+    
+    # Set default values for None parameters to prevent errors
+    safe_country = country if country is not None else "Any"
+    safe_genre = genre if genre is not None else "Any"
+    safe_platform = platform if platform is not None else "Any"
+    safe_content_type = content_type if content_type is not None else "Any"
     
     # Create scroll video with unique filename + auto-cleanup (FIXED 6 seconds at 60 FPS)
     video_path = create_scroll_video(
-        country=country,
-        genre=genre,
-        platform=platform,
-        content_type=content_type,
+        country=safe_country,
+        genre=safe_genre,
+        platform=safe_platform,
+        content_type=safe_content_type,
         output_video=None,  # Auto-generate unique filename
         smooth_scroll=smooth,
         target_duration=6,  # Always 6 seconds duration
@@ -1265,39 +1340,90 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
         results['error'] = str(e)
         return results
 
-def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None, skip_scroll_video=False, smooth_scroll=True, scroll_distance=1.5):
+def run_full_workflow(num_movies=3, country=None, genre=None, platform=None, content_type=None, output=None, skip_scroll_video=False, smooth_scroll=True, scroll_distance=1.5):
     """
-    Run the complete end-to-end video generation workflow
+    Run the complete end-to-end workflow
     
     Args:
-        num_movies: Number of movies to extract
-        country: Country code for filtering
-        genre: Genre for filtering
-        platform: Platform for filtering
-        content_type: Content type for filtering
-        output: Output file path for results
-        
+        num_movies (int): Number of movies to extract
+        country (str): Country code for filtering
+        genre (str): Genre to filter by
+        platform (str): Platform to filter by
+        content_type (str): Content type to filter by
+        output (str): Output file path
+        skip_scroll_video (bool): Skip scroll video generation
+        smooth_scroll (bool): Use smooth scrolling for screenshots
+        scroll_distance (float): Scroll distance multiplier
+    
     Returns:
-        Dictionary with results from each step
+        dict: Results dictionary or None if failed
     """
-    logger.info("🚀 Starting full video generation workflow")
+    logger.info(f"🚀 Starting full video generation workflow")
     logger.info(f"Parameters: {num_movies} movies, {country}, {genre}, {platform}, {content_type}")
     
-    results = {}
+    # Generate a unique group ID for this run
+    group_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    results = {
+        'status': 'starting',
+        'group_id': group_id
+    }
+    
+    # Step 1: Extract movies from database
+    logger.info(f"Step 1: Extracting {num_movies} movies from database")
+    movies = extract_movie_data(num_movies, country, genre, platform, content_type)
+    
+    # If no movies found, try some fallback options
+    if not movies:
+        fallback_attempts = [
+            # Try without genre
+            {"message": "No movies found with specified genre. Trying without genre filter...", 
+             "params": {"num_movies": num_movies, "country": country, "genre": None, "platform": platform, "content_type": content_type}},
+            # Try without content_type
+            {"message": "Still no results. Trying without content type filter...", 
+             "params": {"num_movies": num_movies, "country": country, "genre": genre, "platform": platform, "content_type": None}},
+            # Try popular platforms if specified platform has no results
+            {"message": "Still no results. Trying with Netflix as platform...", 
+             "params": {"num_movies": num_movies, "country": country, "genre": genre, "platform": "Netflix", "content_type": content_type}},
+            # Try without platform
+            {"message": "Still no results. Trying without platform filter...", 
+             "params": {"num_movies": num_movies, "country": country, "genre": genre, "platform": None, "content_type": content_type}},
+            # Last resort - just get top movies for country
+            {"message": "Last attempt: Getting top movies for selected country...", 
+             "params": {"num_movies": num_movies, "country": country, "genre": None, "platform": None, "content_type": None}}
+        ]
+        
+        for attempt in fallback_attempts:
+            if platform != "Netflix" and attempt["params"]["platform"] == "Netflix":
+                # Skip the Netflix fallback if we're already trying Netflix
+                continue
+                
+            logger.warning(attempt["message"])
+            print(f"⚠️ {attempt['message']}")
+            
+            fallback_params = attempt["params"]
+            movies = extract_movie_data(**fallback_params)
+            
+            if movies:
+                # We found movies with this fallback, update our parameters to match what worked
+                country = fallback_params["country"]
+                genre = fallback_params["genre"]
+                platform = fallback_params["platform"]
+                content_type = fallback_params["content_type"]
+                
+                print(f"✅ Found movies using modified filters: Country={country}, Genre={genre if genre else 'Any'}, "
+                      f"Platform={platform if platform else 'Any'}, Content Type={content_type if content_type else 'Any'}")
+                break
     
     try:
-        # Step 1: Query database for movies (exit if none found)
-        logger.info(f"Step 1: Extracting {num_movies} movies from database")
-        movies = extract_movie_data(num_movies, country, genre, platform, content_type)
-        
-        if movies is None:
-            logger.error("🚫 Database query failed - terminating workflow")
-            sys.exit(1)
-        
+        # If still no movies found after all fallbacks, terminate workflow
+        if not movies:
+            logger.error(f"🚫 Database query failed with all fallback attempts - terminating workflow")
+            return None
+            
         if len(movies) == 0:
             logger.error("📭 No movies found - terminating workflow")
             sys.exit(1)
-        
+            
         logger.info(f"✅ Found {len(movies)} movies in database")
         
         # Step 2: Capture screenshots
@@ -1400,218 +1526,379 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
                 results['traceback'] = traceback.format_exc()
                 with open(output, "w", encoding='utf-8') as f:
                     json.dump(results, f, indent=2, ensure_ascii=False)
-                logger.info(f"Partial results saved to {output}")
+                logger.info(f"Partial results saved to: {output}")
             except Exception as save_error:
                 logger.error(f"Error saving partial results: {str(save_error)}")
         
         return results
 
 # =============================================================================
-# COMMAND LINE INTERFACE
+# MAIN FUNCTION
 # =============================================================================
 
 if __name__ == "__main__":
+    import sys
+    
+    # Print startup info
+    print(f"Python version: {sys.version}")
+    print(f"Environment: SUPABASE_URL={bool(SUPABASE_URL)}, SUPABASE_KEY={bool(SUPABASE_KEY)}")
+    
     try:
-        import argparse
-        import sys
         
-        # Print startup info
-        print(f"Python version: {sys.version}")
-        print(f"Environment: SUPABASE_URL={bool(SUPABASE_URL)}, SUPABASE_KEY={bool(SUPABASE_KEY)}")
-        
-        # Set up argument parser
-        parser = argparse.ArgumentParser(description="StreamGank Automated Video Generator")
-        
-        # Workflow options
-        parser.add_argument("--all", action="store_true", help="Run complete end-to-end workflow")
-        parser.add_argument("--process-heygen", help="Process existing HeyGen video IDs from JSON file")
-        parser.add_argument("--check-creatomate", help="Check Creatomate render status by ID")
-        parser.add_argument("--wait-creatomate", help="Wait for Creatomate render completion by ID")
-        
-        # Parameters
-        parser.add_argument("--num-movies", type=int, default=3, help="Number of movies to extract (default: 3)")
-        parser.add_argument("--country", default="FR", help="Country code for filtering (default: FR)")
-        parser.add_argument("--genre", default="Horreur", help="Genre to filter by (default: Horreur)")
-        parser.add_argument("--platform", default="Netflix", help="Platform to filter by (default: Netflix)")
-        parser.add_argument("--content-type", default="Série", help="Content type to filter by (default: Série)")
-        
-        # HeyGen processing
-        parser.add_argument("--heygen-ids", help="JSON string or file path with HeyGen video IDs")
-        
-        # Output options
-        parser.add_argument("--output", help="Output file path to save results")
-        parser.add_argument("--debug", action="store_true", help="Enable debug output")
-        parser.add_argument("--skip-scroll-video", action="store_true", help="Skip scroll video generation")
-        
-        # Smooth scrolling options
-        parser.add_argument("--smooth-scroll", action="store_true", default=True, help="Enable smooth scrolling animation (default: True)")
-        parser.add_argument("--no-smooth-scroll", action="store_false", dest="smooth_scroll", help="Disable smooth scrolling")
-        parser.add_argument("--scroll-distance", type=float, default=1.5, help="Scroll distance as viewport multiplier (default: 1.5 = minimal readable, 1.0 = very short, 2.0 = longer)")
-        
-        args = parser.parse_args()
-        
-        # Handle different execution modes
-        if args.check_creatomate:
-            # Check Creatomate status
-            print(f"\n🎬 StreamGank Video Generator - Creatomate Status Check")
-            print(f"Checking status for render ID: {args.check_creatomate}")
+        # Check if any command line arguments were provided for maintenance tasks
+        if len(sys.argv) > 1:
+            import argparse
             
-            try:
-                status_info = check_creatomate_render_status(args.check_creatomate)
-                status = status_info.get("status", "unknown")
-                
-                print(f"\n📊 Render Status: {status}")
-                if status_info.get("url"):
-                    print(f"📹 Video URL: {status_info['url']}")
-                
-                if status == "completed":
-                    print("✅ Video is ready for download!")
-                elif status == "planned":
-                    print("⏳ Video is queued for rendering")
-                elif status == "processing":
-                    print("🔄 Video is currently being rendered")
-                elif status in ["failed", "error"]:
-                    print("❌ Video rendering failed")
-                
-                if args.output:
-                    with open(args.output, 'w', encoding='utf-8') as f:
-                        json.dump(status_info, f, indent=2, ensure_ascii=False)
-                    print(f"📁 Status saved to: {args.output}")
-                    
-            except Exception as e:
-                print(f"❌ Error checking status: {str(e)}")
-                sys.exit(1)
-                
-        elif args.wait_creatomate:
-            # Wait for Creatomate completion
-            print(f"\n🎬 StreamGank Video Generator - Wait for Creatomate")
-            print(f"Waiting for render ID: {args.wait_creatomate}")
+            # Set up argument parser for maintenance tasks only
+            parser = argparse.ArgumentParser(description="StreamGank Automated Video Generator - Maintenance Mode")
+            parser.add_argument("--check-creatomate", help="Check Creatomate render status by ID")
+            parser.add_argument("--wait-creatomate", help="Wait for Creatomate render completion by ID")
+            parser.add_argument("--process-heygen", help="Process existing HeyGen video IDs from JSON file")
+            parser.add_argument("--heygen-ids", help="JSON string or file path with HeyGen video IDs")
+            parser.add_argument("--output", help="Output file path to save results")
             
-            try:
-                final_status = wait_for_creatomate_completion(args.wait_creatomate)
-                status = final_status.get("status", "unknown")
-                
-                if status == "completed":
-                    print(f"✅ Video completed successfully!")
-                    print(f"📹 Download URL: {final_status.get('url', 'No URL')}")
-                else:
-                    print(f"❌ Video rendering ended with status: {status}")
-                
-                if args.output:
-                    with open(args.output, 'w', encoding='utf-8') as f:
-                        json.dump(final_status, f, indent=2, ensure_ascii=False)
-                    print(f"📁 Final status saved to: {args.output}")
-                    
-            except Exception as e:
-                print(f"❌ Error waiting for completion: {str(e)}")
-                sys.exit(1)
-                
-        elif args.process_heygen or args.heygen_ids:
-            # Process existing HeyGen videos
-            print(f"\n🎬 StreamGank Video Generator - HeyGen Processing Mode")
+            args = parser.parse_args()
             
-            heygen_video_ids = {}
-            
-            # Get video IDs
-            if args.heygen_ids:
+            # Handle maintenance tasks
+            if args.check_creatomate:
+                # Check Creatomate status
+                print(f"\n🎬 StreamGank Video Generator - Creatomate Status Check")
+                print(f"Checking status for render ID: {args.check_creatomate}")
+                
                 try:
-                    if os.path.exists(args.heygen_ids):
-                        with open(args.heygen_ids, 'r', encoding='utf-8') as f:
+                    status_info = check_creatomate_render_status(args.check_creatomate)
+                    status = status_info.get("status", "unknown")
+                    
+                    print(f"\n📊 Render Status: {status}")
+                    if status_info.get("url"):
+                        print(f"📹 Video URL: {status_info['url']}")
+                    
+                    if status == "completed":
+                        print("✅ Video is ready for download!")
+                    elif status == "planned":
+                        print("⏳ Video is queued for rendering")
+                    elif status == "processing":
+                        print("🔄 Video is currently being rendered")
+                    elif status in ["failed", "error"]:
+                        print("❌ Video rendering failed")
+                    
+                    if args.output:
+                        with open(args.output, 'w', encoding='utf-8') as f:
+                            json.dump(status_info, f, indent=2, ensure_ascii=False)
+                        print(f"📁 Status saved to: {args.output}")
+                        
+                except Exception as e:
+                    print(f"❌ Error checking status: {str(e)}")
+                    sys.exit(1)
+                sys.exit(0)
+                    
+            elif args.wait_creatomate:
+                # Wait for Creatomate completion
+                print(f"\n🎬 StreamGank Video Generator - Wait for Creatomate")
+                print(f"Waiting for render ID: {args.wait_creatomate}")
+                
+                try:
+                    final_status = wait_for_creatomate_completion(args.wait_creatomate)
+                    status = final_status.get("status", "unknown")
+                    
+                    if status == "completed":
+                        print(f"✅ Video completed successfully!")
+                        print(f"📹 Download URL: {final_status.get('url', 'No URL')}")
+                    else:
+                        print(f"❌ Video rendering ended with status: {status}")
+                    
+                    if args.output:
+                        with open(args.output, 'w', encoding='utf-8') as f:
+                            json.dump(final_status, f, indent=2, ensure_ascii=False)
+                        print(f"📁 Final status saved to: {args.output}")
+                        
+                except Exception as e:
+                    print(f"❌ Error waiting for completion: {str(e)}")
+                    sys.exit(1)
+                sys.exit(0)
+                    
+            elif args.process_heygen or args.heygen_ids:
+                # Process existing HeyGen videos
+                print(f"\n🎬 StreamGank Video Generator - HeyGen Processing Mode")
+                
+                heygen_video_ids = {}
+                
+                # Get video IDs
+                if args.heygen_ids:
+                    try:
+                        if os.path.exists(args.heygen_ids):
+                            with open(args.heygen_ids, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                heygen_video_ids = data.get('video_ids', data)
+                        else:
+                            heygen_video_ids = json.loads(args.heygen_ids)
+                    except Exception as e:
+                        logger.error(f"Error loading HeyGen video IDs: {str(e)}")
+                        sys.exit(1)
+                elif args.process_heygen:
+                    try:
+                        with open(args.process_heygen, 'r', encoding='utf-8') as f:
                             data = json.load(f)
                             heygen_video_ids = data.get('video_ids', data)
-                    else:
-                        heygen_video_ids = json.loads(args.heygen_ids)
-                except Exception as e:
-                    logger.error(f"Error loading HeyGen video IDs: {str(e)}")
+                    except Exception as e:
+                        logger.error(f"Error loading HeyGen video IDs from {args.process_heygen}: {str(e)}")
+                        sys.exit(1)
+                
+                if not heygen_video_ids:
+                    logger.error("No HeyGen video IDs provided")
                     sys.exit(1)
-            elif args.process_heygen:
+                
+                print(f"Processing HeyGen video IDs: {list(heygen_video_ids.keys())}")
+                
                 try:
-                    with open(args.process_heygen, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        heygen_video_ids = data.get('video_ids', data)
-                except Exception as e:
-                    logger.error(f"Error loading HeyGen video IDs from {args.process_heygen}: {str(e)}")
-                    sys.exit(1)
-            
-            if not heygen_video_ids:
-                logger.error("No HeyGen video IDs provided")
-                sys.exit(1)
-            
-            print(f"Processing HeyGen video IDs: {list(heygen_video_ids.keys())}")
-            
-            try:
-                results = process_existing_heygen_videos(heygen_video_ids, args.output)
-                print("\n✅ HeyGen processing completed!")
-                
-                if results.get('status') == 'success':
-                    print(f"🎬 Successfully submitted Creatomate video: {results.get('creatomate_id')}")
-                    print(f"📹 Status: {results.get('creatomate_status', 'submitted')}")
-                    if results.get('status_check_command'):
-                        print(f"💡 Check status: {results['status_check_command']}")
-                else:
-                    print(f"❌ Processing failed: {results.get('error')}")
-                
-                if args.output:
-                    print(f"📁 Results saved to: {args.output}")
+                    results = process_existing_heygen_videos(heygen_video_ids, args.output)
+                    print("\n✅ HeyGen processing completed!")
                     
-            except Exception as e:
-                print(f"❌ Error during HeyGen processing: {str(e)}")
-                sys.exit(1)
-                
-        else:
-            # Run full workflow
-            if not any([args.country != "FR", args.genre != "Horreur", args.platform != "Netflix", 
-                        args.content_type != "Série", args.num_movies != 3, args.debug, args.output]):
-                args.all = True
-            
-            print(f"\n🎬 StreamGank Video Generator - Full Workflow Mode")
-            print(f"Parameters: {args.num_movies} movies, {args.country}, {args.genre}, {args.platform}, {args.content_type}")
-            print("Starting end-to-end workflow...\n")
-            
-            try:
-                results = run_full_workflow(
-                    num_movies=args.num_movies,
-                    country=args.country,
-                    genre=args.genre,
-                    platform=args.platform,
-                    content_type=args.content_type,
-                    output=args.output,
-                    skip_scroll_video=args.skip_scroll_video,
-                    smooth_scroll=args.smooth_scroll,
-                    scroll_distance=args.scroll_distance
-                )
-                print("\n✅ Workflow completed successfully!")
-                
-                # Print summary
-                if results:
-                    print("\n📊 Results Summary:")
-                    if 'enriched_movies' in results:
-                        movies = results['enriched_movies']
-                        print(f"📽️ Movies processed: {len(movies)}")
-                        for i, movie in enumerate(movies, 1):
-                            print(f"  {i}. {movie['title']} ({movie['year']}) - IMDB: {movie['imdb']}")
-                    
-                    if 'video_ids' in results:
-                        print(f"🎥 HeyGen videos created: {len(results['video_ids'])}")
-                    
-                    if 'creatomate_id' in results:
-                        print(f"🎞️ Final video submitted to Creatomate: {results['creatomate_id']}")
+                    if results.get('status') == 'success':
+                        print(f"🎬 Successfully submitted Creatomate video: {results.get('creatomate_id')}")
                         print(f"📹 Status: {results.get('creatomate_status', 'submitted')}")
                         if results.get('status_check_command'):
                             print(f"💡 Check status: {results['status_check_command']}")
+                    else:
+                        print(f"❌ Processing failed: {results.get('error')}")
                     
-                    if 'group_id' in results:
-                        print(f"💾 Data stored with group ID: {results['group_id']}")
-                
-                if args.output:
-                    print(f"\n📁 Full results saved to: {args.output}")
-                    
-            except Exception as e:
-                print(f"\n❌ Error during execution: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                sys.exit(1)
+                    if args.output:
+                        print(f"📁 Results saved to: {args.output}")
+                        
+                except Exception as e:
+                    print(f"❌ Error during HeyGen processing: {str(e)}")
+                    sys.exit(1)
+                sys.exit(0)
+        
+        # Interactive prompt functions
+        def prompt_for_country():
+            # Define available countries
+            countries = {
+                "1": "FR",  # France
+                "2": "US",  # United States
+                "3": "GB",  # Great Britain
+                "4": "CA",  # Canada
+                "5": "AU"   # Australia
+            }
             
+            print("\nStreaming Country:")
+            for num, code in countries.items():
+                country_name = {
+                    "FR": "France",
+                    "US": "United States",
+                    "GB": "United Kingdom",
+                    "CA": "Canada",
+                    "AU": "Australia"
+                }.get(code, code)
+                print(f"{num}. {country_name} ({code})")
+            
+            while True:
+                choice = input("Enter your choice (1-5) [default: 1 for France]: ").strip()
+                if not choice:  # Default to France
+                    return "FR"
+                if choice in countries:
+                    return countries[choice]
+                print("Invalid choice. Please try again.")
+        
+        def prompt_for_platform(country_code):
+            # Get available platforms for selected country
+            from streamgank_helpers import get_platform_mapping_by_country
+            platform_mapping = get_platform_mapping_by_country(country_code)
+            
+            # Create a numbered list of platforms
+            platforms = {}
+            i = 1
+            for platform_name in sorted(set(platform_mapping.keys())):
+                platforms[str(i)] = platform_name
+                i += 1
+            
+            print("\nPlatform:")
+            for num, platform in platforms.items():
+                print(f"{num}. {platform}")
+            
+            while True:
+                choice = input("Enter your choice (number) [default: Netflix]: ").strip()
+                if not choice:  # Default to Netflix
+                    return "Netflix"
+                if choice in platforms:
+                    return platforms[choice]
+                print("Invalid choice. Please try again.")
+        
+        def prompt_for_genre(country_code):
+            # Get available genres for selected country
+            from streamgank_helpers import get_genre_mapping_by_country
+            genre_mapping = get_genre_mapping_by_country(country_code)
+            
+            # Create a numbered list of genres (unique and sorted)
+            genres = {}
+            i = 1
+            
+            # Get unique genre display names (not URL parameters)
+            unique_genres = sorted(set(key for key in genre_mapping.keys() 
+                                      if not key.startswith('%') and '&' not in key and ' ' not in key))
+            
+            for genre_name in unique_genres:
+                genres[str(i)] = genre_name
+                i += 1
+            
+            print("\nGenre:")
+            for num, genre in genres.items():
+                print(f"{num}. {genre}")
+            
+            while True:
+                choice = input("Enter your choice (number) [default: Horror/Horreur]: ").strip()
+                if not choice:  # Default based on country
+                    return "Horreur" if country_code == "FR" else "Horror"
+                if choice in genres:
+                    # Return the selected genre
+                    selected_genre = genres[choice]
+                    
+                    # Check if we need to convert between French/English genre names
+                    # Common translations that might need conversion
+                    translations = {
+                        "Horror": "Horreur",
+                        "Horreur": "Horror",
+                        "Action": "Action",  # Same in both languages
+                        "Comedy": "Comédie",
+                        "Comédie": "Comedy",
+                        "Drama": "Drame",
+                        "Drame": "Drama",
+                        "Sci-Fi": "Science-Fiction",
+                        "Science-Fiction": "Sci-Fi"
+                    }
+                    
+                    # If we selected a French genre but are in English region (or vice versa)
+                    # try to convert it to the appropriate language
+                    if country_code != "FR" and selected_genre in translations:
+                        # Convert French genre to English equivalent if needed
+                        if selected_genre in ["Horreur", "Comédie", "Drame", "Science-Fiction"]:
+                            logger.info(f"Converting genre '{selected_genre}' to '{translations[selected_genre]}' for country {country_code}")
+                            return translations[selected_genre]
+                    elif country_code == "FR" and selected_genre in translations:
+                        # Convert English genre to French equivalent if needed
+                        if selected_genre in ["Horror", "Comedy", "Drama", "Sci-Fi"]:
+                            logger.info(f"Converting genre '{selected_genre}' to '{translations[selected_genre]}' for country {country_code}")
+                            return translations[selected_genre]
+                    
+                    return selected_genre
+                
+                print("Invalid choice. Please try again.")
+        
+        def prompt_for_content_type(country_code):
+            # Get content types for selected country
+            from streamgank_helpers import get_content_type_mapping_by_country
+            content_type_mapping = get_content_type_mapping_by_country(country_code)
+            
+            # Create a numbered list of content types (unique)
+            content_types = {}
+            i = 1
+            
+            # Remove duplicates and mappings
+            unique_types = []
+            for key in content_type_mapping.keys():
+                if key not in unique_types and key in ["Film", "Movie", "Série", "Series"]:
+                    unique_types.append(key)
+            
+            # Sort and create numbered mapping
+            for type_name in sorted(unique_types):
+                content_types[str(i)] = type_name
+                i += 1
+            
+            print("\nContent Type:")
+            for num, content_type in content_types.items():
+                print(f"{num}. {content_type}")
+            
+            while True:
+                choice = input("Enter your choice (number) [default: Series/Série]: ").strip()
+                if not choice:  # Default based on country
+                    return "Série" if country_code == "FR" else "Series"
+                if choice in content_types:
+                    return content_types[choice]
+                print("Invalid choice. Please try again.")
+        
+        # Get user inputs through interactive prompts
+        print("\n===== StreamGank Automated Video Generator =====\n")
+        print("Please select options for your video generation:")
+        
+        country = prompt_for_country()
+        platform = prompt_for_platform(country)
+        genre = prompt_for_genre(country)
+        content_type = prompt_for_content_type(country)
+        num_movies = 3  # Default number of movies
+        
+        # Allow customizing number of movies
+        while True:
+            movie_count = input("\nNumber of movies to include (1-5) [default: 3]: ").strip()
+            if not movie_count:  # Default
+                break
+            try:
+                num_movies = int(movie_count)
+                if 1 <= num_movies <= 5:
+                    break
+                print("Please enter a number between 1 and 5.")
+            except ValueError:
+                print("Please enter a valid number.")
+        
+        # Confirm selections
+        print("\n===== Your Selections =====")
+        print(f"Country: {country}")
+        print(f"Platform: {platform}")
+        print(f"Genre: {genre}")
+        print(f"Content Type: {content_type}")
+        print(f"Number of Movies: {num_movies}")
+        print("===========================\n")
+        
+        # Run full workflow with interactive inputs
+        print(f"\n🎬 StreamGank Video Generator - Full Workflow Mode")
+        print(f"Parameters: {num_movies} movies, {country}, {genre}, {platform}, {content_type}")
+        print("Starting end-to-end workflow...\n")
+        
+        # Set default values for workflow options
+        output = None
+        skip_scroll_video = False
+        smooth_scroll = True
+        scroll_distance = 1.5
+        
+        try:
+            results = run_full_workflow(
+                num_movies=num_movies,
+                country=country,
+                genre=genre,
+                platform=platform,
+                content_type=content_type,
+                output=output,
+                skip_scroll_video=skip_scroll_video,
+                smooth_scroll=smooth_scroll,
+                scroll_distance=scroll_distance
+            )
+            print("\n✅ Workflow completed successfully!")
+            
+            # Print summary
+            if results:
+                print("\n📊 Results Summary:")
+                if 'enriched_movies' in results:
+                    movies = results['enriched_movies']
+                    print(f"📽️ Movies processed: {len(movies)}")
+                    for i, movie in enumerate(movies, 1):
+                        print(f"  {i}. {movie['title']} ({movie['year']}) - IMDB: {movie['imdb']}")
+                
+                if 'video_ids' in results:
+                    print(f"🎥 HeyGen videos created: {len(results['video_ids'])}")
+                
+                if 'creatomate_id' in results:
+                    print(f"🎞️ Final video submitted to Creatomate: {results['creatomate_id']}")
+                    print(f"📹 Status: {results.get('creatomate_status', 'submitted')}")
+                    if results.get('status_check_command'):
+                        print(f"💡 Check status: {results['status_check_command']}")
+                
+                if 'group_id' in results:
+                    print(f"💾 Data stored with group ID: {results['group_id']}")
+                    
+        except Exception as e:
+            print(f"\n❌ Error during execution: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
     except Exception as e:
         print(f"ERROR: Unhandled exception: {str(e)}")
         import traceback
