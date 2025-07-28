@@ -1,0 +1,241 @@
+:root {
+    --primary-color: #1e88e5;
+    --accent-color: #16c784;
+    --dark-bg: #121212;
+    --dark-panel: #1a1a1a;
+    --text-light: #ffffff;
+    --text-secondary: #b0b0b0;
+    --border-color: #333333;
+    --gank-color: #16c784;
+}
+
+body {
+    background-color: var(--dark-bg);
+    color: var(--text-light);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.streamgank-header {
+    background-color: var(--dark-panel);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.75rem 0;
+}
+
+.logo {
+    color: var(--text-light);
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.text-gank {
+    color: var(--gank-color);
+}
+
+.version-tag {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.tagline {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: -2px;
+}
+
+.login-btn {
+    background-color: var(--primary-color);
+    border: none;
+}
+
+.main-content {
+    padding-top: 20px;
+}
+
+.filter-panel {
+    background-color: var(--dark-panel);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    margin-bottom: 20px;
+}
+
+.results-panel {
+    padding-left: 30px;
+}
+
+.panel-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+.filter-group {
+    margin-bottom: 20px;
+}
+
+.filter-group h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+}
+
+.form-select, .form-control {
+    background-color: var(--dark-bg);
+    color: var(--text-light);
+    border: 1px solid var(--border-color);
+}
+
+.form-select:focus, .form-control:focus {
+    background-color: var(--dark-bg);
+    color: var(--text-light);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(30, 136, 229, 0.25);
+}
+
+.form-check-input {
+    background-color: var(--dark-bg);
+    border-color: var(--border-color);
+}
+
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.form-check-label {
+    color: var(--text-light);
+}
+
+#generate-video {
+    background-color: var(--accent-color);
+    border: none;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#generate-video .icon {
+    margin-right: 8px;
+}
+
+.preview-container, .status-container, .video-results {
+    background-color: var(--dark-panel);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    margin-bottom: 20px;
+}
+
+.preview-config {
+    background-color: var(--dark-bg);
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.current-config {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.config-item {
+    display: flex;
+    align-items: center;
+}
+
+.label {
+    color: var(--text-secondary);
+    margin-right: 8px;
+    min-width: 70px;
+}
+
+.value {
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+.url-preview {
+    border-top: 1px solid var(--border-color);
+    padding-top: 10px;
+    overflow-wrap: break-word;
+}
+
+.url-value {
+    color: var(--primary-color);
+}
+
+.status-message {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    background-color: var(--dark-bg);
+}
+
+.status-icon {
+    margin-right: 10px;
+    font-size: 18px;
+}
+
+.status-message.success {
+    border-left: 3px solid var(--accent-color);
+}
+
+.status-message.error {
+    border-left: 3px solid #ff4c4c;
+}
+
+.status-message.info {
+    border-left: 3px solid var(--primary-color);
+}
+
+.status-message.waiting {
+    border-left: 3px solid #ffc107;
+}
+
+.video-container {
+    background-color: var(--dark-bg);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.movie-stats {
+    background-color: var(--dark-bg);
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.stat {
+    margin-bottom: 8px;
+    display: flex;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    min-width: 140px;
+}
+
+.stat-value {
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+/* Progress bar customization */
+.progress {
+    background-color: var(--dark-bg);
+    height: 10px;
+}
+
+.progress-bar {
+    background-color: var(--accent-color);
+}
