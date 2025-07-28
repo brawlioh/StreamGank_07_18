@@ -14,6 +14,7 @@ Usage:
     # Optional parameters:
     python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film
     python3 automated_video_generator.py --country US --platform Netflix --genre Horror --content-type Film
+    python3 automated_video_generator.py --is-prompt 1
 """
 
 import os
@@ -41,7 +42,8 @@ from archive.create_scroll_video import create_scroll_video
 # Import StreamGang helper functions
 from streamgank_helpers import (
     get_genre_mapping_by_country,
-    get_platform_mapping_by_country, 
+    get_platform_mapping,
+    get_content_type_mapping,
     get_content_type_mapping_by_country,
     build_streamgank_url,
     process_movie_trailers_to_clips,
@@ -1875,10 +1877,6 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         movies = movies[:num_movies] if len(movies) >= num_movies else movies
         
         # Pad with simulated data if needed
-        if len(movies) < num_movies:
-            logger.warning(f"Only found {len(movies)} movies, padding with simulated data")
-            simulated = _simulate_movie_data(num_movies - len(movies))
-            movies.extend(simulated[:num_movies - len(movies)])
         
         # Step 4: Enrich movie data
         logger.info("Step 4: Enriching movie data with AI")
@@ -1981,6 +1979,151 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         
         return results
 
+def prompt_for_country():
+    """
+    Prompt user to select a streaming country from available countries
+    
+    Returns:
+        str: Selected country code (value from mapping)
+    """
+    # Define available countries (display names -> country codes)
+    countries_mapping = {
+        "France": "FR",
+        "United States": "US"
+    }
+    
+    # Create numbered list for user selection
+    countries = {}
+    i = 1
+    
+    for country_name in sorted(countries_mapping.keys()):
+        countries[str(i)] = country_name
+        i += 1
+            
+    print("\nStreaming Country:")
+    for num, country_name in countries.items():
+        country_code = countries_mapping[country_name]
+        print(f"{num}. {country_name} ({country_code})")
+
+    while True:
+        choice = input("Enter your choice (1-2) [default: 1]: ").strip()
+        if not choice:  # Default to first country
+            first_country_name = countries["1"]
+            return countries_mapping[first_country_name]
+        if choice in countries:
+            selected_country_name = countries[choice]
+            return countries_mapping[selected_country_name]
+        print("Invalid choice. Please try again.")
+
+def prompt_for_platform():
+    """
+    Prompt user to select a streaming platform from available platforms
+    
+    Returns:
+        str: Selected platform code (value from mapping)
+    """
+    # Get available platforms (same across all countries)
+    platform_mapping = get_platform_mapping()
+
+    # Create a numbered list of platforms (display keys, store keys for lookup)
+    platforms = {}
+    i = 1
+
+    for platform_name in sorted(platform_mapping.keys()):
+        platforms[str(i)] = platform_name
+        i += 1
+    
+    print("\nAvailable Platforms:")
+    for num, platform_name in platforms.items():
+        print(f"{num}. {platform_name}")
+
+    while True:
+        choice = input("Enter your choice (number) [default: 1]: ").strip()
+        if not choice:  # Default to first platform
+            first_platform_name = platforms["1"]
+            return platform_mapping[first_platform_name]
+        if choice in platforms:
+            selected_platform_name = platforms[choice]
+            return platform_mapping[selected_platform_name]
+        print("Invalid choice. Please try again.")
+
+def prompt_for_genre(country_code):
+    """
+    Prompt user to select a genre from available genres for the specified country
+    
+    Args:
+        country_code (str): Country code (e.g., 'FR', 'US', 'GB', etc.)
+        
+    Returns:
+        str: Selected genre code/localized name (value from mapping)
+    """
+    # Get available genres for selected country
+    genre_mapping = get_genre_mapping_by_country(country_code)
+    
+    # Create a numbered list of genres (display keys, store keys for lookup)
+    genres = {}
+    i = 1
+    
+    # Sort genres alphabetically for consistent display
+    for genre_name in sorted(genre_mapping.keys()):
+        genres[str(i)] = genre_name
+        i += 1
+    
+    print(f"\nAvailable Genres for {country_code}:")
+    for num, genre_name in genres.items():
+        # Display both English name and localized name if different
+        localized_genre = genre_mapping[genre_name]
+        if genre_name != localized_genre:
+            print(f"{num}. {genre_name} ({localized_genre})")
+        else:
+            print(f"{num}. {genre_name}")
+    
+    while True:
+        choice = input("Enter your choice (number) [default: 1]: ").strip()
+        if not choice:  # Default to first genre
+            first_genre_name = genres["1"]
+            return genre_mapping[first_genre_name]
+        if choice in genres:
+            selected_genre_name = genres[choice]
+            return genre_mapping[selected_genre_name]
+        print("Invalid choice. Please try again.")
+
+def prompt_for_content_type():
+    """
+    Prompt user to select a content type from available options
+    
+    Returns:
+        str: Selected content type code (value from mapping)
+    """
+    # Define available content types (display names -> content codes)
+    content_mapping = {
+        "Movies": "Film",
+        "TV Shows": "Série"
+    }
+    
+    # Create numbered list for user selection
+    content_types = {}
+    i = 1
+    
+    for content_name in sorted(content_mapping.keys()):
+        content_types[str(i)] = content_name
+        i += 1
+    
+    print("\nContent Type:")
+    for num, content_name in content_types.items():
+        content_code = content_mapping[content_name]
+        print(f"{num}. {content_name} ({content_code})")
+    
+    while True:
+        choice = input("Enter your choice (number) [default: 1]: ").strip()
+        if not choice:  # Default to first content type
+            first_content_name = content_types["1"]
+            return content_mapping[first_content_name]
+        if choice in content_types:
+            selected_content_name = content_types[choice]
+            return content_mapping[selected_content_name]
+        print("Invalid choice. Please try again.")
+
 # =============================================================================
 # COMMAND LINE INTERFACE
 # =============================================================================
@@ -2005,10 +2148,11 @@ if __name__ == "__main__":
         
         # Parameters
         parser.add_argument("--num-movies", type=int, default=3, help="Number of movies to extract (default: 3)")
-        parser.add_argument("--country", default="FR", help="Country code for filtering (default: FR)")
-        parser.add_argument("--genre", default="Horreur", help="Genre to filter by (default: Horreur)")
-        parser.add_argument("--platform", default="Netflix", help="Platform to filter by (default: Netflix)")
-        parser.add_argument("--content-type", default="Série", help="Content type to filter by (default: Série)")
+        parser.add_argument("--country", help="Country code for filtering")
+        parser.add_argument("--genre", help="Genre to filter")
+        parser.add_argument("--platform", help="Platform to filter")
+        parser.add_argument("--content-type", help="Content type to filter")
+        parser.add_argument("--is-prompt", type=int, default=0, help="Run in prompt mode (1 for interactive, 0 for command line)")
         
         # HeyGen processing
         parser.add_argument("--heygen-ids", help="JSON string or file path with HeyGen video IDs")
@@ -2135,21 +2279,49 @@ if __name__ == "__main__":
                 
         else:
             # Run full workflow
-            if not any([args.country != "FR", args.genre != "Horreur", args.platform != "Netflix", 
-                        args.content_type != "Série", args.num_movies != 3, args.debug, args.output]):
-                args.all = True
-            
             print(f"\n🎬 StreamGank Video Generator - Full Workflow Mode")
-            print(f"Parameters: {args.num_movies} movies, {args.country}, {args.genre}, {args.platform}, {args.content_type}")
-            print("Starting end-to-end workflow...\n")
             
+            # Determine workflow mode: interactive prompts vs command line arguments
+            if args.is_prompt == 1:
+                # Interactive mode - prompt user for all parameters
+                print("Running in interactive mode...\n")
+                country = prompt_for_country()
+                platform = prompt_for_platform()
+                genre = prompt_for_genre(country)
+                content_type = prompt_for_content_type()
+            else:
+                # Command line mode - use provided arguments
+                country = args.country
+                platform = args.platform
+                genre = args.genre
+                content_type = args.content_type
+                
+                # Validate required parameters
+                if not country or not platform or not genre or not content_type:
+                    print("❌ Error: Country, platform, genre, and content type are required when not using interactive mode")
+                    print("   Use --is-prompt 1 for interactive mode, or provide all required parameters")
+                    sys.exit(1)
+                
+            # Confirm selections
+            print("\n===== Your Selections =====")
+            print(f"Country: {country}")
+            print(f"Platform: {platform}")
+            print(f"Genre: {genre}")
+            print(f"Content Type: {content_type}")
+            print(f"Number of Movies: {args.num_movies}")
+            print("===========================\n")
+            
+            # Start workflow execution
+            print(f"Parameters: {args.num_movies} movies, {country}, {genre}, {platform}, {content_type}")
+            print("Starting end-to-end workflow...\n")
+
             try:
                 results = run_full_workflow(
                     num_movies=args.num_movies,
-                    country=args.country,
-                    genre=args.genre,
-                    platform=args.platform,
-                    content_type=args.content_type,
+                    country=country,
+                    genre=genre,
+                    platform=platform,
+                    content_type=content_type,
                     output=args.output,
                     skip_scroll_video=args.skip_scroll_video,
                     smooth_scroll=args.smooth_scroll,
