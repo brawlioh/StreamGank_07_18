@@ -1211,16 +1211,14 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
                         "time": 0,
                         "duration": 1,
                         "easing": "quadratic-out",
-                        "type": "slide",
-                        "direction": "0°"
+                        "type": "fade"
                     },
                     {
                         "time": "end",
                         "duration": 1,
                         "easing": "quadratic-out",
                         "reversed": True,
-                        "type": "slide",
-                        "direction": "180°"
+                        "type": "fade"
                     }
                 ]
             },
@@ -1238,16 +1236,14 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
                         "time": 0,
                         "duration": 1,
                         "easing": "quadratic-out",
-                        "type": "slide",
-                        "direction": "0°"
+                        "type": "fade"
                     },
                     {
                         "time": "end",
                         "duration": 1,
                         "easing": "quadratic-out",
                         "reversed": True,
-                        "type": "slide",
-                        "direction": "180°"
+                        "type": "fade"
                     }
                 ]
             },
@@ -1265,16 +1261,14 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
                         "time": 0,
                         "duration": 1,
                         "easing": "quadratic-out",
-                        "type": "slide",
-                        "direction": "0°"
+                        "type": "fade"
                     },
                     {
                         "time": "end",
                         "duration": 1,
                         "easing": "quadratic-out",
                         "reversed": True,
-                        "type": "slide",
-                        "direction": "180°"
+                        "type": "fade"
                     }
                 ]
             },
