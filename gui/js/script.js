@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
         addStatusMessage('info', '🚀', 'Starting video generation process...');
         
         // In development/demo mode, simulate the process
-        const isDemoMode = true; // Toggle this for development/production
+        const isDemoMode = false; // Toggle this for development/production
         
         if (isDemoMode) {
             // Simulate the automated video generation process

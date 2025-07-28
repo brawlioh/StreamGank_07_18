@@ -1545,12 +1545,22 @@ if __name__ == "__main__":
     
     try:
         
-        # Check if any command line arguments were provided for maintenance tasks
+        # Check if any command line arguments were provided
         if len(sys.argv) > 1:
             import argparse
             
-            # Set up argument parser for maintenance tasks only
-            parser = argparse.ArgumentParser(description="StreamGank Automated Video Generator - Maintenance Mode")
+            # Set up argument parser for both GUI and maintenance tasks
+            parser = argparse.ArgumentParser(description="StreamGank Automated Video Generator")
+            
+            # Main workflow arguments (for GUI integration)
+            parser.add_argument("--country", help="Country code for filtering (e.g., FR, US, GB)")
+            parser.add_argument("--platform", help="Platform to filter by (e.g., Netflix, Disney+)")
+            parser.add_argument("--genre", help="Genre to filter by (e.g., Horror, Action)")
+            parser.add_argument("--type", help="Content type to filter by (e.g., Series, Movie)")
+            parser.add_argument("--non-interactive", action="store_true", help="Run in non-interactive mode")
+            parser.add_argument("--num-movies", type=int, default=3, help="Number of movies to include (default: 3)")
+            
+            # Maintenance task arguments
             parser.add_argument("--check-creatomate", help="Check Creatomate render status by ID")
             parser.add_argument("--wait-creatomate", help="Wait for Creatomate render completion by ID")
             parser.add_argument("--process-heygen", help="Process existing HeyGen video IDs from JSON file")
@@ -1559,8 +1569,65 @@ if __name__ == "__main__":
             
             args = parser.parse_args()
             
+            # Handle main workflow with command-line arguments
+            if args.country and args.platform and args.genre and args.type and args.non_interactive:
+                print(f"\n🎬 StreamGank Video Generator - Non-Interactive Mode")
+                print(f"Parameters: {args.num_movies} movies, {args.country}, {args.genre}, {args.platform}, {args.type}")
+                print("Starting end-to-end workflow...\n")
+                
+                # Set default values for workflow options
+                output = None
+                skip_scroll_video = False
+                smooth_scroll = True
+                scroll_distance = 1.5
+                
+                try:
+                    results = run_full_workflow(
+                        num_movies=args.num_movies,
+                        country=args.country,
+                        genre=args.genre,
+                        platform=args.platform,
+                        content_type=args.type,
+                        output=output,
+                        skip_scroll_video=skip_scroll_video,
+                        smooth_scroll=smooth_scroll,
+                        scroll_distance=scroll_distance
+                    )
+                    print("\n✅ Workflow completed successfully!")
+                    
+                    # Print summary
+                    if results:
+                        print("\n📊 Results Summary:")
+                        if 'enriched_movies' in results:
+                            movies = results['enriched_movies']
+                            print(f"📽️ Movies processed: {len(movies)}")
+                            for i, movie in enumerate(movies, 1):
+                                print(f"  {i}. {movie['title']} ({movie['year']}) - IMDB: {movie['imdb']}")
+                        
+                        if 'video_ids' in results:
+                            print(f"🎥 HeyGen videos created: {len(results['video_ids'])}")
+                        
+                        if 'creatomate_id' in results:
+                            print(f"🎞️ Final video submitted to Creatomate: {results['creatomate_id']}")
+                            print(f"📹 Status: {results.get('creatomate_status', 'submitted')}")
+                            if results.get('status_check_command'):
+                                print(f"💡 Check status: {results['status_check_command']}")
+                            # Add the final video URL if available
+                            if 'final_video_url' in results:
+                                print(f"Final video URL: {results['final_video_url']}")
+                        
+                        if 'group_id' in results:
+                            print(f"💾 Data stored with group ID: {results['group_id']}")
+                            
+                except Exception as e:
+                    print(f"\n❌ Error during execution: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    sys.exit(1)
+                sys.exit(0)
+            
             # Handle maintenance tasks
-            if args.check_creatomate:
+            elif args.check_creatomate:
                 # Check Creatomate status
                 print(f"\n🎬 StreamGank Video Generator - Creatomate Status Check")
                 print(f"Checking status for render ID: {args.check_creatomate}")
