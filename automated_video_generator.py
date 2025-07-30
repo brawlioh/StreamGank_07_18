@@ -14,7 +14,6 @@ Usage:
     # Optional parameters:
     python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film
     python3 automated_video_generator.py --country US --platform Netflix --genre Horror --content-type Film
-    python3 automated_video_generator.py --is-prompt 1
 """
 
 import os
@@ -2281,26 +2280,16 @@ if __name__ == "__main__":
             # Run full workflow
             print(f"\n🎬 StreamGank Video Generator - Full Workflow Mode")
             
-            # Determine workflow mode: interactive prompts vs command line arguments
-            if args.is_prompt == 1:
-                # Interactive mode - prompt user for all parameters
-                print("Running in interactive mode...\n")
-                country = prompt_for_country()
-                platform = prompt_for_platform()
-                genre = prompt_for_genre(country)
-                content_type = prompt_for_content_type()
-            else:
-                # Command line mode - use provided arguments
-                country = args.country
-                platform = args.platform
-                genre = args.genre
-                content_type = args.content_type
-                
-                # Validate required parameters
-                if not country or not platform or not genre or not content_type:
-                    print("❌ Error: Country, platform, genre, and content type are required when not using interactive mode")
-                    print("   Use --is-prompt 1 for interactive mode, or provide all required parameters")
-                    sys.exit(1)
+            # Command line mode - use provided arguments
+            country = args.country
+            platform = args.platform
+            genre = args.genre
+            content_type = args.content_type
+
+            # Validate required parameters
+            if not country or not platform or not genre or not content_type:
+                print("❌ Error: Country, platform, genre, and content type are required when not using interactive mode")
+                sys.exit(1)
                 
             # Confirm selections
             print("\n===== Your Selections =====")

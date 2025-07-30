@@ -20,6 +20,7 @@ scroll_frames/
 trailers/
 temp_videos/
 responses/
+gui/node_modules/
 
 # Large media files
 *.mp4
