@@ -63,6 +63,19 @@
                     </div>
 
                     <div class="filter-group">
+                        <h3>Model</h3>
+                        <div class="form-group model-selector">
+                            <select id="model" class="form-select">
+                                <option value="auto">🤖 Auto (Based on Genre)</option>
+                                <option value="cc6718c5363e42b282a123f99b94b335">Default Model</option>
+                                <option value="e2ad0e5c7e71483991536f5c93594e42">Horror Model</option>
+                                <option value="15d9eadcb46a45dbbca1834aa0a23ede">Comedy Model</option>
+                                <option value="e44b139a1b94446a997a7f2ac5ac4178">Action Model</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
                         <h3>Content Type</h3>
                         <div class="form-group type-selector">
                             <div class="form-check">
@@ -104,6 +117,10 @@
                                 <div class="config-item">
                                     <span class="label">Genre:</span>
                                     <span class="value" id="preview-genre">Horreur</span>
+                                </div>
+                                <div class="config-item">
+                                    <span class="label">Model:</span>
+                                    <span class="value" id="preview-model">Auto</span>
                                 </div>
                                 <div class="config-item">
                                     <span class="label">Type:</span>

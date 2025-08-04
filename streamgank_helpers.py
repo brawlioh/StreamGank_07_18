@@ -670,7 +670,7 @@ def extract_second_highlight(video_path: str, start_time: int = 30, output_dir: 
             'ffmpeg',
             '-i', video_path,           # Input file
             '-ss', str(start_time),     # Start time
-            '-t', '15',                 # Duration
+            '-t', '10',                 # Duration
             '-c:v', 'libx264',         # Video codec
             '-c:a', 'aac',             # Audio codec
             '-crf', '15',              # Ultra-high quality for social media

@@ -45,7 +45,7 @@ const contentTypeMapping = {
 // Helper function to execute Python script with async/await
 async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeoutMs = 30 * 60 * 1000) {
     return new Promise((resolve, reject) => {
-        console.log('Executing command:', 'python', args.join(' '));
+        // Executing command (same as CLI)
 
         const pythonProcess = spawn('python', args, {
             cwd: cwd,
@@ -79,11 +79,13 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
             try {
                 const output = data.toString('utf8');
                 stdout += output;
-                console.log('Python stdout:', output);
+                // Output exactly like CLI - no prefixes
+                process.stdout.write(output);
             } catch (encodingError) {
                 console.warn('Encoding error in stdout:', encodingError.message);
                 const output = data.toString('latin1'); // Fallback encoding
                 stdout += output;
+                process.stdout.write(output);
             }
         });
 
@@ -92,11 +94,13 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
             try {
                 const output = data.toString('utf8');
                 stderr += output;
-                console.error('Python stderr:', output);
+                // Output exactly like CLI - no prefixes
+                process.stderr.write(output);
             } catch (encodingError) {
                 console.warn('Encoding error in stderr:', encodingError.message);
                 const output = data.toString('latin1'); // Fallback encoding
                 stderr += output;
+                process.stderr.write(output);
             }
         });
 
@@ -105,7 +109,7 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
             if (!isResolved) {
                 isResolved = true;
                 clearTimeout(timeout);
-                console.log(`Python process exited with code ${code}`);
+                // Process completed (code logged internally only if needed)
 
                 if (code !== 0) {
                     reject({
@@ -143,15 +147,15 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
 // API endpoint to add video to Redis queue
 app.post('/api/generate', async (req, res) => {
     try {
-        const { country, platform, genre, contentType } = req.body;
+        const { country, platform, genre, model, contentType } = req.body;
 
-        console.log('📨 Received queue request:', { country, platform, genre, contentType });
+        console.log('📨 Received queue request:', { country, platform, genre, model, contentType });
 
-        if (!country || !platform || !genre || !contentType) {
+        if (!country || !platform || !genre || !model || !contentType) {
             return res.status(400).json({
                 success: false,
                 message: 'Missing required parameters',
-                received: { country, platform, genre, contentType },
+                received: { country, platform, genre, model, contentType },
             });
         }
 
@@ -163,6 +167,7 @@ app.post('/api/generate', async (req, res) => {
             country,
             platform: mappedPlatform,
             genre,
+            model,
             contentType: mappedContentType,
         });
 
@@ -171,6 +176,7 @@ app.post('/api/generate', async (req, res) => {
             country,
             platform: mappedPlatform,
             genre,
+            model, // Pass the HeyGen template ID
             contentType: mappedContentType,
         });
 
@@ -246,7 +252,7 @@ app.get('/api/test', async (req, res) => {
         console.log('Testing Python script and database connection...');
 
         const scriptPath = path.join(__dirname, '../automated_video_generator.py');
-        const args = [scriptPath, '--country', 'FR', '--platform', 'Netflix', '--genre', 'Horror', '--content-type', 'Film', '--num-movies', '1', '--skip-scroll-video', '--all'];
+        const args = [scriptPath, '--country', 'FR', '--platform', 'Netflix', '--genre', 'Horror', '--heygen-template-id', 'e2ad0e5c7e71483991536f5c93594e42', '--content-type', 'Film', '--num-movies', '1', '--skip-scroll-video', '--all'];
 
         // Execute with shorter timeout for testing
         const result = await executePythonScript(args, path.join(__dirname, '..'), 5 * 60 * 1000);

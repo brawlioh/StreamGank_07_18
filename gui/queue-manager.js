@@ -211,8 +211,10 @@ class VideoQueueManager {
      * @param {Object} job - Job to process
      */
     async processJob(job) {
-        console.log(`🔄 Processing job: ${job.id}`);
-        console.log(`📋 Job parameters:`, job.parameters);
+        // Job processing (UI queue management)
+        console.log(`\n🔄 Starting job: ${job.id}`);
+        console.log(`📋 Parameters:`, job.parameters);
+        console.log(`--- Python Script Output ---`);
 
         try {
             // Update job status to processing
@@ -226,7 +228,7 @@ class VideoQueueManager {
             await this.client.lPush(this.keys.processing, JSON.stringify(job));
             await this.updateJob(job);
 
-            console.log(`⚡ Job ${job.id} moved to processing queue`);
+            // Job queued for processing
 
             // Execute Python script for video generation
             job.progress = 20;
@@ -278,8 +280,11 @@ class VideoQueueManager {
             // Set TTL for completed jobs (24 hours)
             await this.client.expire(`${this.keys.jobs}:${job.id}`, 86400);
 
-            console.log(`✅ Job completed successfully: ${job.id}`);
-            console.log(`🎬 Video URL: ${job.videoUrl}`);
+            console.log(`\n--- Job Completed ---`);
+            console.log(`✅ ${job.id} completed successfully`);
+            if (job.videoUrl) {
+                console.log(`🎬 Video URL: ${job.videoUrl}`);
+            }
         } catch (error) {
             console.error(`❌ Job failed: ${job.id}`, error);
 
@@ -320,13 +325,15 @@ class VideoQueueManager {
      */
     async executePythonScript(parameters, job) {
         return new Promise((resolve, reject) => {
-            const { country, platform, genre, contentType } = parameters;
+            const { country, platform, genre, model, contentType } = parameters;
 
             // Construct Python command
             const scriptPath = path.join(__dirname, '../automated_video_generator.py');
-            const args = [scriptPath, '--country', country, '--platform', platform, '--genre', genre, '--content-type', contentType, '--all'];
+            const args = [scriptPath, '--country', country, '--platform', platform, '--genre', genre, '--content-type', contentType, '--all', '--heygen-template-id', model];
 
-            console.log('🐍 Executing Python command:', 'python', args.join(' '));
+
+            // Executing Python command (same as CLI)
+            console.log('Executing:', 'python', args.join(' '));
 
             // Spawn Python process
             const pythonProcess = spawn('python', args, {
@@ -345,7 +352,8 @@ class VideoQueueManager {
             pythonProcess.stdout.on('data', async (data) => {
                 const output = data.toString('utf8');
                 stdout += output;
-                console.log('🐍 Python stdout:', output);
+                // Output exactly like CLI - no prefixes
+                process.stdout.write(output);
 
                 // Update job progress and status based on output
                 if (job) {
@@ -399,7 +407,7 @@ class VideoQueueManager {
                                 job.progress = percentage;
                                 job.currentStep = `${stepContext}... ${percentage}%${additionalContext}`;
                                 progressUpdated = true;
-                                console.log(`📊 Progress update: ${percentage}% - ${stepContext}${additionalContext}`);
+                                // Progress tracked internally - no extra logging to keep output clean
                                 break; // Exit loop once we find a match
                             }
                         }
@@ -458,11 +466,13 @@ class VideoQueueManager {
             pythonProcess.stderr.on('data', (data) => {
                 const output = data.toString('utf8');
                 stderr += output;
-                console.error('🐍 Python stderr:', output);
+                // Output exactly like CLI - no prefixes
+                process.stderr.write(output);
             });
 
             // Handle process completion
             pythonProcess.on('close', (code) => {
+                console.log(`\n--- Python Script Completed ---`);
                 if (code !== 0) {
                     // Check for specific error messages to make them more user-friendly
                     const errorOutput = stdout + stderr;

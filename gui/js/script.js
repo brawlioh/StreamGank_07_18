@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const countrySelect = document.getElementById('country');
     const platformSelect = document.getElementById('platform');
     const genreSelect = document.getElementById('genre');
+    const modelSelect = document.getElementById('model');
     const contentTypeRadios = document.querySelectorAll('input[name="contentType"]');
     const generateButton = document.getElementById('generate-video');
     const progressContainer = document.getElementById('progress-container');
@@ -12,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const previewCountry = document.getElementById('preview-country');
     const previewPlatform = document.getElementById('preview-platform');
     const previewGenre = document.getElementById('preview-genre');
+    const previewModel = document.getElementById('preview-model');
     const previewType = document.getElementById('preview-type');
     const previewUrl = document.getElementById('preview-url');
 
@@ -192,6 +194,48 @@ document.addEventListener('DOMContentLoaded', function () {
         All: 'all',
     };
 
+    // Model mapping (template ID -> display name)
+    const modelMapping = {
+        auto: '🤖 Auto (Based on Genre)',
+        cc6718c5363e42b282a123f99b94b335: 'Default Model',
+        e2ad0e5c7e71483991536f5c93594e42: 'Horror Model',
+        '15d9eadcb46a45dbbca1834aa0a23ede': 'Comedy Model',
+        e44b139a1b94446a997a7f2ac5ac4178: 'Action Model',
+    };
+
+    // Genre to model mapping function
+    function getModelForGenre(genre) {
+        if (!genre) {
+            console.log('🎭 No genre provided, using default model');
+            return 'cc6718c5363e42b282a123f99b94b335'; // Default model
+        }
+
+        const genreLower = genre.toLowerCase();
+        console.log(`🎭 Mapping genre "${genre}" (lowercase: "${genreLower}")`);
+
+        // Horror genres -> Horror model
+        if (genreLower.includes('horror') || genreLower.includes('horreur')) {
+            console.log('🎭 Matched Horror genre');
+            return 'e2ad0e5c7e71483991536f5c93594e42';
+        }
+
+        // Comedy genres -> Comedy model
+        if (genreLower.includes('comedy') || genreLower.includes('comédie')) {
+            console.log('🎭 Matched Comedy genre');
+            return '15d9eadcb46a45dbbca1834aa0a23ede';
+        }
+
+        // Action genres -> Action model
+        if (genreLower.includes('action') || genreLower.includes('aventure')) {
+            console.log('🎭 Matched Action genre');
+            return 'e44b139a1b94446a997a7f2ac5ac4178';
+        }
+
+        // Default for all other genres
+        console.log('🎭 No specific match found, using default model');
+        return 'cc6718c5363e42b282a123f99b94b335';
+    }
+
     // Function to update platforms based on selected country (user-defined data)
     async function updatePlatforms() {
         const selectedCountry = countrySelect.value;
@@ -331,23 +375,71 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             genreSelect.value = 'Horror'; // English default
         }
+
+        // Update model selection based on the new genre
+        updateModelForGenre();
+    }
+
+    // Function to get the actual template ID to send to server
+    function getActualTemplateId() {
+        const selectedModel = modelSelect.value;
+
+        if (selectedModel === 'auto') {
+            // Use genre-based selection
+            const selectedGenre = genreSelect.value;
+            const templateId = getModelForGenre(selectedGenre);
+            console.log(`🤖 Auto mode: Genre "${selectedGenre}" -> Template ID: ${templateId}`);
+            return templateId;
+        } else {
+            // Use the selected model directly
+            console.log(`🎯 Manual selection: Template ID: ${selectedModel}`);
+            return selectedModel;
+        }
+    }
+
+    // Function to update model selection based on current genre (only when Auto is selected)
+    function updateModelForGenre() {
+        // Only update the displayed text if "auto" is selected - don't change the selection
+        const selectedGenre = genreSelect.value;
+
+        if (modelSelect.value === 'auto') {
+            const recommendedModel = getModelForGenre(selectedGenre);
+            console.log(`🤖 Auto mode active - Genre: "${selectedGenre}" -> Would use: ${modelMapping[recommendedModel] || recommendedModel}`);
+
+            // Update the auto option text to show what model will be used
+            const autoOption = modelSelect.querySelector('option[value="auto"]');
+            if (autoOption) {
+                const modelName = modelMapping[recommendedModel] || 'Default Model';
+                autoOption.textContent = `🤖 Auto (${modelName})`;
+            }
+        }
     }
 
     // Update preview when form elements change
     countrySelect.addEventListener('change', function () {
+        console.log('🌍 Country changed, updating platforms and genres');
         updatePlatforms();
         updateGenres();
         updatePreview();
     });
     platformSelect.addEventListener('change', updatePreview);
-    genreSelect.addEventListener('change', updatePreview);
+    genreSelect.addEventListener('change', function () {
+        updateModelForGenre(); // Auto-select appropriate model
+        updatePreview(); // Update preview
+    });
+    modelSelect.addEventListener('change', function () {
+        console.log(`🎯 Model selection changed to: ${modelMapping[modelSelect.value]}`);
+        updateModelForGenre(); // Update auto option display if needed
+        updatePreview();
+    });
     contentTypeRadios.forEach((radio) => {
         radio.addEventListener('change', updatePreview);
     });
 
     // Initial setup
+    modelSelect.value = 'auto'; // Set initial model to auto
     updatePlatforms();
-    updateGenres();
+    updateGenres(); // This calls updateModelForGenre() internally
     updatePreview();
 
     // Handle form submission
@@ -386,12 +478,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const country = countrySelect.options[countrySelect.selectedIndex];
         const platform = platformSelect.options[platformSelect.selectedIndex];
         const genre = genreSelect.options[genreSelect.selectedIndex];
+        const model = modelSelect.options[modelSelect.selectedIndex];
         const contentType = document.querySelector('input[name="contentType"]:checked');
 
         // Update preview text
         previewCountry.textContent = country.text;
         previewPlatform.textContent = platform.text;
         previewGenre.textContent = genre.text;
+        // Show what model will actually be used
+        const actualTemplateId = getActualTemplateId();
+        const actualModelName = modelMapping[actualTemplateId] || 'Default Model';
+        previewModel.textContent = model.value === 'auto' ? `Auto (${actualModelName})` : model.text;
         previewType.textContent = contentType.id === 'all' ? 'All' : contentType.id === 'movie' ? 'Movies' : 'TV Shows';
 
         // Build and update URL - pass display text for mapping lookup
@@ -480,6 +577,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const country = countrySelect.value;
         const platform = platformSelect.value.replace('_', ''); // Format for API
         const genre = genreSelect.value;
+        const model = getActualTemplateId(); // Get the actual template ID (handles auto mode)
         const contentType = document.querySelector('input[name="contentType"]:checked').value;
 
         // Build target URL for validation
@@ -512,11 +610,11 @@ document.addEventListener('DOMContentLoaded', function () {
         addStatusMessage('info', 'ℹ️', `Target URL: ${targetUrl}`);
 
         // Call the actual API endpoint (demo mode disabled)
-        callGenerateAPI(country, platform, genre, contentType);
+        callGenerateAPI(country, platform, genre, model, contentType);
     }
 
     // Function to simulate video generation (in production would call the Python script)
-    function simulateVideoGeneration(country, platform, genre, contentType) {
+    function simulateVideoGeneration(country, platform, genre, model, contentType) {
         const steps = [
             { message: '🔍 Connecting to database and extracting movies...', time: 2000 },
             { message: '✅ Successfully extracted 3 movies', time: 1000 },
@@ -652,7 +750,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Function to call the generate API - now adds to Redis queue
-    async function callGenerateAPI(country, platform, genre, contentType) {
+    async function callGenerateAPI(country, platform, genre, model, contentType) {
         try {
             // Set progress bar to 10%
             progressBar.style.width = '10%';
@@ -664,6 +762,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 country: country,
                 platform: platform,
                 genre: genre,
+                model: model, // Include the template ID
                 contentType: contentType,
             };
 

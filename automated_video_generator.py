@@ -381,7 +381,7 @@ def get_heygen_template_id(genre=None):
     # Horror template ID: e2ad0e5c7e71483991536f5c93594e42 (horror-specific template)
     # Comedy template ID: 15d9eadcb46a45dbbca1834aa0a23ede (comedy-specific template)
     # Action template ID: e44b139a1b94446a997a7f2ac5ac4178 (action-specific template)
-    # Default template ID: 7fb75067718944ac8f02e661c2c61522
+    # Default template ID: cc6718c5363e42b282a123f99b94b335
     template_mapping = {
         "Horror": "e2ad0e5c7e71483991536f5c93594e42",
         "Horreur": "e2ad0e5c7e71483991536f5c93594e42",  # French horror
@@ -402,7 +402,7 @@ def get_heygen_template_id(genre=None):
         return template_mapping[genre]
     
     # Default template for all other genres
-    default_template = "7fb75067718944ac8f02e661c2c61522"
+    default_template = "cc6718c5363e42b282a123f99b94b335"
     logger.info(f"🎭 Using default template for genre '{genre}': {default_template}")
     return default_template
 
@@ -1874,7 +1874,7 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
         results['error'] = str(e)
         return results
 
-def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None, skip_scroll_video=False, smooth_scroll=True, scroll_distance=1.5, poster_timing_mode="heygen_last3s"):
+def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None, skip_scroll_video=False, smooth_scroll=True, scroll_distance=1.5, poster_timing_mode="heygen_last3s", heygen_template_id=None):
     """
     Run the complete end-to-end video generation workflow
     
@@ -1947,7 +1947,7 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         
         # Step 6: Create HeyGen videos
         logger.info("Step 6: Creating HeyGen avatar videos")
-        heygen_video_ids = create_heygen_video(scripts, genre=genre)
+        heygen_video_ids = create_heygen_video(scripts, heygen_template_id, genre=genre)
         results['video_ids'] = heygen_video_ids
         
         # Step 7: Wait for HeyGen completion and get URLs - STRICT MODE
@@ -2199,6 +2199,9 @@ if __name__ == "__main__":
         
         # HeyGen processing
         parser.add_argument("--heygen-ids", help="JSON string or file path with HeyGen video IDs")
+
+        # HeyGen Id template
+        parser.add_argument("--heygen-template-id", default="", help="HeyGen template ID to use for video generation")
         
         # Output options
         parser.add_argument("--output", help="Output file path to save results")
@@ -2358,7 +2361,8 @@ if __name__ == "__main__":
                     output=args.output,
                     skip_scroll_video=args.skip_scroll_video,
                     smooth_scroll=args.smooth_scroll,
-                    scroll_distance=args.scroll_distance
+                    scroll_distance=args.scroll_distance,
+                    heygen_template_id=args.heygen_template_id
                 )
                 print("\n✅ Workflow completed successfully!")
                 
