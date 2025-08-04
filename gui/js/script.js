@@ -188,7 +188,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Content type mapping for FR (display name -> URL parameter value)
     const contentTypeMapping = {
         Movies: 'Film',
-        'TV Shows': 'Série',
+        'TV Shows': 'Série', // Keep French accent for proper StreamGank URL
         All: 'all',
     };
 
@@ -404,8 +404,9 @@ document.addEventListener('DOMContentLoaded', function () {
         let url = `https://streamgank.com/?country=${country}`;
 
         if (genre) {
-            // Use French genre mapping for URL parameter
-            const genreParam = genreMapping[genre] || genre;
+            // Use French genre mapping for URL parameter (already properly encoded)
+            const genreParam = genreMapping[genre] || encodeURIComponent(genre);
+            // Don't double-encode: genreMapping values are already URL-encoded
             url += `&genres=${genreParam}`;
         }
 
@@ -418,7 +419,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (type && type !== 'All') {
             // Use French content type mapping for URL parameter
             const typeParam = contentTypeMapping[type] || type;
-            url += `&type=${typeParam}`;
+            // URL encode to handle accents (e.g., "Série" -> "S%C3%A9rie")
+            url += `&type=${encodeURIComponent(typeParam)}`;
         }
 
         return url;

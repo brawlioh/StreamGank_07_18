@@ -16,6 +16,8 @@ import subprocess
 import requests
 import textwrap
 import math
+import json
+import shutil
 from typing import Dict, List, Optional, Tuple
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont, ImageColor, ImageFilter
@@ -318,6 +320,14 @@ def enrich_movie_data(movie_data, country=None, genre=None, platform=None, conte
                     
             except Exception as e:
                 logger.warning(f"   ⚠️ Error: {str(e)}")
+                
+                # Check if it's a quota/rate limit error
+                if "429" in str(e) or "quota" in str(e).lower() or "rate_limit" in str(e).lower():
+                    logger.warning(f"⚠️ OpenAI quota exceeded - using fallback description for {title}")
+                    # Create a basic fallback description
+                    description = f"Discover {title}, a captivating {content_type.lower()} from {movie.get('year', 'recent years')} with an IMDb score of {movie.get('imdb', 'high rating')}. Available on {platform}."
+                    break  # Exit strategy loop with fallback
+                
                 if i == len(strategies) - 1:
                     logger.error(f"❌ Critical failure for {title}")
                     raise Exception(f"Critical: Failed for {title}")
@@ -808,9 +818,264 @@ def upload_clip_to_cloudinary(clip_path: str, movie_title: str, movie_id: str = 
         logger.error(f"❌ Error uploading {clip_path} to Cloudinary: {str(e)}")
         return None
 
+
+def extract_audio_from_clip(video_path: str, output_dir: str = "temp_audio") -> Optional[str]:
+    """
+    Extract audio from a video clip for subtitle generation
+    
+    Args:
+        video_path (str): Path to the video file
+        output_dir (str): Directory to save extracted audio
+        
+    Returns:
+        str: Path to extracted audio file or None if failed
+    """
+    try:
+        # Ensure output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Generate audio filename
+        video_filename = os.path.basename(video_path)
+        audio_filename = os.path.splitext(video_filename)[0] + "_audio.wav"
+        audio_path = os.path.join(output_dir, audio_filename)
+        
+        # Extract audio using FFmpeg
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",  # Overwrite output file
+            "-i", video_path,  # Input video
+            "-vn",  # No video output
+            "-acodec", "pcm_s16le",  # High quality audio codec
+            "-ar", "16000",  # 16kHz sample rate (good for speech recognition)
+            "-ac", "1",  # Mono audio
+            audio_path
+        ]
+        
+        logger.info(f"🎵 Extracting audio from: {video_path}")
+        logger.info(f"   Output: {audio_path}")
+        
+        result = subprocess.run(
+            ffmpeg_cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0:
+            logger.info(f"✅ Successfully extracted audio: {audio_path}")
+            return audio_path
+        else:
+            logger.error(f"❌ FFmpeg audio extraction error: {result.stderr}")
+            return None
+            
+    except subprocess.TimeoutExpired:
+        logger.error(f"❌ Audio extraction timeout for: {video_path}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ Error extracting audio from {video_path}: {str(e)}")
+        return None
+
+
+def generate_subtitles_from_audio(audio_path: str, movie_title: str = "Unknown") -> Optional[Dict]:
+    """
+    Generate subtitles from audio using OpenAI Whisper API
+    
+    Args:
+        audio_path (str): Path to the audio file
+        movie_title (str): Movie title for logging
+        
+    Returns:
+        Dict: Subtitle data with timing and text or None if failed
+    """
+    try:
+        # Check if OpenAI API key is available
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            logger.warning("⚠️ OPENAI_API_KEY not found - subtitle generation disabled")
+            return None
+        
+        # Initialize OpenAI client
+        client = openai.OpenAI(api_key=openai_api_key)
+        
+        logger.info(f"🗣️ Generating subtitles for: {movie_title}")
+        logger.info(f"   Audio file: {audio_path}")
+        
+        # Open audio file and send to Whisper API
+        with open(audio_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="verbose_json",  # Get detailed timing information
+                timestamp_granularities=["word"]  # Word-level timestamps
+            )
+        
+        # Extract subtitle data
+        subtitle_data = {
+            "full_text": transcript.text,
+            "segments": [],
+            "duration": getattr(transcript, 'duration', 10.0)  # Default to 10s if not available
+        }
+        
+        # Process segments with timing
+        if hasattr(transcript, 'words') and transcript.words:
+            # Group words into subtitle segments (2-3 seconds each)
+            current_segment = {"start": 0, "end": 0, "text": ""}
+            segment_duration = 2.5  # Target 2.5 seconds per subtitle
+            
+            for word_data in transcript.words:
+                word = word_data.word
+                start = word_data.start
+                end = word_data.end
+                
+                # Start new segment if this is the first word or if current segment is getting too long
+                if not current_segment["text"] or (start - current_segment["start"]) >= segment_duration:
+                    # Save previous segment if it has content
+                    if current_segment["text"]:
+                        subtitle_data["segments"].append(current_segment.copy())
+                    
+                    # Start new segment
+                    current_segment = {
+                        "start": start,
+                        "end": end,
+                        "text": word.strip()
+                    }
+                else:
+                    # Add word to current segment
+                    current_segment["text"] += " " + word.strip()
+                    current_segment["end"] = end
+            
+            # Add final segment
+            if current_segment["text"]:
+                subtitle_data["segments"].append(current_segment)
+        else:
+            # Fallback: single segment for entire clip
+            subtitle_data["segments"] = [{
+                "start": 0,
+                "end": subtitle_data["duration"],
+                "text": transcript.text
+            }]
+        
+        logger.info(f"✅ Generated {len(subtitle_data['segments'])} subtitle segments for {movie_title}")
+        logger.info(f"   Full text: {transcript.text[:100]}...")
+        
+        return subtitle_data
+        
+    except Exception as e:
+        # Check if it's a quota/rate limit error
+        if "429" in str(e) or "quota" in str(e).lower() or "rate_limit" in str(e).lower():
+            logger.warning(f"⚠️ OpenAI quota exceeded - subtitles disabled for {movie_title}")
+            logger.warning(f"   Video will be generated without subtitles")
+            return None
+        
+        logger.error(f"❌ Error generating subtitles for {movie_title}: {str(e)}")
+        logger.error(f"   Audio file: {audio_path}")
+        return None
+
+
+def process_movie_trailers_to_clips_with_subtitles(movie_data: List[Dict], max_movies: int = 3, transform_mode: str = "fit", generate_subtitles: bool = True) -> Tuple[Dict[str, str], Dict[str, Dict]]:
+    """
+    Process movie trailers to create 10-second highlight clips with optional subtitles and upload to Cloudinary
+    
+    Args:
+        movie_data (List[Dict]): List of movie data dictionaries with trailer_url
+        max_movies (int): Maximum number of movies to process
+        transform_mode (str): Transformation mode - "fit", "pad", "scale", or "auto"
+        generate_subtitles (bool): Whether to generate subtitles for movie clips
+        
+    Returns:
+        Tuple[Dict[str, str], Dict[str, Dict]]: (clip_urls, subtitle_data)
+            - clip_urls: Dictionary mapping movie titles to Cloudinary clip URLs
+            - subtitle_data: Dictionary mapping movie titles to subtitle timing/text data
+    """
+    clip_urls = {}
+    subtitle_data = {}
+    temp_dirs = ["temp_trailers", "temp_clips", "temp_audio"]
+    
+    try:
+        # Create temporary directories
+        for temp_dir in temp_dirs:
+            os.makedirs(temp_dir, exist_ok=True)
+        
+        logger.info(f"🎬 PROCESSING MOVIE TRAILERS TO CLIPS {'WITH SUBTITLES' if generate_subtitles else ''}")
+        logger.info(f"📋 Processing {min(len(movie_data), max_movies)} movies")
+        
+        # Process each movie (up to max_movies)
+        for i, movie in enumerate(movie_data[:max_movies]):
+            movie_title = movie.get('title', f'Movie_{i+1}')
+            movie_id = str(movie.get('id', i+1))
+            trailer_url = movie.get('trailer_url', '')
+            
+            logger.info(f"🎯 Processing Movie {i+1}: {movie_title}")
+            logger.info(f"   Movie ID: {movie_id}")
+            logger.info(f"   Trailer URL: {trailer_url}")
+            
+            if not trailer_url:
+                logger.warning(f"⚠️ No trailer URL for {movie_title}, skipping...")
+                continue
+            
+            # Step 1: Download YouTube trailer
+            downloaded_trailer = download_youtube_trailer(trailer_url)
+            if not downloaded_trailer:
+                logger.error(f"❌ Failed to download trailer for {movie_title}")
+                continue
+            
+            # Step 2: Extract highlight
+            highlight_clip = extract_second_highlight(downloaded_trailer)
+            if not highlight_clip:
+                logger.error(f"❌ Failed to extract highlight for {movie_title}")
+                continue
+            
+            # Step 3: Generate subtitles (if enabled)
+            if generate_subtitles:
+                logger.info(f"🗣️ Generating subtitles for {movie_title}")
+                # Extract audio from the highlight clip
+                audio_path = extract_audio_from_clip(highlight_clip)
+                if audio_path:
+                    # Generate subtitles from audio
+                    subtitles = generate_subtitles_from_audio(audio_path, movie_title)
+                    if subtitles:
+                        subtitle_data[movie_title] = subtitles
+                        logger.info(f"✅ Generated subtitles for {movie_title}")
+                    else:
+                        logger.warning(f"⚠️ Subtitle generation failed for {movie_title}")
+                        # Create empty subtitle data as fallback
+                        subtitle_data[movie_title] = {"segments": [], "full_text": "", "duration": 10.0}
+                else:
+                    logger.warning(f"⚠️ Audio extraction failed for {movie_title}")
+                    subtitle_data[movie_title] = {"segments": [], "full_text": "", "duration": 10.0}
+            
+            # Step 4: Upload to Cloudinary
+            cloudinary_url = upload_clip_to_cloudinary(highlight_clip, movie_title, movie_id, transform_mode)
+            if cloudinary_url:
+                clip_urls[movie_title] = cloudinary_url
+                logger.info(f"✅ Successfully processed {movie_title}: {cloudinary_url}")
+            else:
+                logger.error(f"❌ Failed to upload clip for {movie_title}")
+        
+        logger.info(f"🏁 PROCESSING COMPLETE: {len(clip_urls)}/{min(len(movie_data), max_movies)} clips processed")
+        if generate_subtitles:
+            logger.info(f"🗣️ SUBTITLES GENERATED: {len(subtitle_data)}/{min(len(movie_data), max_movies)} subtitle tracks")
+        
+        return clip_urls, subtitle_data
+        
+    except Exception as e:
+        logger.error(f"❌ Error in process_movie_trailers_to_clips_with_subtitles: {str(e)}")
+        return clip_urls, subtitle_data
+        
+    finally:
+        # Clean up temporary files
+        try:
+            for temp_dir in temp_dirs:
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir)
+                    logger.info(f"🧹 Cleaned up temporary directory: {temp_dir}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not clean up temporary files: {str(e)}")
+
+
 def process_movie_trailers_to_clips(movie_data: List[Dict], max_movies: int = 3, transform_mode: str = "fit") -> Dict[str, str]:
     """
     Process movie trailers to create 10-second highlight clips and upload to Cloudinary
+    (Legacy function for backward compatibility - does not generate subtitles)
     
     Args:
         movie_data (List[Dict]): List of movie data dictionaries with trailer_url
@@ -992,19 +1257,19 @@ def get_content_type_mapping():
         
     Example:
         >>> mapping = get_content_type_mapping()
-        >>> mapping.get('Série')    # Returns 'Serie'
-        >>> mapping.get('Émission') # Returns 'Serie' (French TV show term)
+        >>> mapping.get('Série')    # Returns 'Série' (with accent for French URLs)
+        >>> mapping.get('Émission') # Returns 'Série' (French TV show term)
     """
     
     # Universal content type mapping (supports both French and English terms)
     return {
         'Film': 'Film',
         'Movie': 'Film',
-        'Série': 'Serie',
-        'Series': 'Serie',
-        'TV Show': 'Serie',
-        'TV Series': 'Serie',
-        'Émission': 'Serie'  # French TV show term
+        'Série': 'Série',  # Fixed: Keep French accent for proper StreamGang URL
+        'Series': 'Série',  # Map English to French for consistency
+        'TV Show': 'Série',  # Map English to French for consistency
+        'TV Series': 'Série',  # Map English to French for consistency
+        'Émission': 'Série'  # French TV show term
     }
 
 def get_content_type_mapping_by_country(country_code):
@@ -1063,11 +1328,12 @@ def build_streamgank_url(country=None, genre=None, platform=None, content_type=N
     Example:
         >>> url = build_streamgank_url('FR', 'Horror', 'Netflix', 'Série')
         >>> print(url)
-        https://streamgank.com/?country=FR&genres=Horreur&platforms=Netflix&type=Serie
+        https://streamgank.com/?country=FR&genres=Horreur&platforms=Netflix&type=S%C3%A9rie
         >>> url = build_streamgank_url('US', 'Drama', 'Netflix', 'Film')
         >>> print(url)
         https://streamgank.com/?country=US&genres=Drama&platforms=Netflix&type=Film
     """
+    import urllib.parse
     
     base_url = "https://streamgank.com/?"
     url_params = []
@@ -1079,7 +1345,9 @@ def build_streamgank_url(country=None, genre=None, platform=None, content_type=N
         # Use country-specific genre mapping
         genre_mapping = get_genre_mapping_by_country(country)
         streamgank_genre = genre_mapping.get(genre, genre)
-        url_params.append(f"genres={streamgank_genre}")
+        # URL encode the genre parameter to handle accents and special characters
+        encoded_genre = urllib.parse.quote(streamgank_genre)
+        url_params.append(f"genres={encoded_genre}")
     
     if platform:
         # Use country-specific platform mapping
@@ -1091,7 +1359,9 @@ def build_streamgank_url(country=None, genre=None, platform=None, content_type=N
         # Use universal content type mapping (same across all countries)
         type_mapping = get_content_type_mapping()
         streamgank_type = type_mapping.get(content_type, content_type)
-        url_params.append(f"type={streamgank_type}")
+        # URL encode the type parameter to handle accents (e.g., "Série" -> "S%C3%A9rie")
+        encoded_type = urllib.parse.quote(streamgank_type)
+        url_params.append(f"type={encoded_type}")
     
     # Construct final URL
     if url_params:

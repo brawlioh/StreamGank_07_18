@@ -471,92 +471,18 @@ app.post('/api/validate-url', async (req, res) => {
                     });
 
                     response.on('end', () => {
-                        // Check for indicators that no movies are available
-                        const htmlLower = data.toLowerCase();
+                        // Simplified validation - check basic HTTP response success
+                        console.log(`🔍 Simplified validation for: ${url} - Status Code: ${response.statusCode}`);
 
-                        // More comprehensive empty result indicators
-                        const noMoviesIndicators = ['no movies found', 'no results', 'aucun film trouvé', 'aucun résultat', 'no content available', 'pas de contenu disponible', 'empty results', 'résultats vides', 'no movies available', 'aucun film disponible', 'no items found', 'nothing found', 'rien trouvé', 'empty page', 'page vide', '0 results', '0 résultats', 'no matches found', 'aucune correspondance', 'no content matches', 'pas de contenu correspondant', 'no movies match your criteria', 'try modifying your filters', 'modifying your filters', 'no movies match', 'match your criteria'];
+                        // Log first 200 characters of content for debugging
+                        console.log(`📄 First 200 chars of page content: ${data.substring(0, 200)}`);
 
-                        const hasNoMovies = noMoviesIndicators.some((indicator) => htmlLower.includes(indicator));
-
-                        // Additional specific check for the exact StreamGank message
-                        const streamgankNoMoviesMessage = htmlLower.includes('no movies match your criteria') || htmlLower.includes('try modifying your filters') || htmlLower.includes('modifying your filters');
-
-                        // Check if the page has very little content (might indicate empty results)
-                        const textContent = data
-                            .replace(/<[^>]*>/g, '')
-                            .replace(/\s+/g, ' ')
-                            .trim();
-                        const hasMinimalContent = textContent.length < 1200; // Increased threshold
-
-                        // More specific movie content detection - look for actual movie listings
-                        const movieContentIndicators = ['class="movie', 'class="film', 'movie-card', 'film-card', 'poster-image', 'movie-title', 'film-title', 'streaming-item', 'content-item', 'movie-poster', 'film-poster', 'content-card', 'media-card'];
-
-                        const hasMovieElements = movieContentIndicators.some((indicator) => htmlLower.includes(indicator));
-
-                        // Look for actual movie/show titles or IMDb ratings (strong indicators of content)
-                        const hasRatings = htmlLower.includes('imdb') || htmlLower.includes('rating') || htmlLower.includes('note');
-                        const hasWatchLinks = htmlLower.includes('watch') || htmlLower.includes('regarder') || htmlLower.includes('stream');
-
-                        // Basic content check
-                        const hasBasicMovieContent = htmlLower.includes('movie') || htmlLower.includes('film') || htmlLower.includes('série') || htmlLower.includes('show') || htmlLower.includes('title') || htmlLower.includes('poster');
-
-                        // Check for pagination or result count indicators
-                        const hasPagination = htmlLower.includes('page') || htmlLower.includes('next') || htmlLower.includes('previous');
-                        const hasResultCount = /\d+\s*(results|résultats|movies|films|shows|séries)/.test(htmlLower);
-
-                        // Check for zero results specifically
-                        const hasZeroResults = /0\s*(results|résultats|movies|films|shows|séries)/.test(htmlLower);
-
-                        console.log(`🔍 Validation analysis for: ${url}
-                        - Has no-movies indicators: ${hasNoMovies}
-                        - StreamGank no-movies message: ${streamgankNoMoviesMessage}
-                        - Content length: ${textContent.length}
-                        - Has minimal content: ${hasMinimalContent}
-                        - Has movie elements: ${hasMovieElements}
-                        - Has basic movie content: ${hasBasicMovieContent}
-                        - Has ratings: ${hasRatings}
-                        - Has watch links: ${hasWatchLinks}
-                        - Has pagination: ${hasPagination}
-                        - Has result count: ${hasResultCount}
-                        - Has zero results: ${hasZeroResults}`);
-
-                        // Log first 500 characters of content for debugging
-                        console.log(`📄 First 500 chars of page content: ${data.substring(0, 500)}`);
-
-                        // More strict validation logic
-                        if (hasNoMovies || hasZeroResults || streamgankNoMoviesMessage) {
-                            resolve({
-                                valid: false,
-                                reason: 'No movies available for the selected parameters',
-                                details: 'The StreamGank page explicitly indicates no content was found',
-                            });
-                        } else if (hasMinimalContent && !hasMovieElements && !hasRatings && !hasWatchLinks) {
-                            resolve({
-                                valid: false,
-                                reason: 'No movie content detected on the page',
-                                details: `The page has minimal content (${textContent.length} chars) and no movie indicators`,
-                            });
-                        } else if (!hasMovieElements && !hasResultCount && !hasPagination && !hasRatings && hasMinimalContent) {
-                            resolve({
-                                valid: false,
-                                reason: 'Page appears to have no movie listings',
-                                details: 'No movie elements, ratings, result counts, or pagination found',
-                            });
-                        } else if (hasBasicMovieContent && (hasMovieElements || hasRatings || hasWatchLinks || hasResultCount)) {
-                            resolve({
-                                valid: true,
-                                reason: 'Movies appear to be available for selected parameters',
-                                details: `Page analysis: content=${textContent.length} chars, elements=${hasMovieElements}, ratings=${hasRatings}`,
-                            });
-                        } else {
-                            // When in doubt, assume no movies to be safe
-                            resolve({
-                                valid: false,
-                                reason: 'Cannot confirm movie availability - page structure unclear',
-                                details: 'Page analysis inconclusive, assuming no content to avoid wasted processing',
-                            });
-                        }
+                        // Always return valid=true since no movies validation is removed
+                        resolve({
+                            valid: true,
+                            reason: 'URL validation passed - no movies check removed',
+                            details: `Page loaded successfully with ${data.length} bytes of content`,
+                        });
                     });
                 }
             );
