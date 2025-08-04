@@ -46,7 +46,6 @@ from streamgank_helpers import (
     get_content_type_mapping_by_country,
     build_streamgank_url,
     process_movie_trailers_to_clips,
-    process_movie_trailers_to_clips_with_subtitles,
     enrich_movie_data,
     generate_video_scripts,
     create_enhanced_movie_posters
@@ -1080,7 +1079,7 @@ def _get_poster_timing_strategy(poster_timing_mode: str) -> PosterTimingStrategy
 
 def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[str], movie_clips: List[str], 
                                 poster_timings: Dict[str, Dict[str, float]], heygen_durations: Dict[str, float] = None, 
-                                clip_durations: Dict[str, float] = None, scroll_video_url: str = None, subtitle_data: Dict[str, Dict] = None, movie_data: List[Dict[str, Any]] = None) -> Dict:
+                                clip_durations: Dict[str, float] = None, scroll_video_url: str = None) -> Dict:
     """
     Build the complete Creatomate composition with all elements
     
@@ -1092,11 +1091,9 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
         heygen_durations: Dictionary with HeyGen video durations
         clip_durations: Dictionary with movie clip durations
         scroll_video_url: Optional scroll video URL for overlay
-        subtitle_data: Optional dictionary with subtitle timing/text data for movie clips
-        movie_data: List of movie data dictionaries for subtitle mapping
         
     Returns:
-        Complete Creatomate composition dictionary with subtitle elements
+        Complete Creatomate composition dictionary
     """
     logger.info("🎬 Building Creatomate composition with dynamic sources")
     
@@ -1386,117 +1383,6 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
         ]
     }
 
-    # Add subtitle elements for movie clips (Track 5 - Subtitle layer)
-    if subtitle_data:
-        logger.info("🗣️ Adding subtitle elements to composition")
-        
-        # Calculate timing for each movie clip
-        clip1_start_time = 1 + heygen_durations["heygen1"]
-        clip2_start_time = 1 + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"]
-        clip3_start_time = 1 + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + heygen_durations["heygen3"]
-        
-        clip_timings = [
-            {"start": clip1_start_time, "clip_key": "clip1", "movie_idx": 0},
-            {"start": clip2_start_time, "clip_key": "clip2", "movie_idx": 1}, 
-            {"start": clip3_start_time, "clip_key": "clip3", "movie_idx": 2}
-        ]
-        
-        # Add subtitle elements for each movie clip
-        for clip_info in clip_timings:
-            movie_title = movie_data[clip_info["movie_idx"]].get('title', f'Movie_{clip_info["movie_idx"]+1}')
-            
-            if movie_title in subtitle_data and subtitle_data[movie_title]["segments"]:
-                segments = subtitle_data[movie_title]["segments"]
-                logger.info(f"   Adding {len(segments)} subtitle segments for {movie_title}")
-                
-                # Create cinema-style subtitles with dramatic highlighting
-                for i, segment in enumerate(segments):
-                    # Create main subtitle with professional styling
-                    subtitle_element = {
-                        "name": f"Subtitle-{movie_title}-{i+1}",
-                        "type": "text",
-                        "track": 5,  # Subtitle track
-                        "time": clip_info["start"] + segment["start"],
-                        "duration": segment["end"] - segment["start"],
-                        "text": segment["text"],
-                        "font_family": "Arial",
-                        "font_weight": "bold",
-                        "font_size": "6%",
-                        "color": "#FFFFFF",
-                        "background_color": "rgba(0,0,0,0.8)",
-                        "background_border_radius": "1%", 
-                        "x": "50%",
-                        "y": "85%",
-                        "x_anchor": "50%",
-                        "y_anchor": "50%",
-                        "width": "90%",
-                        "height": "auto",
-                        "text_align": "center",
-                        "text_transform": "uppercase",
-                        "animations": [
-                            {
-                                "time": 0,
-                                "duration": 0.4,
-                                "easing": "quadratic-out",
-                                "type": "fade"
-                            },
-                            {
-                                "time": "end",
-                                "duration": 0.4,
-                                "easing": "quadratic-out",
-                                "reversed": True,
-                                "type": "fade"
-                            }
-                        ]
-                    }
-                    composition["elements"].append(subtitle_element)
-                    
-                    # Create purple highlight overlay for karaoke effect
-                    highlight_element = {
-                        "name": f"Subtitle-Highlight-{movie_title}-{i+1}",
-                        "type": "text",
-                        "track": 6,  # Higher track for highlight layer
-                        "time": clip_info["start"] + segment["start"] + 0.2,  # Slight delay
-                        "duration": (segment["end"] - segment["start"]) - 0.4,  # Shorter duration
-                        "text": segment["text"],
-                        "font_family": "Arial",
-                        "font_weight": "bold",
-                        "font_size": "6%",
-                        "color": "#8A2BE2",  # Purple color like your image
-                        "background_color": "rgba(138,43,226,0.3)",  # Purple background
-                        "background_border_radius": "1%",
-                        "x": "50%",
-                        "y": "85%", 
-                        "x_anchor": "50%",
-                        "y_anchor": "50%",
-                        "width": "90%",
-                        "height": "auto",
-                        "text_align": "center",
-                        "text_transform": "uppercase",
-                        "animations": [
-                            {
-                                "time": 0,
-                                "duration": 0.3,
-                                "easing": "quadratic-out",
-                                "type": "fade"
-                            },
-                            {
-                                "time": "end",
-                                "duration": 0.3,
-                                "easing": "quadratic-out", 
-                                "reversed": True,
-                                "type": "fade"
-                            }
-                        ]
-                    }
-                    composition["elements"].append(highlight_element)
-            else:
-                logger.info(f"   No subtitles available for {movie_title}")
-        
-        logger.info("✅ Subtitle elements added to composition")
-    else:
-        logger.info("ℹ️ No subtitle data provided - skipping subtitles")
-
     # Add scroll video overlay if provided (Track 6 - Top layer)
     if scroll_video_url:
         scroll_overlay = {
@@ -1579,13 +1465,8 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
             logger.error(f"❌ Failed to create enhanced poster for {movie_title}")
             return f"error_poster_creation_failed_{movie_title}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
-    logger.info("🎞️ Processing dynamic cinematic portrait clips from trailers WITH SUBTITLES")
-    dynamic_clips, clip_subtitles = process_movie_trailers_to_clips_with_subtitles(
-        movie_data, 
-        max_movies=3, 
-        transform_mode="youtube_shorts",
-        generate_subtitles=True
-    )
+    logger.info("🎞️ Processing dynamic cinematic portrait clips from trailers")
+    dynamic_clips = process_movie_trailers_to_clips(movie_data, max_movies=3, transform_mode="youtube_shorts")
     
     # Prepare movie clips - STRICT MODE  
     movie_clips = []
@@ -1593,8 +1474,7 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
         movie_title = movie.get('title', f'Movie_{i+1}')
         if movie_title in dynamic_clips:
             movie_clips.append(dynamic_clips[movie_title])
-            subtitle_status = "WITH SUBTITLES" if movie_title in clip_subtitles else "NO SUBTITLES"
-            logger.info(f"✅ Movie {i+1} clip: {movie_title} -> DYNAMIC CLIP {subtitle_status}")
+            logger.info(f"✅ Movie {i+1} clip: {movie_title} -> DYNAMIC CLIP")
         else:
             logger.error(f"❌ Failed to create dynamic clip for {movie_title}")
             return f"error_clip_creation_failed_{movie_title}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -1625,9 +1505,7 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
         poster_timings=poster_timings,
         heygen_durations=heygen_durations,
         clip_durations=clip_durations,
-        scroll_video_url=scroll_video_url,
-        subtitle_data=clip_subtitles,
-        movie_data=movie_data
+        scroll_video_url=scroll_video_url
     )
     
     # ═══════════════════════════════════════════════════════════════
