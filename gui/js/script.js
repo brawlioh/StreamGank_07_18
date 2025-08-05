@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', function () {
             Western: 'Western',
         },
         US: {
-            Action: 'Action',
+            'Action & Adventure': 'Action & Adventure',
             Animation: 'Animation',
             Comedy: 'Comedy',
             Crime: 'Crime',
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', function () {
         },
         // For other countries, default to English genres
         GB: {
-            Action: 'Action',
+            'Action & Adventure': 'Action & Adventure',
             Animation: 'Animation',
             Comedy: 'Comedy',
             Crime: 'Crime',
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function () {
             Western: 'Western',
         },
         CA: {
-            Action: 'Action',
+            'Action & Adventure': 'Action & Adventure',
             Animation: 'Animation',
             Comedy: 'Comedy',
             Crime: 'Crime',
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
             Western: 'Western',
         },
         AU: {
-            Action: 'Action',
+            'Action & Adventure': 'Action & Adventure',
             Animation: 'Animation',
             Comedy: 'Comedy',
             Crime: 'Crime',
@@ -164,8 +164,9 @@ document.addEventListener('DOMContentLoaded', function () {
         Free: 'free',
     };
 
-    // Genre value mapping for FR (display name -> URL parameter value)
+    // Genre value mapping for URL parameters (display name -> URL parameter value)
     const genreMapping = {
+        // French genres
         'Action & Aventure': 'Action+%26+Aventure',
         Animation: 'Animation',
         Comédie: 'Comédie',
@@ -185,6 +186,12 @@ document.addEventListener('DOMContentLoaded', function () {
         'Science-Fiction': 'Science-Fiction',
         'Sport & Fitness': 'Sport+%26+Fitness',
         Western: 'Western',
+
+        // US/English genres
+        'Action & Adventure': 'Action+%26+Adventure',
+        Comedy: 'Comedy',
+        Horror: 'Horror',
+        'Science Fiction': 'Science+Fiction',
     };
 
     // Content type mapping for FR (display name -> URL parameter value)
@@ -373,7 +380,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (selectedCountry === 'FR') {
             genreSelect.value = 'Horreur'; // French default
         } else {
-            genreSelect.value = 'Horror'; // English default
+            genreSelect.value = 'Action & Adventure'; // English default
         }
 
         // Update model selection based on the new genre
@@ -501,7 +508,7 @@ document.addEventListener('DOMContentLoaded', function () {
         let url = `https://streamgank.com/?country=${country}`;
 
         if (genre) {
-            // Use French genre mapping for URL parameter (already properly encoded)
+            // Use genre mapping for URL parameter (already properly encoded)
             const genreParam = genreMapping[genre] || encodeURIComponent(genre);
             // Don't double-encode: genreMapping values are already URL-encoded
             url += `&genres=${genreParam}`;

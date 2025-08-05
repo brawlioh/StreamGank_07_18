@@ -420,8 +420,11 @@ def create_heygen_video(script_data, use_template=True, template_id=None, genre=
         Dictionary of video IDs
     """
     # Select template ID based on genre if not explicitly provided
-    if template_id is None:
+    if not template_id:  # Handles both None and empty string
         template_id = get_heygen_template_id(genre)
+        logger.info(f"🎭 Using genre-specific template for '{genre}': {template_id}")
+    else:
+        logger.info(f"🎯 Using manually selected template: {template_id}")
     
     logger.info(f"🎬 Creating HeyGen videos with template: {template_id}")
     
@@ -1947,7 +1950,9 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         
         # Step 6: Create HeyGen videos
         logger.info("Step 6: Creating HeyGen avatar videos")
-        heygen_video_ids = create_heygen_video(scripts, heygen_template_id, genre=genre)
+        logger.info(f"🎭 Template ID parameter: {heygen_template_id}")
+        logger.info(f"🎭 Genre parameter: {genre}")
+        heygen_video_ids = create_heygen_video(scripts, use_template=True, template_id=heygen_template_id, genre=genre)
         results['video_ids'] = heygen_video_ids
         
         # Step 7: Wait for HeyGen completion and get URLs - STRICT MODE

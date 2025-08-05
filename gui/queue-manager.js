@@ -329,8 +329,12 @@ class VideoQueueManager {
 
             // Construct Python command
             const scriptPath = path.join(__dirname, '../automated_video_generator.py');
-            const args = [scriptPath, '--country', country, '--platform', platform, '--genre', genre, '--content-type', contentType, '--all', '--heygen-template-id', model];
+            const args = [scriptPath, '--country', country, '--platform', platform, '--genre', genre, '--content-type', contentType, '--all'];
 
+            // Add HeyGen template ID parameter if provided
+            if (model) {
+                args.push('--heygen-template-id', model);
+            }
 
             // Executing Python command (same as CLI)
             console.log('Executing:', 'python', args.join(' '));
