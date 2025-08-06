@@ -40,7 +40,7 @@ from typing import Dict, List, Tuple, Optional, Any
 from video.scroll_generator import generate_scroll_video
 
 # Import StreamGang helper functions
-from streamgank_helpers import (
+from legacy_streamgank_helpers import (
     get_genre_mapping_by_country,
     get_platform_mapping,
     get_content_type_mapping,

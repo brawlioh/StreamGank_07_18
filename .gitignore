@@ -46,4 +46,4 @@ voices_list.json
 *.swp
 *.swo
 
-temp*
+temp_*

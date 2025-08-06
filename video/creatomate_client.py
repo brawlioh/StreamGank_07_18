@@ -875,3 +875,120 @@ def _analyze_composition_complexity(elements: List[Dict[str, Any]]) -> Dict[str,
             'element_count_factor': 1.2,
             'overlay_complexity_factor': 1.1
         }
+
+
+# =============================================================================
+# LEGACY-STYLE SIMPLE CREATOMATE FUNCTIONS (PROVEN TO WORK)
+# =============================================================================
+
+def check_creatomate_render_status(render_id: str) -> dict:
+    """
+    Simple, reliable Creatomate render status check (Legacy Migration)
+    
+    This is the proven, working implementation from the legacy system.
+    Returns simple dict with status, url, and data.
+    
+    Args:
+        render_id (str): Creatomate render ID
+        
+    Returns:
+        dict: Status information with keys: status, url, data
+    """
+    logger.info(f"Checking Creatomate render status: {render_id}")
+    
+    api_key = os.getenv("CREATOMATE_API_KEY")
+    if not api_key:
+        return {"status": "error", "message": "No API key"}
+    
+    try:
+        response = requests.get(
+            f"https://api.creatomate.com/v1/renders/{render_id}",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            status = result.get("status", "unknown")
+            url = result.get("url", "")
+            
+            logger.info(f"Creatomate render {render_id} status: {status}")
+            if url and status == "completed":
+                logger.info(f"Video ready at: {url}")
+            
+            return {
+                "status": status,
+                "url": url,
+                "data": result
+            }
+        else:
+            logger.error(f"Failed to check render status: {response.status_code} - {response.text}")
+            return {"status": "error", "message": f"HTTP {response.status_code}"}
+            
+    except Exception as e:
+        logger.error(f"Exception checking render status: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+def wait_for_creatomate_completion(render_id: str, max_attempts: int = 30, interval: int = 10) -> dict:
+    """
+    Simple, reliable Creatomate render waiting with progress (Legacy Migration)
+    
+    This is the proven, working implementation from the legacy system.
+    Shows progress bar and waits for completion.
+    
+    Args:
+        render_id (str): Creatomate render ID  
+        max_attempts (int): Maximum attempts to check (default: 30)
+        interval (int): Seconds between checks (default: 10)
+        
+    Returns:
+        dict: Final status information
+    """
+    logger.info(f"Waiting for Creatomate render {render_id} to complete...")
+    
+    print(f"\n{'=' * 70}")
+    print(f"RENDERING: Creatomate video {render_id}")
+    print(f"{'=' * 70}")
+    
+    for attempt in range(1, max_attempts + 1):
+        # Progress bar
+        progress = min(attempt / max_attempts * 100, 99)
+        bar_length = 40
+        filled_length = int(bar_length * progress / 100)
+        progress_bar = f"[{'█' * filled_length}{' ' * (bar_length - filled_length)}] {progress:.1f}%"
+        print(f"\rRendering: {progress_bar}", end="")
+        import sys
+        sys.stdout.flush()
+        
+        # Check status
+        status_info = check_creatomate_render_status(render_id)
+        status = status_info.get("status", "unknown")
+        
+        if status == "completed":
+            print(f"\r\n{'=' * 70}")
+            print(f"SUCCESS: Creatomate video completed! [{'█' * bar_length}] 100%")
+            print(f"Video URL: {status_info.get('url', 'No URL provided')}")
+            print(f"{'=' * 70}\n")
+            return status_info
+            
+        elif status in ["failed", "error"]:
+            print(f"\r\n{'=' * 70}")
+            print(f"FAILED: Creatomate render failed! [{'X' * bar_length}]")
+            print(f"{'=' * 70}\n")
+            return status_info
+        
+        time.sleep(interval)
+    
+    print(f"\r\n{'=' * 70}")
+    print(f"TIMEOUT: Render timed out after {max_attempts} attempts")
+    print(f"{'=' * 70}\n")
+    
+    return check_creatomate_render_status(render_id)
+
+# =============================================================================
+# LEGACY FUNCTIONS COMPLETED - READY TO USE
+# =============================================================================

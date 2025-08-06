@@ -34,8 +34,7 @@ sys.path.insert(0, str(project_root))
 from ai.robust_script_generator import generate_video_scripts
 from ai.heygen_client import create_heygen_video, get_heygen_videos_for_creatomate
 from video.scroll_generator import generate_scroll_video
-from video.creatomate_client import create_creatomate_video
-from automated_video_generator import check_creatomate_render_status, wait_for_creatomate_completion
+from video.creatomate_client import create_creatomate_video, check_creatomate_render_status, wait_for_creatomate_completion
 from core.workflow import process_existing_heygen_videos
 from database.movie_extractor import extract_movie_data
 
