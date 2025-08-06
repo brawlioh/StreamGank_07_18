@@ -11,6 +11,7 @@ EXACT SAME APPROACH AS LEGACY SYSTEM - PROVEN TO WORK
 
 import logging
 import time
+import json
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 
@@ -23,11 +24,17 @@ from video.clip_processor import process_movie_trailers_to_clips
 from database.movie_extractor import extract_movie_data
 
 # Import HeyGen functions
-from ai.heygen_client import create_heygen_video, get_video_urls
+from ai.heygen_client import create_heygen_video, get_heygen_videos_for_creatomate
 
 # Import video functions
 from video.scroll_generator import generate_scroll_video
 from video.creatomate_client import create_creatomate_video
+
+# Import centralized settings
+from config.settings import get_scroll_settings, get_video_settings
+
+# Import test data caching utilities
+from utils.test_data_cache import load_test_data, save_script_result, save_assets_result, get_app_env, should_use_cache
 
 logger = logging.getLogger(__name__)
 
@@ -40,26 +47,24 @@ def run_full_workflow(num_movies: int = 3,
                      genre: str = "Horror",
                      platform: str = "Netflix",
                      content_type: str = "Movies",
-                     output: Optional[str] = None,
+                     output: str = None,
                      skip_scroll_video: bool = False,
-                     smooth_scroll: bool = True,
-                     scroll_distance: float = 1.5,
+                     smooth_scroll: bool = None,
+                     scroll_distance: float = None,
                      poster_timing_mode: str = "heygen_last3s",
-                     heygen_template_id: Optional[str] = None,
-                     workflow_id: Optional[str] = None,
-                     job_id: Optional[str] = None) -> Dict[str, Any]:
+                     heygen_template_id: str = None) -> dict:
     """
     Run the complete StreamGank video generation workflow.
     
-    EXACT SAME APPROACH AS LEGACY SYSTEM - PROVEN TO WORK
+    PARTIALLY MODULAR SYSTEM - SOME LEGACY FUNCTIONS STILL NEEDED
     
     This function orchestrates the entire process from database extraction to final
-    video creation, using the exact same proven functions as the legacy system.
+    video creation, using mostly modular functions with some legacy functions where needed.
     
     Workflow Steps:
     1. Database Extraction - Get top movies by IMDB score
-    2. Script Generation - Create AI-powered hooks and intro (LEGACY FUNCTION)
-    3. Asset Preparation - Generate posters and process clips (LEGACY FUNCTIONS)
+    2. Script Generation - Create AI-powered hooks and intro (MODULAR FUNCTION)
+    3. Asset Preparation - Generate posters and process clips (MODULAR FUNCTIONS)
     4. HeyGen Video Creation - Generate AI avatar videos  
     5. Scroll Video Generation - Create scroll overlay (optional)
     6. Creatomate Assembly - Combine all elements into final video
@@ -79,27 +84,29 @@ def run_full_workflow(num_movies: int = 3,
         
     Returns:
         Dict[str, Any]: Complete workflow results including all generated assets
-        
-    Raises:
-        ValueError: If invalid parameters provided
-        RuntimeError: If any workflow step fails
-        
-    Example:
-        >>> results = run_full_workflow(
-        ...     num_movies=3,
-        ...     country="US",
-        ...     genre="Horror", 
-        ...     platform="Netflix",
-        ...     content_type="Movies"
-        ... )
-        >>> print(f"Workflow completed: {results['status']}")
     """
-    logger.info("🚀 Starting StreamGank video generation workflow")
-    logger.info(f"Parameters: {num_movies} movies, {country}, {genre}, {platform}, {content_type}")
+    # Log environment information
+    app_env = get_app_env()
+    cache_enabled = should_use_cache()
+    
+    print("🚀 Starting StreamGank video generation workflow")
+    print(f"🌍 Environment: APP_ENV='{app_env}' (Cache: {'ENABLED' if cache_enabled else 'DISABLED'})")
+    print(f"Parameters: {num_movies} movies, {country}, {genre}, {platform}, {content_type}")
+    
+    # Load settings from centralized configuration
+    scroll_settings = get_scroll_settings()
+    video_settings = get_video_settings()
+    
+    # Use settings defaults if parameters not provided
+    if smooth_scroll is None:
+        smooth_scroll = scroll_settings.get('micro_scroll_enabled', True)
+    if scroll_distance is None:
+        scroll_distance = scroll_settings.get('scroll_distance_multiplier', 1.5)
+    
+    print(f"🎛️ Using settings: smooth_scroll={smooth_scroll}, scroll_distance={scroll_distance}")
     
     workflow_results = {
-        'workflow_id': workflow_id or f"workflow_{int(time.time())}",
-        'job_id': job_id,
+        'workflow_id': f"workflow_{int(time.time())}",
         'parameters': {
             'num_movies': num_movies,
             'country': country,
@@ -136,51 +143,115 @@ def run_full_workflow(num_movies: int = 3,
         print(f"✅ STEP 1 COMPLETED - Found {len(raw_movies)} movies in {time.time() - step_start:.1f}s")
         
         # =============================================================================
-        # STEP 2: SCRIPT GENERATION (LEGACY FUNCTION - PROVEN TO WORK)
+        # STEP 2: SCRIPT GENERATION (MODULAR FUNCTION WITH TEST DATA CACHING)
         # =============================================================================
         print(f"\n[STEP 2/7] Script Generation - Generating scripts for {genre} content on {platform}")
         step_start = time.time()
-        print("   Using legacy proven script generation...")
         
-        script_result = generate_video_scripts(
-            raw_movies=raw_movies,
-            country=country,
-            genre=genre,
-            platform=platform,
-            content_type=content_type
-        )
+        # Try to load existing script data from test_output
+        cached_script_data = load_test_data('script_result', country, genre, platform)
         
-        if not script_result:
-            raise Exception("Script generation failed - no scripts were generated")
-        
-        combined_script, script_file_path, individual_scripts = script_result
+        if cached_script_data and should_use_cache():
+            print("   📂 Using cached script data from test_output...")
+            
+            # Extract data from cached result
+            combined_script = cached_script_data.get('combined_script', '')
+            script_file_path = cached_script_data.get('script_file_path', '')
+            individual_scripts = cached_script_data.get('individual_scripts', {})
+            
+            script_result = (combined_script, script_file_path, individual_scripts)
+            
+            print(f"   📋 Loaded {len(individual_scripts)} cached scripts")
+            
+        else:
+            print("   🔄 No cached data found, generating new scripts...")
+            print("   Using modular script generation...")
+            
+            script_result = generate_video_scripts(
+                raw_movies=raw_movies,
+                country=country,
+                genre=genre,
+                platform=platform,
+                content_type=content_type
+            )
+            
+            if not script_result:
+                raise Exception("Script generation failed - no scripts were generated")
+            
+            combined_script, script_file_path, individual_scripts = script_result
+            
+            # Save script result to test_output for future use
+            script_data_to_save = {
+                'combined_script': combined_script,
+                'script_file_path': script_file_path,
+                'individual_scripts': individual_scripts,
+                'raw_movies': raw_movies,  # Also save movie data for reference
+                'parameters': {
+                    'country': country,
+                    'genre': genre,
+                    'platform': platform,
+                    'content_type': content_type,
+                    'num_movies': len(raw_movies)
+                }
+            }
+            
+            save_script_result(script_data_to_save, country, genre, platform)
         
         workflow_results['combined_script'] = combined_script
         workflow_results['script_file_path'] = script_file_path
         workflow_results['individual_scripts'] = individual_scripts
         workflow_results['steps_completed'].append('script_generation')
         
-        print(f"✅ STEP 2 COMPLETED - Generated {len(individual_scripts)} scripts in {time.time() - step_start:.1f}s")
+        print(f"✅ STEP 2 COMPLETED - Using {len(individual_scripts)} scripts in {time.time() - step_start:.1f}s")
         
         # =============================================================================
-        # STEP 3: ASSET PREPARATION (LEGACY FUNCTIONS - PROVEN TO WORK)
+        # STEP 3: ASSET PREPARATION (MODULAR FUNCTIONS WITH TEST DATA CACHING)
         # =============================================================================
         print(f"\n[STEP 3/7] Asset Preparation - Creating enhanced posters and movie clips")
         step_start = time.time()
         
-        # Create enhanced posters (LEGACY FUNCTION)
-        print("   Creating enhanced movie posters with metadata overlays...")
-        enhanced_posters = create_enhanced_movie_posters(raw_movies, max_movies=3)
+        # Try to load existing asset data from test_output
+        cached_assets_data = load_test_data('assets', country, genre, platform)
         
-        if not enhanced_posters or len(enhanced_posters) < 3:
-            raise Exception(f"Failed to create enhanced posters - got {len(enhanced_posters) if enhanced_posters else 0}, need 3")
-        
-        # Process movie clips (LEGACY FUNCTION)
-        print("   Processing dynamic cinematic portrait clips from trailers...")
-        dynamic_clips = process_movie_trailers_to_clips(raw_movies, max_movies=3, transform_mode="youtube_shorts")
-        
-        if not dynamic_clips or len(dynamic_clips) < 3:
-            raise Exception(f"Failed to create movie clips - got {len(dynamic_clips) if dynamic_clips else 0}, need 3")
+        if cached_assets_data:
+            print("   📂 Using cached asset data from test_output...")
+            
+            enhanced_posters = cached_assets_data.get('enhanced_posters', {})
+            dynamic_clips = cached_assets_data.get('dynamic_clips', {})
+            
+            print(f"   📋 Loaded {len(enhanced_posters)} cached posters and {len(dynamic_clips)} cached clips")
+            
+        else:
+            print("   🔄 No cached assets found, generating new assets...")
+            
+            # Create enhanced posters (MODULAR FUNCTION)
+            print("   Creating enhanced movie posters with metadata overlays...")
+            enhanced_posters = create_enhanced_movie_posters(raw_movies, max_movies=3)
+            
+            if not enhanced_posters or len(enhanced_posters) < 3:
+                raise Exception(f"Failed to create enhanced posters - got {len(enhanced_posters) if enhanced_posters else 0}, need 3")
+            
+            # Process movie clips (MODULAR FUNCTION)
+            print("   Processing dynamic cinematic portrait clips from trailers...")
+            dynamic_clips = process_movie_trailers_to_clips(raw_movies, max_movies=3, transform_mode="youtube_shorts")
+            
+            if not dynamic_clips or len(dynamic_clips) < 3:
+                raise Exception(f"Failed to create movie clips - got {len(dynamic_clips) if dynamic_clips else 0}, need 3")
+            
+            # Save asset results to test_output for future use
+            assets_data_to_save = {
+                'enhanced_posters': enhanced_posters,
+                'dynamic_clips': dynamic_clips,
+                'parameters': {
+                    'country': country,
+                    'genre': genre,
+                    'platform': platform,
+                    'content_type': content_type,
+                    'num_movies': len(raw_movies)
+                }
+            }
+            
+            save_assets_result(assets_data_to_save, country, genre, platform)
         
         # Extract URLs for Creatomate
         movie_covers = list(enhanced_posters.values())[:3]
@@ -216,7 +287,7 @@ def run_full_workflow(num_movies: int = 3,
         print(f"\n[STEP 5/7] HeyGen Video Processing - Waiting for video completion")
         step_start = time.time()
         
-        heygen_video_urls = get_video_urls(heygen_video_ids, individual_scripts)
+        heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, individual_scripts)
         
         if not heygen_video_urls:
             raise Exception("HeyGen video URL retrieval failed")
@@ -241,7 +312,7 @@ def run_full_workflow(num_movies: int = 3,
                 content_type=content_type,
                 smooth=smooth_scroll,
                 scroll_distance=scroll_distance,
-                duration=4
+                duration=scroll_settings.get('target_duration', 4)
             )
             
             if scroll_video_url:
@@ -294,7 +365,6 @@ def run_full_workflow(num_movies: int = 3,
         # Save results if output file specified
         if output:
             try:
-                import json
                 with open(output, 'w', encoding='utf-8') as f:
                     json.dump(workflow_results, f, indent=2, ensure_ascii=False)
                 print(f"   📁 Results saved to: {output}")
@@ -318,7 +388,6 @@ def run_full_workflow(num_movies: int = 3,
         # Save partial results if output file specified
         if output:
             try:
-                import json
                 with open(output, 'w', encoding='utf-8') as f:
                     json.dump(workflow_results, f, indent=2, ensure_ascii=False)
                 print(f"   📁 Partial results saved to: {output}")
@@ -356,7 +425,9 @@ def process_existing_heygen_videos(heygen_video_ids: Dict[str, str],
     try:
         # Get HeyGen video URLs
         logger.info("Step 1: Getting HeyGen video URLs")
-        heygen_video_urls = get_video_urls(heygen_video_ids)
+        # Use empty scripts dict for existing video processing
+        empty_scripts = {key: f"Existing video {i+1}" for i, key in enumerate(heygen_video_ids.keys())}
+        heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, empty_scripts)
         
         if not heygen_video_urls:
             logger.error("❌ No HeyGen video URLs obtained")

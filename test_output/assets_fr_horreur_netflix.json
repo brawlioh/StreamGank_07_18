@@ -6,9 +6,9 @@
       "Us": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754490372/streamgank/posters/enhanced_us_3.jpg"
     },
     "dynamic_clips": {
-      "Ça": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754490402/movie_clips/movie_clips/a_23191_10s.mp4",
-      "La Plateforme": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754490434/movie_clips/movie_clips/la_plateforme_15045_10s.mp4",
-      "Us": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754490468/movie_clips/movie_clips/us_15049_10s.mp4"
+      "Ça": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754493348/movie_clips/movie_clips/a_23191_10s.mp4",
+      "La Plateforme": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754493375/movie_clips/movie_clips/la_plateforme_15045_10s.mp4",
+      "Us": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754493405/movie_clips/movie_clips/us_15049_10s.mp4"
     },
     "parameters": {
       "country": "FR",
@@ -19,7 +19,7 @@
     },
     "poster_count": 3,
     "clip_count": 3,
-    "generation_timestamp": 1754490475.708939
+    "generation_timestamp": 1754493411.8810492
   },
   "metadata": {
     "data_type": "assets",
@@ -28,7 +28,7 @@
       "genre": "Horreur",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1754490475.7091324,
-    "saved_datetime": "2025-08-06 22:27:55"
+    "saved_timestamp": 1754493411.8811934,
+    "saved_datetime": "2025-08-06 23:16:51"
   }
 }

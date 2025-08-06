@@ -1,18 +1,18 @@
 {
   "data": {
-    "combined_script": "Brace yourself for the most spine-chilling Horreur movies on Netflix that are setting the web ablaze!\n\nBrace yourself for the most spine-chilling Horreur movies on Netflix that are setting the web ablaze! Get ready for Ça, the 2017 Horreur sensation on Netflix thatll make you sleep with the lights on!\n\nGet ready for La Plateforme, the 2019 horror sensation on Netflix thats making everyone question what they would do for survival!\n\nEveryones talking about Us, the horreur spectacle on Netflix that will have you questioning your own reflection!",
+    "combined_script": "Dare to dive into StreamGanks most bone-chilling Horreur flicks on Netflix; these 3 nightmares are setting the horror scene on fire!\n\nDare to dive into StreamGanks most bone-chilling Horreur flicks on Netflix; these 3 nightmares are setting the horror scene on fire! Get ready for the chilling ride of your life with Ça – the Horreur sensation thats giving Netflix viewers nightmares!\n\nGet ready for the most horrifying food frenzy, La Plateforme takes cannibalism to a whole new, stomach-churning level on Netflix!\n\nGet ready for Us, the 2019 Horreur sensation that redefines terror, now chilling audiences on Netflix!",
     "script_file_path": "videos/combined_script.txt",
     "individual_scripts": {
       "movie1": {
-        "text": "Brace yourself for the most spine-chilling Horreur movies on Netflix that are setting the web ablaze! Get ready for Ça, the 2017 Horreur sensation on Netflix thatll make you sleep with the lights on!",
+        "text": "Dare to dive into StreamGanks most bone-chilling Horreur flicks on Netflix; these 3 nightmares are setting the horror scene on fire! Get ready for the chilling ride of your life with Ça – the Horreur sensation thats giving Netflix viewers nightmares!",
         "path": "videos/script_movie1.txt"
       },
       "movie2": {
-        "text": "Get ready for La Plateforme, the 2019 horror sensation on Netflix thats making everyone question what they would do for survival!",
+        "text": "Get ready for the most horrifying food frenzy, La Plateforme takes cannibalism to a whole new, stomach-churning level on Netflix!",
         "path": "videos/script_movie2.txt"
       },
       "movie3": {
-        "text": "Everyones talking about Us, the horreur spectacle on Netflix that will have you questioning your own reflection!",
+        "text": "Get ready for Us, the 2019 Horreur sensation that redefines terror, now chilling audiences on Netflix!",
         "path": "videos/script_movie3.txt"
       }
     },
@@ -83,7 +83,7 @@
       "num_movies": 3
     },
     "script_count": 3,
-    "generation_timestamp": 1754490353.4630249
+    "generation_timestamp": 1754493313.351093
   },
   "metadata": {
     "data_type": "script_result",
@@ -92,7 +92,7 @@
       "genre": "Horreur",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1754490353.463171,
-    "saved_datetime": "2025-08-06 22:25:53"
+    "saved_timestamp": 1754493313.3512118,
+    "saved_datetime": "2025-08-06 23:15:13"
   }
 }
