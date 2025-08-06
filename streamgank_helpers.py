@@ -29,526 +29,203 @@ import openai
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# AI CONTENT GENERATION - DYNAMIC LANGUAGE SYSTEM
+# US-ONLY HOOK GENERATION (SIMPLIFIED WORKFLOW)
 # =============================================================================
 
-def get_translations():
-    """Get all translations for dynamic language support (descriptions + scripts)"""
-    return {
-        'en': {
-            # Movie Description Generation
-            'desc_expert_role': "You are a cinema expert who writes {focus} descriptions for social media.",
-            'desc_task_instruction': "You ALWAYS write exactly 2 complete sentences that precisely describe the given movie/series content.",
-            'desc_task_critical': "CRITICAL TASK: Write EXACTLY 2 precise sentences for \"{title}\".",
-            'desc_search_context': "SEARCH CONTEXT:",
-            'desc_user_search': "User search: {search}",
-            'desc_found_content': "This {content_type} found{platform}{country}",
-            'desc_precise_info': "PRECISE {content_type_upper} INFORMATION:",
-            'desc_exact_title': "Exact title: {title}",
-            'desc_imdb_score': "IMDb Score: {score}",
-            'desc_year': "Year: {year}",
-            'desc_actual_genres': "Actual genres: {genres}",
-            'desc_mandatory_instructions': "MANDATORY INSTRUCTIONS:",
-            'desc_first_sentence': "1. FIRST SENTENCE: Description of real {content_type} content (20-35 words)",
-            'desc_use_genres': "   - Use actual genres: {genres}",
-            'desc_mention_platform': "   - Mention{platform}{genre}",
-            'desc_authentic_content': "   - Describe authentic content, not generic",
-            'desc_second_sentence': "2. SECOND SENTENCE: Score + year + contextual recommendation (15-25 words)",
-            'desc_exact_score': "   - Exact score: {score}",
-            'desc_exact_year': "   - Exact year: {year}",
-            'desc_personalized_rec': "   - Personalized recommendation for your search",
-            'desc_response_instruction': "RESPONSE (2 precise sentences based on real content):",
-            'content_movie': "movie",
-            'content_series': "series",
-            'focus_detailed': "detailed and structured",
-            'focus_simple': "simple and direct", 
-            'focus_creative': "creative but focused",
-            
-            # Script Generation
-            'script_system_role': "You are a {genre} expert who creates engaging scripts for TikTok/YouTube videos. You follow timing and word count constraints PRECISELY.",
-            'script_intro_prompt': "Create a CINEMATIC, high-energy intro that immediately hooks viewers and builds excitement for this {content_type} collection! This should be a COMPREHENSIVE introduction that takes sufficient time to properly engage the audience. Start with a powerful opening statement that creates urgency and curiosity, then build momentum by setting the scene and context for what viewers are about to experience. Reference and tease the SPECIFIC SELECTED MOVIES from the StreamGank results - mention their titles, years, or compelling details to show viewers exactly what incredible {content_type}s they're about to discover. Explain WHY this collection is special, WHAT makes these specific {content_type}s worth watching, and HOW viewers will benefit from staying tuned. Use TikTok/YouTube Shorts presenter energy - think dynamic, punchy, and irresistible. Create anticipation by teasing the quality and variety of the specific content coming up from these StreamGank selections. Make viewers feel they're about to discover something incredible and that they absolutely cannot scroll away from these handpicked {content_type}s! Then smoothly transition to presenting the first {content_type} with enthusiasm and confidence. The intro should feel substantial and complete, not rushed.",
-            'script_movie_prompt': "Present this {content_type} recommendation. Be concise and compelling.",
-            'script_constraints': "CONSTRAINTS: Duration: {duration} | Max words: {word_count} | Max sentences: {sentence_limit}",
-            'script_content_info': "Content: {title} ({year}) - IMDb: {imdb}",
-            'script_instruction': "Respond ONLY with the final script text.",
-            
-        },
-        'fr': {
-            # Movie Description Generation
-            'desc_expert_role': "Tu es un expert en cinéma qui écrit des descriptions {focus} pour les réseaux sociaux.",
-            'desc_task_instruction': "Tu écris TOUJOURS exactement 2 phrases complètes qui décrivent précisément le contenu du film/série donné.",
-            'desc_task_critical': "TÂCHE CRITIQUE: Écrire EXACTEMENT 2 phrases précises pour \"{title}\".",
-            'desc_search_context': "CONTEXTE DE RECHERCHE:",
-            'desc_user_search': "Recherche utilisateur: {search}",
-            'desc_found_content': "Ce {content_type} trouvé{platform}{country}",
-            'desc_precise_info': "INFORMATIONS PRÉCISES DU {content_type_upper}:",
-            'desc_exact_title': "Titre exact: {title}",
-            'desc_imdb_score': "Score IMDb: {score}",
-            'desc_year': "Année: {year}",
-            'desc_actual_genres': "Genres réels: {genres}",
-            'desc_mandatory_instructions': "INSTRUCTIONS OBLIGATOIRES:",
-            'desc_first_sentence': "1. PREMIÈRE PHRASE: Description du contenu réel du {content_type} (20-35 mots)",
-            'desc_use_genres': "   - Utilisez les genres réels: {genres}",
-            'desc_mention_platform': "   - Mentionnez{platform}{genre}",
-            'desc_authentic_content': "   - Décrivez le contenu authentique, pas générique",
-            'desc_second_sentence': "2. DEUXIÈME PHRASE: Score + année + recommandation contextuelle (15-25 mots)",
-            'desc_exact_score': "   - Score exact: {score}",
-            'desc_exact_year': "   - Année exacte: {year}",
-            'desc_personalized_rec': "   - Recommandation personnalisée pour votre recherche",
-            'desc_response_instruction': "RÉPONSE (2 phrases précises basées sur le vrai contenu):",
-            'content_film': "film",
-            'content_serie': "série",
-            'focus_detailed': "détaillées et structurées",
-            'focus_simple': "simples et directes",
-            'focus_creative': "créatives mais focalisées",
-            
-            # Script Generation
-            'script_system_role': "Tu es un expert en {genre} qui crée des scripts engageants pour des vidéos TikTok/YouTube. Tu respectes PRÉCISÉMENT les contraintes de timing et de nombre de mots.",
-            'script_intro_prompt': "Crée une introduction CINÉMATIQUE et haute énergie qui accroche immédiatement les spectateurs et génère de l'excitation pour cette collection de {content_type} ! Cette introduction doit être COMPLÈTE et prendre le temps nécessaire pour engager correctement l'audience. Commence par une déclaration percutante qui crée de l'urgence et de la curiosité, puis développe l'élan en plantant le décor et le contexte de ce que les spectateurs s'apprêtent à vivre. Référence et teases les FILMS/SÉRIES SPÉCIFIQUES SÉLECTIONNÉS des résultats StreamGank - mentionne leurs titres, années, ou détails captivants pour montrer aux spectateurs exactement quels {content_type}s incroyables ils sont sur le point de découvrir. Explique POURQUOI cette collection est spéciale, CE QUI rend ces {content_type}s spécifiques dignes d'être regardés, et COMMENT les spectateurs vont bénéficier de rester jusqu'au bout. Utilise l'énergie d'un présentateur TikTok/YouTube Shorts - pense dynamique, percutant et irrésistible. Crée de l'anticipation en teasant la qualité et la variété du contenu spécifique à venir de ces sélections StreamGank. Fais en sorte que les spectateurs sentent qu'ils sont sur le point de découvrir quelque chose d'incroyable et qu'ils ne peuvent absolument pas faire défiler ces {content_type}s triés sur le volet ! Puis passe fluidement à la présentation du premier {content_type} avec enthousiasme et confiance. L'introduction doit paraître substantielle et complète, pas précipitée.",
-            'script_movie_prompt': "Présente cette recommandation de {content_type}. Sois concis et convaincant.",
-            'script_constraints': "CONTRAINTES: Durée: {duration} | Max mots: {word_count} | Max phrases: {sentence_limit}",
-            'script_content_info': "Contenu: {title} ({year}) - IMDb: {imdb}",
-            'script_instruction': "Réponds UNIQUEMENT avec le texte du script final.",
-            
-        },
-        'es': {
-            # Script Generation (Spanish)
-            'script_system_role': "Eres un experto en {genre} que crea guiones atractivos para videos de TikTok/YouTube. Sigues PRECISAMENTE las restricciones de tiempo y conteo de palabras.",
-            'script_intro_prompt': "¡Crea una introducción CINEMATOGRÁFICA de alta energía que enganche inmediatamente a los espectadores y genere emoción por esta colección de {content_type}! Esta debe ser una introducción COMPLETA que tome el tiempo suficiente para involucrar apropiadamente a la audiencia. Comienza con una declaración poderosa que cree urgencia y curiosidad, luego construye impulso estableciendo la escena y el contexto de lo que los espectadores están a punto de experimentar. Referencia y adelanta las PELÍCULAS/SERIES ESPECÍFICAS SELECCIONADAS de los resultados de StreamGank - menciona sus títulos, años, o detalles convincentes para mostrar a los espectadores exactamente qué {content_type}s increíbles están a punto de descubrir. Explica POR QUÉ esta colección es especial, QUÉ hace que estas {content_type}s específicas valgan la pena ver, y CÓMO se beneficiarán los espectadores de quedarse hasta el final. Usa la energía de un presentador de TikTok/YouTube Shorts - piensa dinámico, impactante e irresistible. Crea expectativa adelantando la calidad y variedad del contenido específico que viene de estas selecciones de StreamGank. ¡Haz que los espectadores sientan que están a punto de descubrir algo increíble y que absolutamente no pueden hacer scroll de estas {content_type}s cuidadosamente seleccionadas! Luego haz una transición fluida para presentar la primera {content_type} con entusiasmo y confianza. La introducción debe sentirse sustancial y completa, no apresurada.",
-            'script_movie_prompt': "Presenta esta recomendación de {content_type}. Sé conciso y convincente.",
-            'script_constraints': "RESTRICCIONES: Duración: {duration} | Máx palabras: {word_count} | Máx oraciones: {sentence_limit}",
-            'script_content_info': "Contenido: {title} ({year}) - IMDb: {imdb}",
-            'script_instruction': "Responde SOLO con el texto del guión final.",
-        },
-        'de': {
-            # Script Generation (German)
-            'script_system_role': "Du bist ein {genre}-Experte, der ansprechende Skripte für TikTok/YouTube-Videos erstellt. Du hältst dich PRÄZISE an Zeit- und Wortzahl-Beschränkungen.",
-            'script_intro_prompt': "Erstelle eine CINEMATISCHE, energiegeladene Einführung, die sofort die Zuschauer fesselt und Begeisterung für diese {content_type}-Sammlung aufbaut! Dies sollte eine UMFASSENDE Einführung sein, die sich ausreichend Zeit nimmt, um das Publikum richtig einzubinden. Beginne mit einer kraftvollen Aussage, die Dringlichkeit und Neugier erzeugt, dann baue Schwung auf, indem du die Szene und den Kontext für das setzt, was die Zuschauer gleich erleben werden. Referenziere und tease die SPEZIFISCHEN AUSGEWÄHLTEN FILME/SERIEN aus den StreamGank-Ergebnissen - erwähne ihre Titel, Jahre oder überzeugende Details, um den Zuschauern genau zu zeigen, welche unglaublichen {content_type}s sie gleich entdecken werden. Erkläre WARUM diese Sammlung besonders ist, WAS diese spezifischen {content_type}s sehenswert macht, und WIE die Zuschauer davon profitieren werden, dranzubleiben. Nutze die Energie eines TikTok/YouTube Shorts Moderators - denke dynamisch, packend und unwiderstehlich. Schaffe Vorfreude, indem du die Qualität und Vielfalt des spezifischen kommenden Inhalts aus diesen StreamGank-Auswahlen anteaserst. Lass die Zuschauer spüren, dass sie etwas Unglaubliches entdecken werden und dass sie absolut nicht von diesen handverlesenen {content_type}s wegscrollen können! Dann gehe flüssig zur Präsentation des ersten {content_type} mit Begeisterung und Selbstvertrauen über. Die Einführung sollte sich substanziell und vollständig anfühlen, nicht gehetzt.",
-            'script_movie_prompt': "Präsentiere diese {content_type}-Empfehlung. Sei prägnant und überzeugend.",
-            'script_constraints': "BESCHRÄNKUNGEN: Dauer: {duration} | Max Wörter: {word_count} | Max Sätze: {sentence_limit}",
-            'script_content_info': "Inhalt: {title} ({year}) - IMDb: {imdb}",
-            'script_instruction': "Antworte NUR mit dem finalen Skripttext.",
-        },
-        'it': {
-            # Script Generation (Italian)
-            'script_system_role': "Sei un esperto di {genre} che crea script coinvolgenti per video TikTok/YouTube. Segui PRECISAMENTE i vincoli di tempo e conteggio parole.",
-            'script_intro_prompt': "Crea un'introduzione CINEMATOGRAFICA ad alta energia che catturi immediatamente gli spettatori e generi eccitazione per questa collezione di {content_type}! Questa deve essere un'introduzione COMPLETA che prenda il tempo sufficiente per coinvolgere adeguatamente il pubblico. Inizia con una dichiarazione potente che crei urgenza e curiosità, poi costruisci slancio stabilendo la scena e il contesto per quello che gli spettatori stanno per sperimentare. Riferisci e anticipa i FILM/SERIE SPECIFICI SELEZIONATI dai risultati di StreamGank - menziona i loro titoli, anni, o dettagli convincenti per mostrare agli spettatori esattamente quali {content_type} incredibili stanno per scoprire. Spiega PERCHÉ questa collezione è speciale, COSA rende questi {content_type} specifici degni di essere visti, e COME gli spettatori beneficeranno dal rimanere sintonizzati. Usa l'energia di un presentatore TikTok/YouTube Shorts - pensa dinamico, incisivo e irresistibile. Crea aspettativa anticipando la qualità e varietà del contenuto specifico in arrivo da queste selezioni StreamGank. Fai sentire agli spettatori che stanno per scoprire qualcosa di incredibile e che assolutamente non possono scrollare via da questi {content_type} selezionati con cura! Poi passa fluidamente alla presentazione del primo {content_type} con entusiasmo e fiducia. L'introduzione deve sembrare sostanziale e completa, non affrettata.",
-            'script_movie_prompt': "Presenta questa raccomandazione di {content_type}. Sii conciso e convincente.",
-            'script_constraints': "VINCOLI: Durata: {duration} | Max parole: {word_count} | Max frasi: {sentence_limit}",
-            'script_content_info': "Contenuto: {title} ({year}) - IMDb: {imdb}",
-            'script_instruction': "Rispondi SOLO con il testo dello script finale.",
-        },
-        'pt': {
-            # Script Generation (Portuguese)
-            'script_system_role': "Você é um especialista em {genre} que cria roteiros envolventes para vídeos do TikTok/YouTube. Você segue PRECISAMENTE as restrições de tempo e contagem de palavras.",
-            'script_intro_prompt': "Crie uma introdução CINEMATOGRÁFICA de alta energia que capture imediatamente os espectadores e gere empolgação por esta coleção de {content_type}! Esta deve ser uma introdução ABRANGENTE que tome tempo suficiente para envolver adequadamente a audiência. Comece com uma declaração poderosa que crie urgência e curiosidade, depois construa momentum estabelecendo o cenário e contexto para o que os espectadores estão prestes a experienciar. Referencie e antecipe os FILMES/SÉRIES ESPECÍFICOS SELECIONADOS dos resultados do StreamGank - mencione seus títulos, anos, ou detalhes convincentes para mostrar aos espectadores exatamente quais {content_type}s incríveis eles estão prestes a descobrir. Explique POR QUE esta coleção é especial, O QUE torna estes {content_type}s específicos dignos de serem assistidos, e COMO os espectadores se beneficiarão de ficar até o fim. Use a energia de um apresentador do TikTok/YouTube Shorts - pense dinâmico, impactante e irresistível. Crie expectativa antecipando a qualidade e variedade do conteúdo específico que vem por aí dessas seleções do StreamGank. Faça os espectadores sentirem que estão prestes a descobrir algo incrível e que absolutamente não podem rolar a tela destes {content_type}s cuidadosamente selecionados! Depois faça uma transição suave para apresentar o primeiro {content_type} com entusiasmo e confiança. A introdução deve parecer substancial e completa, não apressada.",
-            'script_movie_prompt': "Apresente esta recomendação de {content_type}. Seja conciso e convincente.",
-            'script_constraints': "RESTRIÇÕES: Duração: {duration} | Máx palavras: {word_count} | Máx frases: {sentence_limit}",
-            'script_content_info': "Conteúdo: {title} ({year}) - IMDb: {imdb}",
-            'script_instruction': "Responda APENAS com o texto do roteiro final.",
-        }
-    }
+# REMOVED: build_context_elements() - no longer needed for simplified workflow
 
-def get_language_code(country):
-    """Get language code from country - supports 5+ languages"""
-    language_map = {
-        'FR': 'fr',    # French
-        'ES': 'es',    # Spanish  
-        'DE': 'de',    # German
-        'IT': 'it',    # Italian
-        'PT': 'pt',    # Portuguese
-        'US': 'en',    # English
-        'GB': 'en',    # English (UK)
-        'CA': 'en',    # English (Canada)
-    }
-    return language_map.get(country, 'en')  # Default to English
+# REMOVED: create_dynamic_prompt() - no longer needed for simplified workflow
 
-def build_context_elements(country, platform, genre, lang):
-    """Build context elements dynamically"""
-    t = get_translations()[lang]
-    
-    # Country context
-    if lang == 'fr':
-        country_ctx = " en France" if country == 'FR' else (f" en {country}" if country else "")
-        platform_ctx = f" sur {platform}" if platform else ""
-    else:
-        country_ctx = " in France" if country == 'FR' else (f" in {country}" if country and country != 'US' else "")
-        platform_ctx = f" on {platform}" if platform else ""
-    
-    genre_ctx = f" {genre.lower()}" if genre else ""
-    
-    return {
-        'country': country_ctx,
-        'platform': platform_ctx,
-        'genre': genre_ctx
-    }
+# REMOVED: All enrichment functions (generate_movie_description_simple, validate_and_fix_description, enrich_movie_data)
+# The simplified workflow now goes directly: Raw Movies → Hook Scripts → HeyGen → Creatomate
 
-def create_dynamic_prompt(movie, search_summary, context_elements, content_type, lang):
-    """Create fully dynamic prompt using translations"""
-    t = get_translations()[lang]
-    
-    title = movie.get('title', 'Unknown')
-    genres = ', '.join(movie.get('genres', ['Divers'] if lang == 'fr' else ['Various']))
-    content_name = content_type or (t['content_film'] if lang == 'fr' else t['content_movie'])
-    content_upper = content_name.upper()
-    
-    return f"""{t['desc_task_critical'].format(title=title)}
+# =============================================================================
+# SCRIPT GENERATION - US ONLY (SINGLE HOOK SENTENCES)
+# =============================================================================
 
-{t['desc_search_context']}
-- {t['desc_user_search'].format(search=search_summary)}
-- {t['desc_found_content'].format(content_type=content_name, platform=context_elements['platform'], country=context_elements['country'])}
-
-{t['desc_precise_info'].format(content_type_upper=content_upper)}
-- {t['desc_exact_title'].format(title=title)}
-- {t['desc_imdb_score'].format(score=movie['imdb'])}
-- {t['desc_year'].format(year=movie['year'])}
-- {t['desc_actual_genres'].format(genres=genres)}
-
-{t['desc_mandatory_instructions']}
-{t['desc_first_sentence'].format(content_type=content_name)}
-{t['desc_use_genres'].format(genres=genres)}
-{t['desc_mention_platform'].format(platform=context_elements['platform'], genre=context_elements['genre'])}
-{t['desc_authentic_content']}
-
-{t['desc_second_sentence']}
-{t['desc_exact_score'].format(score=movie['imdb'])}
-{t['desc_exact_year'].format(year=movie['year'])}
-{t['desc_personalized_rec']}
-
-{t['desc_response_instruction']}"""
-
-def generate_movie_description_simple(movie, search_summary, context_elements, content_type, lang, strategy):
-    """Generate description - simplified version"""
-    t = get_translations()[lang]
-    
-    # Get focus text dynamically
-    focus_map = {
-        'detailed_structured': t['focus_detailed'],
-        'simple_direct': t['focus_simple'],
-        'creative_flexible': t['focus_creative']
-    }
-    focus = focus_map.get(strategy['name'], t['focus_simple'])
-    
-    # Create messages
-    system_msg = f"{t['desc_expert_role'].format(focus=focus)} {t['desc_task_instruction']}"
-    user_prompt = create_dynamic_prompt(movie, search_summary, context_elements, content_type, lang)
-    
-    # Call OpenAI
-    response = openai.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=strategy['temperature'],
-        max_tokens=strategy['max_tokens'],
-        presence_penalty=0.1,
-        frequency_penalty=0.1
-    )
-    
-    return response.choices[0].message.content.strip()
-
-def validate_and_fix_description(text):
-    """Simple validation and fix"""
-    sentences = [s.strip() for s in text.split('.') if s.strip()]
-    
-    if len(sentences) >= 2 and len(text) > 50:
-        return {
-            'valid': True,
-            'text': f"{sentences[0]}. {sentences[1]}.",
-            'count': len(sentences)
-        }
-    else:
-        return {
-            'valid': False,
-            'text': text,
-            'count': len(sentences)
-        }
-
-def enrich_movie_data(movie_data, country=None, genre=None, platform=None, content_type=None):
+def generate_video_scripts(raw_movies, country=None, genre=None, platform=None, content_type=None):
     """
-    Simplified movie data enrichment with dynamic language support
+    🚀 DIRECT SCRIPT GENERATION (Raw Movies → Hook Scripts)
+    
+    Skips enrichment step and generates hooks directly from raw movie data:
+    - Takes raw movie data (no enrichment needed)
+    - 1 powerful hook sentence per movie
+    - US English only, TikTok/YouTube optimized
+    - Fast and cost-effective
+    
+    Args:
+        raw_movies (list): Raw movie data from database
+        genre (str): Genre for context (optional)
+        platform (str): Platform name (optional)
+        content_type (str): Content type (optional)
+        
+    Returns:
+        tuple: (combined_script, script_path, individual_scripts) or None if failed
     """
-    logger.info(f"🤖 Enriching {len(movie_data)} movies with AI descriptions")
+    logger.info(f"🚀 DIRECT SCRIPT GENERATION: {len(raw_movies)} movies → Hook scripts")
     
-    # Get language and build context once
-    lang = get_language_code(country)
-    search_summary = ", ".join([f"{k}: {v}" for k, v in {
-        'country': country, 'genre': genre, 'platform': platform, 'type': content_type
-    }.items() if v and (k != 'country' or v != 'US')])
+    # Simple content type handling
+    content_name = "movie"
+    if content_type and ("series" in content_type.lower() or "show" in content_type.lower()):
+        content_name = "series"
     
-    context_elements = build_context_elements(country, platform, genre, lang)
+    logger.info(f"🇺🇸 US hooks | Content: {content_name} | Genre: {genre or 'entertainment'}")
     
-    # Simple strategy list
-    strategies = [
-        {"name": "detailed_structured", "temperature": 0.3, "max_tokens": 300},
-        {"name": "simple_direct", "temperature": 0.1, "max_tokens": 250},
-        {"name": "creative_flexible", "temperature": 0.5, "max_tokens": 350}
-    ]
+    generated_scripts = {}
     
-    # Process each movie
-    for movie in movie_data:
-        title = movie.get('title', 'Unknown')
-        logger.info(f"🎯 Processing: {title}")
-        
-        description = None
-        
-        # Try strategies until success
-        for i, strategy in enumerate(strategies):
-            try:
-                logger.info(f"   Strategy {i+1}/3: {strategy['name']}")
-                
-                # Generate description
-                generated = generate_movie_description_simple(
-                    movie, search_summary, context_elements, content_type, lang, strategy
-                )
-                
-                # Validate
-                result = validate_and_fix_description(generated)
-                
-                if result['valid']:
-                    description = result['text']
-                    logger.info(f"   ✅ SUCCESS: {result['count']} sentences")
-                    break
-                else:
-                    logger.warning(f"   ⚠️ Invalid: {result['count']} sentences")
-                    if i == len(strategies) - 1:
-                        logger.error(f"❌ All strategies failed for {title}")
-                        raise Exception(f"Failed to generate description for {title}")
-                    
-            except Exception as e:
-                logger.warning(f"   ⚠️ Error: {str(e)}")
-                if i == len(strategies) - 1:
-                    logger.error(f"❌ Critical failure for {title}")
-                    raise Exception(f"Critical: Failed for {title}")
-        
-        # Store result
-        if not description:
-            raise Exception(f"No description generated for {title}")
-            
-        movie["enriched_description"] = description
-        logger.info(f"✅ DONE: {title}")
-        logger.info(f"   Text: {description}")
-        
-        time.sleep(0.8)  # Rate limiting
+    # Generate intro script first
+    logger.info("🎬 Generating intro script...")
+    intro_system_msg = f"You create engaging intros for TikTok/YouTube videos that hook viewers immediately. You specialize in {genre or 'entertainment'} content recommendations."
     
-    logger.info("✅ All movies enriched")
-    return movie_data
+    intro_prompt = f"""Create a short, energetic intro that introduces this collection of {content_name}s from StreamGank.
 
-# =============================================================================
-# SCRIPT GENERATION - DYNAMIC LANGUAGE SYSTEM
-# =============================================================================
+Collection Details:
+- Content: {content_name}s
+- Genre: {genre or 'entertainment'}  
+- Platform: {platform or 'streaming'}
+- Count: {len(raw_movies)} {content_name}s
 
-def create_script_prompt(movie, rule, content_type, genre, platform, lang, all_movies=None):
-    """Create dynamic script prompt using translations"""
-    t = get_translations()[lang]
-    
-    title = movie.get('title', 'Unknown')
-    year = movie.get('year', 'Unknown')
-    imdb = movie.get('imdb', '7+')
-    
-    # Special handling for intro + movie1 combination
-    if rule.get('is_intro', False):
-        # Use the enhanced cinematic intro prompt and include info about all movies
-        prompt_type = t['script_intro_prompt']
-        
-        # Create a summary of all selected movies WITHOUT revealing titles
-        movies_summary = ""
-        if all_movies and len(all_movies) >= 3:
-            # Calculate average IMDb score and get quality indicators
-            imdb_scores = []
-            years = []
-            for movie_data in all_movies[:3]:
-                try:
-                    score = float(movie_data.get('imdb', '7.0'))
-                    imdb_scores.append(score)
-                except (ValueError, TypeError):
-                    imdb_scores.append(7.0)
-                
-                try:
-                    year = int(movie_data.get('year', '2020'))
-                    years.append(year)
-                except (ValueError, TypeError):
-                    years.append(2020)
-            
-            avg_score = sum(imdb_scores) / len(imdb_scores)
-            min_year = min(years)
-            max_year = max(years)
-            
-            # Create engaging summary without revealing titles
-            movies_intro = {
-                'en': f"StreamGank Selection: 3 incredible {content_type or 'movies'} (IMDb avg: {avg_score:.1f}) spanning {min_year}-{max_year}",
-                'fr': f"Sélection StreamGank: 3 {content_type or 'films'} incroyables (IMDb moy: {avg_score:.1f}) de {min_year} à {max_year}",
-                'es': f"Selección StreamGank: 3 {content_type or 'películas'} increíbles (IMDb prom: {avg_score:.1f}) desde {min_year}-{max_year}",
-                'de': f"StreamGank-Auswahl: 3 unglaubliche {content_type or 'Filme'} (IMDb Ø: {avg_score:.1f}) von {min_year}-{max_year}",
-                'it': f"Selezione StreamGank: 3 {content_type or 'film'} incredibili (IMDb media: {avg_score:.1f}) dal {min_year}-{max_year}",
-                'pt': f"Seleção StreamGank: 3 {content_type or 'filmes'} incríveis (IMDb média: {avg_score:.1f}) de {min_year}-{max_year}"
-            }
-            movies_summary = movies_intro.get(lang, movies_intro['en'])
-        
-        # Add the movies summary to the content info WITHOUT specific titles
-        enhanced_content_info = f"""
-{movies_summary}
+Intro Requirements:
+- 1-2 sentences maximum
+- 15-25 words total
+- Must be hooky and grab attention immediately
+- Create excitement for what's coming
+- Use viral language that makes viewers want to keep watching
 
-First {content_type or ('film' if lang == 'fr' else 'movie')} to present: {title} ({year}) - IMDb: {imdb}
-Platform: {platform or 'streaming platform'} | Genre: {genre or 'entertainment'}"""
-        
-        return f"""{prompt_type.format(content_type=content_type or ('film' if lang == 'fr' else 'movie'))}
+PREFERRED STYLES (choose one that fits the genre):
+- "Here are the top {len(raw_movies)} {genre or 'trending'} {content_name}s that will {'blow your mind' if genre != 'Horror' else 'haunt your dreams'}!"
+- "StreamGank's top {len(raw_movies)} {genre or 'trending'} {content_name}s that everyone's talking about!"
+- "Get ready for the most {'incredible' if genre != 'Horror' else 'terrifying'} {genre or 'trending'} {content_name}s on {platform or 'streaming'}!"
+- "These {len(raw_movies)} {genre or 'trending'} {content_name}s from StreamGank are breaking the internet!"
 
-{t['script_constraints'].format(
-    duration=rule['duration'],
-    word_count=rule['word_count'],
-    sentence_limit=rule['sentence_limit']
-)}
+Create something similar but more engaging and viral. Respond with ONLY the intro text."""
 
-{enhanced_content_info}
-
-{t['script_instruction']}"""
-    else:
-        # Use default prompt based on rule name
-        if rule['name'] == 'movie1':
-            prompt_type = t['script_intro_prompt']
-        else:
-            prompt_type = t['script_movie_prompt']
-     
-    return f"""{prompt_type.format(content_type=content_type or ('film' if lang == 'fr' else 'movie'))}
-
-{t['script_constraints'].format(
-    duration=rule['duration'],
-    word_count=rule['word_count'],
-    sentence_limit=rule['sentence_limit']
-)}
-
-{t['script_content_info'].format(title=title, year=year, imdb=imdb)}
-
-{t['script_instruction']}"""
-
-def generate_single_script(movie, rule, content_type, genre, platform, lang, all_movies=None):
-    """Generate a single script section"""
-    t = get_translations()[lang]
-    
     try:
-        # Create system message
-        system_msg = t['script_system_role'].format(genre=genre or ('divertissement' if lang == 'fr' else 'entertainment'))
-        
-        # Create user prompt - pass all_movies for intro generation
-        user_prompt = create_script_prompt(movie, rule, content_type, genre, platform, lang, all_movies)
-        
-        logger.info(f"🤖 Generating script for {rule['name']}")
-        
-        # Generate script using OpenAI
         client = openai.OpenAI()
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": user_prompt}
+                {"role": "system", "content": intro_system_msg},
+                {"role": "user", "content": intro_prompt}
             ],
-            temperature=0.7,
-            max_tokens=300
+            temperature=0.8,  # Slightly creative but consistent
+            max_tokens=60     # Short intro
         )
         
-        script = response.choices[0].message.content.strip()
-        
-        logger.info(f"✅ Script generated for {rule['name']}: {len(script.split())} words")
-        return script
+        intro_text = response.choices[0].message.content.strip()
+        intro_text = intro_text.replace('"', '').replace("'", "").strip()
+        if not intro_text.endswith(('.', '!', '?')):
+            intro_text += "!"
+            
+        generated_scripts["intro"] = intro_text
+        logger.info(f"🎬 Intro: {intro_text}")
         
     except Exception as e:
-        logger.error(f"❌ Script generation failed for {rule['name']}: {str(e)}")
-        logger.error(f"❌ STRICT MODE - No fallback allowed for script generation")
-        # Return None to indicate failure - let caller handle the error
-        return None
+        logger.error(f"❌ Intro generation failed: {str(e)}")
+        # Fallback intro
+        generated_scripts["intro"] = f"Here are the top {len(raw_movies)} {genre or 'entertainment'} {content_name}s from StreamGank!"
+        logger.info(f"🎬 Fallback Intro: {generated_scripts['intro']}")
+    
+    # Generate hook for each movie directly from raw data
+    for i, movie in enumerate(raw_movies[:3], 1):
+        movie_name = f"movie{i}"
+        title = movie.get('title', 'Unknown')
+        year = movie.get('year', 'Unknown')
+        genres = movie.get('genres', [])
+        
+        logger.info(f"🎣 Generating hook {i}/3: {title} ({year})")
+        
+        # Simple, direct system message
+        system_msg = f"You create viral TikTok/YouTube hook sentences that instantly stop scrollers. You specialize in {genre or 'entertainment'} content and making viewers think 'I NEED to watch this!'"
+        
+        # Enhanced hook prompt with varied starters
+        hook_starters = '"This movie", "You won\'t believe", "Everyone\'s talking about", "This is why", "Get ready for", "The moment when"'
+        if genre and genre.lower() == 'horror':
+            hook_starters = '"This horror masterpiece", "You won\'t believe what lurks", "This movie proves that", "Everyone\'s too scared to watch", "This is why horror fans are obsessed with", "The moment you see this"'
+        
+        user_prompt = f"""Create ONE viral hook sentence for this {content_name} that makes viewers instantly stop scrolling.
 
-def generate_video_scripts(enriched_movies, country=None, genre=None, platform=None, content_type=None):
-    """
-    Generate scripts for video segments using dynamic language support
-    """
-    logger.info(f"📝 Generating scripts for {len(enriched_movies)} movies")
-    
-    # Get language
-    lang = get_language_code(country)
-    
-    # Script timing rules for reels (60-90 seconds total)
-    script_rules = [
-        {
-            "name": "movie1", 
-            "duration": "25-30 seconds",
-            "word_count": "50-70",
-            "sentence_limit": "2-3",
-            "movie_index": 0,
-            "is_intro": True  # Special flag for intro + movie1 combination
-        },
-        {
-            "name": "movie2",
-            "duration": "15-20 seconds", 
-            "word_count": "30-45",
-            "sentence_limit": "1-2",
-            "movie_index": 1
-        },
-        {
-            "name": "movie3",
-            "duration": "15-20 seconds", 
-            "word_count": "30-45",
-            "sentence_limit": "1-2",
-            "movie_index": 2
-        }
-    ]
-    
-    # Generate scripts - STRICT MODE (NO FALLBACKS)
-    generated_scripts = {}
-    
-    for rule in script_rules:
-        movie = enriched_movies[rule["movie_index"]]
+{content_name.title()}: {title} ({year})
+Genres: {', '.join(genres[:3]) if genres else genre or 'entertainment'}
+Platform: {platform or 'streaming'}
+
+Hook Requirements:
+- EXACTLY 1 sentence only
+- 10-18 words maximum
+- Use varied viral starters: {hook_starters}
+- AVOID overusing "What happens when" - be more creative and varied
+- Create instant curiosity and urgency
+- Make viewers think "I MUST see this!"
+- Use viral TikTok language that makes people want to watch immediately
+- Focus on the movie's unique selling point or most shocking element
+
+Respond with ONLY the hook sentence."""
         
-        # Pass all movies data when generating intro script
-        if rule.get('is_intro', False):
-            script = generate_single_script(movie, rule, content_type, genre, platform, lang, enriched_movies)
-        else:
-            script = generate_single_script(movie, rule, content_type, genre, platform, lang)
-        
-        # STRICT VALIDATION - Fail if any script generation fails
-        if script is None:
-            logger.error(f"❌ Script generation failed for {rule['name']} - STRICT MODE")
-            logger.error(f"❌ Cannot continue without all scripts - returning None")
-            return None
+        # Generate hook using OpenAI
+        try:
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.9,  # High creativity for viral hooks
+                max_tokens=40     # Very short responses for viral hooks
+            )
             
-        generated_scripts[rule["name"]] = script
+            hook = response.choices[0].message.content.strip()
+            
+            # Clean up formatting
+            hook = hook.replace('"', '').replace("'", "").strip()
+            if not hook.endswith(('.', '!', '?')):
+                hook += "!"
+                
+            generated_scripts[movie_name] = hook
+            
+            logger.info(f"🎣 Hook: {hook}")
+            
+        except Exception as e:
+            logger.error(f"❌ Hook failed for {movie_name}: {str(e)}")
+            return None
+    # COMBINE intro with movie1 for the first HeyGen video
+    # HeyGen Video 1: Intro + Movie 1 hook
+    # HeyGen Video 2: Movie 2 hook only  
+    # HeyGen Video 3: Movie 3 hook only
+    if "intro" in generated_scripts and "movie1" in generated_scripts:
+        # Combine intro + movie1 into a single script
+        combined_movie1 = f"{generated_scripts['intro']} {generated_scripts['movie1']}"
+        generated_scripts["movie1"] = combined_movie1
+        logger.info(f"✅ INTRO INTEGRATED: Combined intro + movie1 script")
+        logger.info(f"   📝 Combined script: {combined_movie1}")
     
-    # Create scripts dictionary (all scripts validated and generated successfully)
-    scripts = {
-        "movie1": {
-            "text": generated_scripts["movie1"],  # Direct access - we know it exists
-            "path": "videos/script_movie1.txt"
-        },
-        "movie2": {
-            "text": generated_scripts["movie2"],  # Direct access - we know it exists
-            "path": "videos/script_movie2.txt"
-        },
-        "movie3": {
-            "text": generated_scripts["movie3"],  # Direct access - we know it exists
-            "path": "videos/script_movie3.txt"
-        }
-    }
+    # Save scripts (movie1 now includes intro)
+    scripts = {name: {"text": script, "path": f"videos/script_{name}.txt"} 
+              for name, script in generated_scripts.items() if name != "intro"}
     
     # Save individual scripts
-    for key, script_data in scripts.items():
+    for name, script_data in scripts.items():
         try:
             with open(script_data["path"], "w", encoding='utf-8') as f:
                 f.write(script_data["text"])
         except Exception as e:
-            logger.error(f"Failed to save script {key}: {str(e)}")
+            logger.error(f"❌ Failed to save {name}: {str(e)}")
     
-    # Create combined script
-    combined_script = "\n\n".join([scripts[key]["text"] for key in ["movie1", "movie2", "movie3"]])
+    # Save combined script (intro + movies)
+    script_order = ["intro", "movie1", "movie2", "movie3"]
+    combined_script = "\n\n".join([generated_scripts[name] for name in script_order if name in generated_scripts])
     combined_path = "videos/combined_script.txt"
     
     try:
         with open(combined_path, "w", encoding='utf-8') as f:
             f.write(combined_script)
+        logger.info(f"💾 Combined script saved: {combined_path}")
     except Exception as e:
-        logger.error(f"Failed to save combined script: {str(e)}")
+        logger.error(f"❌ Failed to save combined script: {str(e)}")
     
-    logger.info("✅ Script generation completed")
+    logger.info("🚀 DIRECT SCRIPT GENERATION COMPLETED!")
+    logger.info(f"📊 {len(scripts)} HeyGen videos (movie1 includes intro hook) | {len(combined_script.split())} total words")
+    
     return combined_script, combined_path, scripts
 
 # =============================================================================
@@ -785,18 +462,17 @@ def upload_clip_to_cloudinary(clip_path: str, movie_title: str, movie_id: str = 
         # Get the transformation based on mode
         transformation = transform_modes.get(transform_mode, transform_modes["youtube_shorts"])
         
-        # Upload to Cloudinary with video optimization (using selected transformation)
+        # Upload to Cloudinary with video optimization (fix quality parameter conflict)
         upload_result = cloudinary.uploader.upload(
             clip_path,
             resource_type="video",
             public_id=public_id,
             folder="movie_clips",
             overwrite=True,
-            quality="auto",              # Automatic quality optimization
             format="mp4",               # Ensure MP4 format
             video_codec="h264",         # Use H.264 codec for compatibility
             audio_codec="aac",          # Use AAC audio codec
-            transformation=transformation
+            transformation=transformation   # Quality included in transformation
         )
         
         cloudinary_url = upload_result.get('secure_url')
@@ -888,25 +564,20 @@ def process_movie_trailers_to_clips(movie_data: List[Dict], max_movies: int = 3,
 
 def get_genre_mapping_by_country(country_code):
     """
-    Get genre mapping dictionary based on country code for StreamGank URL parameters
+    Get genre mapping dictionary (US-ONLY SIMPLIFIED)
     
     Args:
-        country_code (str): Country code (e.g., 'FR', 'US', 'DE', etc.)
+        country_code (str): Ignored - always returns US English genre mapping
         
     Returns:
-        dict: Mapping from database genre names to StreamGank URL genre parameters
+        dict: US English genre mapping for StreamGank URLs
         
     Example:
-        >>> mapping_fr = get_genre_mapping_by_country('FR')
-        >>> mapping_fr.get('Horror')   # Returns 'Horreur' (French translation)
-        >>> mapping_fr.get('Drama')    # Returns 'Drame' (French translation)
-        >>> mapping_us = get_genre_mapping_by_country('US')
-        >>> mapping_us.get('Horror')   # Returns 'Horror' (English, no translation)
-        >>> mapping_us.get('Drama')    # Returns 'Drama' (English, no translation)
+        >>> mapping = get_genre_mapping_by_country('US')
+        >>> mapping.get('Horror')   # Returns 'Horror' (no translation needed)
     """
-    
-    # Base English genre mapping (for US and other English-speaking countries)
-    english_genres = {
+    # US-only genre mapping (no country-specific translations)
+    us_genres = {
         "Action & Adventure": "Action & Adventure",
         "Animation": "Animation",
         "Comedy": "Comedy",
@@ -926,43 +597,10 @@ def get_genre_mapping_by_country(country_code):
         "Sport": "Sport",
         "War & Military": "War & Military",
         "Western": "Western"
-    };
-    
-    # French genre mapping for StreamGank France
-    french_genres = {
-        "Action & Adventure": "Action & Aventure",
-        "Animation": "Animation",
-        "Comedy": "Comédie",
-        "Crime": "Crime",
-        "Documentary": "Documentaire",
-        "Drama": "Drame",
-        "Fantasy": "Fantastique",
-        "History": "Histoire",
-        "Horror": "Horreur",
-        "Kids & Family": "Enfants & Famille",
-        "Made in Europe": "Made in Europe",
-        "Music & Musical": "Musique & Musical",
-        "Mystery & Thriller": "Mystère & Thriller",
-        "Reality TV": "Télé-réalité",
-        "Romance": "Romance",
-        "Science-Fiction": "Science-Fiction",
-        "Sport": "Sport",
-        "War & Military": "Guerre & Militaire",
-        "Western": "Western"
-    };
-    
-    # Country-specific genre mappings
-    country_mappings = {
-        'FR': french_genres,
-        'US': english_genres,
-        # Add more countries as needed
-        # 'DE': german_genres,  # Could add German mapping later
-        # 'ES': spanish_genres,  # Could add Spanish mapping later
-        # 'IT': italian_genres,  # Could add Italian mapping later
     }
     
-    # Return country-specific mapping or default to English
-    return country_mappings.get(country_code, english_genres)
+    # Always return US English mapping regardless of country_code
+    return us_genres
 
 
 def get_platform_mapping():
@@ -1076,7 +714,7 @@ def build_streamgank_url(country=None, genre=None, platform=None, content_type=N
         url_params.append(f"country={country}")
     
     if genre:
-        # Use country-specific genre mapping
+        # Use US-only genre mapping (restored for proper URL formatting)
         genre_mapping = get_genre_mapping_by_country(country)
         streamgank_genre = genre_mapping.get(genre, genre)
         url_params.append(f"genres={streamgank_genre}")
@@ -1118,19 +756,15 @@ def get_supported_countries():
 
 def get_available_genres_for_country(country_code):
     """
-    Get all available genres for a specific country
+    Get all available genres (US-ONLY SIMPLIFIED)
     
     Args:
-        country_code (str): Country code
+        country_code (str): Ignored - always returns US English genres
         
     Returns:
-        list: List of available genre names for the country
-        
-    Example:
-        >>> genres = get_available_genres_for_country('FR')
-        >>> print(len(genres))  # Should show French + English genre names
+        list: List of US English genre names
     """
-    
+    # Use the restored genre mapping function for consistency
     mapping = get_genre_mapping_by_country(country_code)
     return list(mapping.keys())
 
@@ -1153,25 +787,18 @@ def get_available_platforms_for_country(country_code):
 # For backward compatibility and convenience
 def get_all_mappings_for_country(country_code):
     """
-    Get all mappings (genres, platforms, content types) for a country in one call
-    Note: Only genres are country-specific now. Platforms and content types are universal.
+    Get all mappings (US-ONLY SIMPLIFIED)
     
     Args:
-        country_code (str): Country code (used only for genre mapping)
+        country_code (str): Ignored - always returns US English mappings
         
     Returns:
-        dict: Dictionary containing all mappings
-        
-    Example:
-        >>> mappings = get_all_mappings_for_country('FR')
-        >>> print(mappings.keys())
-        dict_keys(['genres', 'platforms', 'content_types'])
+        dict: Dictionary containing US-only mappings
     """
-    
     return {
-        'genres': get_genre_mapping_by_country(country_code),  # Still country-specific (FR vs US translations)
-        'platforms': get_platform_mapping(),  # Universal across countries
-        'content_types': get_content_type_mapping()  # Universal across countries
+        'genres': get_genre_mapping_by_country(country_code),  # US-only (restored function)
+        'platforms': get_platform_mapping(),  # Universal
+        'content_types': get_content_type_mapping()  # Universal
     } 
 
 def get_platform_mapping_by_country(country_code):
@@ -1710,11 +1337,10 @@ def upload_enhanced_poster_to_cloudinary(poster_path: str, movie_title: str, mov
             public_id=public_id,
             folder="enhanced_posters",
             overwrite=True,
-            quality="auto:best",
             format="png",
             transformation=[
                 {"width": 1080, "height": 1920, "crop": "fit"},  # Ensure exact dimensions
-                {"quality": "auto:best"}
+                {"quality": "auto:best"}  # Quality only in transformation
             ]
         )
         

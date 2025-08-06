@@ -1,0 +1,34 @@
+{
+  "data": {
+    "enhanced_posters": {
+      "Godzilla Minus One": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754488322/streamgank/posters/enhanced_godzilla_minus_one_1.jpg",
+      "Train to Busan": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754488325/streamgank/posters/enhanced_train_to_busan_2.jpg",
+      "The Wailing": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754488328/streamgank/posters/enhanced_the_wailing_3.jpg"
+    },
+    "dynamic_clips": {
+      "Godzilla Minus One": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754488352/movie_clips/movie_clips/godzilla_minus_one_7299_10s.mp4",
+      "Train to Busan": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754488387/movie_clips/movie_clips/train_to_busan_33495_10s.mp4",
+      "The Wailing": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754488416/movie_clips/movie_clips/the_wailing_33496_10s.mp4"
+    },
+    "parameters": {
+      "country": "US",
+      "genre": "Horror",
+      "platform": "Netflix",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "poster_count": 3,
+    "clip_count": 3,
+    "generation_timestamp": 1754488422.1815717
+  },
+  "metadata": {
+    "data_type": "assets",
+    "parameters": {
+      "country": "US",
+      "genre": "Horror",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1754488422.1817312,
+    "saved_datetime": "2025-08-06 21:53:42"
+  }
+}

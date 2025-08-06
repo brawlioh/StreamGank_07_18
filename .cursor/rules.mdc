@@ -1,0 +1,369 @@
+---
+alwaysApply: true
+---
+# StreamGank Video Generator - Project Rules
+
+# ================================================
+
+## 🎯 PROJECT OVERVIEW
+
+This is a comprehensive AI-powered TikTok/YouTube video generation system that creates engaging content from streaming platform data.
+
+**Core Workflow:**
+Filter → Database (Top 3 movies) → Assets (Posters + Clips) → AI Scripts → HeyGen Videos → Creatomate Assembly
+
+**Tech Stack:**
+
+-   Python 3.8+ with logging, asyncio, multiprocessing
+-   OpenAI API (GPT-4) for script generation
+-   HeyGen API for AI avatar videos
+-   Creatomate API for video composition
+-   Cloudinary for media storage
+-   Supabase/PostgreSQL for movie database
+-   FFmpeg for video processing
+-   Playwright for web scraping and screenshots
+
+## 🚀 DEVELOPMENT STANDARDS
+
+### Code Quality
+
+-   ALWAYS add comprehensive JSDoc3-style comments explaining the "why" and "how"
+-   Use Winston logging extensively - log EVERY logical connection and workflow step
+-   Implement proper error handling with try-catch blocks and meaningful error messages
+-   Follow modular architecture - separate concerns into distinct modules
+-   Write clean, efficient, and maintainable code
+-   Prefer helper functions over hardcoded values for better readability
+
+### Logging Requirements
+
+-   Use different log levels appropriately (info, warn, error, debug)
+-   Log all API calls (request/response summaries)
+-   Log all file operations (created, processed, uploaded)
+-   Log workflow progress with clear step indicators (Step 1, Step 2, etc.)
+-   Include execution times for performance monitoring
+-   Log validation results and error conditions
+
+### Error Handling
+
+-   Implement "STRICT MODE" - critical failures should terminate workflow
+-   Provide fallback mechanisms where appropriate
+-   Return meaningful error codes and messages
+-   Log full stack traces for debugging
+-   Handle API rate limits and timeouts gracefully
+
+## 📁 CURRENT MODULAR ARCHITECTURE
+
+**ACTUAL STRUCTURE: All modules are at root level with clear separation of concerns.**
+
+```
+StreamGank_07_18/
+├── main.py                    # Main entry point - CLI interface
+├── ai/                        # AI and script generation
+│   ├── robust_script_generator.py  # Modular script generation
+│   ├── heygen_client.py            # HeyGen API integration
+│   ├── openai_scripts.py           # OpenAI GPT integration
+│   └── gemini_client.py            # Gemini AI integration
+├── config/                    # Configuration and settings
+│   ├── settings.py                 # Environment and API configs
+│   ├── constants.py                # System constants
+│   └── templates.py                # Video templates
+├── core/                      # Core workflow management
+│   └── workflow.py                 # Main workflow orchestration
+├── database/                  # Database operations
+│   ├── movie_extractor.py          # Movie data extraction
+│   ├── connection.py               # Database connections
+│   └── filters.py                  # Query filters
+├── video/                     # Video processing and assembly
+│   ├── creatomate_client.py        # Creatomate API integration
+│   ├── scroll_generator.py         # Scroll video generation
+│   ├── composition_builder.py      # Video composition logic
+│   └── video_processor.py          # Video processing utilities
+├── utils/                     # Utility functions
+│   ├── media_helpers.py            # Media processing helpers
+│   ├── file_utils.py               # File operations
+│   ├── validators.py               # Validation functions
+│   └── workflow_logger.py          # Logging utilities
+├── tests/                     # ALL testing infrastructure
+│   ├── unit/                       # Unit tests for modules
+│   ├── integration/                # End-to-end workflow tests
+│   ├── mocks/                      # Mock data and fixtures
+│   ├── conftest.py                 # Pytest configuration
+│   └── pytest.ini                 # Test settings
+├── automated_video_generator.py   # LEGACY - Being phased out
+└── streamgank_helpers.py          # LEGACY - Being phased out
+```
+
+**Current Migration Status:**
+
+-   Main entry point: `python main.py` ✅ MODULAR
+-   Script generation: `ai.robust_script_generator` ✅ MODULAR
+-   Database operations: `database.*` ✅ MODULAR
+-   Video processing: `video.*` ✅ MODULAR
+-   Asset creation: `streamgank_helpers` 🔄 LEGACY (being migrated)
+-   Creatomate status: `automated_video_generator` 🔄 LEGACY (being migrated)
+-   All imports use absolute paths from root
+
+### Import Standards
+
+-   Use absolute imports for cross-module dependencies (e.g., `from ai.robust_script_generator import generate_video_scripts`)
+-   NO relative imports (no `from ..module` or `from .module`)
+-   Keep module dependencies minimal and well-defined
+-   Each module should have a clear single responsibility
+-   Use **init**.py files to define public APIs
+-   **All imports reference the current modular structure (ai._, database._, video._, utils._, etc.)**
+-   **Legacy imports still needed during migration phase**: `from streamgank_helpers import ...`, `from automated_video_generator import ...`
+
+## 🎬 VIDEO GENERATION RULES
+
+### Script Generation
+
+-   US-only focus with English content
+-   Hook sentences: 10-18 words maximum for viewer engagement
+-   Intro scripts: 15-25 words, mention "StreamGank" and genre
+-   Use OpenAI GPT-4 with temperature=0.8 for creativity
+-   Always sanitize generated text (remove quotes, ensure punctuation)
+-   **CRITICAL: Intro Integration - Combine intro text with movie1 hook to create first HeyGen video**
+-   **Result: 3 HeyGen videos total (movie1 with intro+hook, movie2 hook, movie3 hook)**
+
+### HeyGen Integration
+
+-   Use genre-specific templates:
+    -   Horror/Horreur: e2ad0e5c7e71483991536f5c93594e42
+    -   Comedy/Comédie: 15d9eadcb46a45dbbca1834aa0a23ede
+    -   Action/Action & Aventure: e44b139a1b94446a997a7f2ac5ac4178
+    -   Default: 7fb75067718944ac8f02e661c2c61522
+-   Handle short video warnings gracefully (minimum 0.5s poster duration)
+-   Implement proper timing calculations for poster overlays
+
+### Video Processing
+
+-   Scroll videos: 4 seconds duration at 60fps (240 frames)
+-   Portrait clips: 15-second highlights in 9:16 aspect ratio
+-   Enhanced posters: 1080x1920 resolution with metadata overlays
+-   Use FFmpeg for all video processing tasks
+-   Upload all assets to Cloudinary for Creatomate access
+
+### Asset Management
+
+-   Process assets BEFORE Creatomate assembly (Step 2 in workflow)
+-   Validate all required assets exist before proceeding
+-   Use placeholder assets for compatibility with existing video workflows
+-   Clean up temporary files after processing
+
+## 🔧 API INTEGRATION RULES
+
+### OpenAI API
+
+-   Always use GPT-4 model for quality content generation
+-   Implement proper token limits (40 for hooks, 60 for intros)
+-   Use system messages to define AI role and expertise
+-   Handle API errors with fallback content
+
+### HeyGen API
+
+-   Poll for video completion with exponential backoff
+-   Handle rate limits and API timeouts
+-   Log video generation progress and durations
+-   Support both template-based and custom avatar generation
+
+### Creatomate API
+
+-   Build compositions with proper timing and layering
+-   Validate all media URLs before submission
+-   Handle asset loading timeouts gracefully
+-   Support multiple composition templates
+
+### Cloudinary Integration
+
+-   Upload with descriptive public IDs for tracking
+-   Use auto-optimization for web delivery
+-   Implement proper error handling for upload failures
+-   Tag uploads by workflow step for organization
+
+## 🎯 WORKFLOW ORCHESTRATION
+
+### Main Commands
+
+**Full Workflow:**
+
+```bash
+python main.py --country US --platform Netflix --genre Horror --content-type Film --heygen-template-id cc6718c5363e42b282a123f99b94b335
+```
+
+**Status Checking:**
+
+```bash
+python main.py --check-creatomate <render_id>
+python main.py --wait-creatomate <render_id>
+```
+
+**HeyGen Processing:**
+
+```bash
+python main.py --process-heygen <heygen_video_ids.json>
+```
+
+### Step-by-Step Processing
+
+1. **Database Query**: Extract top 3 movies with strict validation
+2. **Asset Preparation**: Create posters and clips in parallel
+3. **Script Generation**: Generate intro + hooks for each movie
+4. **HeyGen Processing**: Create AI avatar videos from scripts
+5. **Creatomate Assembly**: Combine all elements into final video
+
+### Error Recovery
+
+-   Each step must validate inputs before processing
+-   Critical failures should terminate workflow immediately
+-   Partial results should be saved for debugging
+-   Provide clear next steps for manual intervention
+
+### Performance Optimization
+
+-   Use multiprocessing for parallel asset creation
+-   Implement proper timeout handling for external APIs
+-   Cache intermediate results where appropriate
+-   Monitor and log execution times for bottleneck identification
+
+## 🎨 CONTENT CREATION GUIDELINES
+
+### Movie Selection
+
+-   Focus on popular, engaging content
+-   Ensure trailer URLs are available for clip extraction
+-   Validate movie metadata completeness
+-   Prioritize recent releases and trending content
+
+### Visual Design
+
+-   Use platform-specific color schemes for branding
+-   Ensure readability on mobile devices (primary target)
+-   Apply consistent styling across all generated content
+-   Use high-quality images and smooth transitions
+
+### Content Strategy
+
+-   Create hooks that generate curiosity and engagement
+-   Focus on emotional triggers (fear, excitement, surprise)
+-   Keep content concise and fast-paced for short attention spans
+-   Include clear branding and call-to-action elements
+
+## 🔍 TESTING AND VALIDATION
+
+### **CRITICAL: All Tests Must Be in tests/**
+
+**Test Directory Structure Rules:**
+
+-   **ALL unit tests**: `tests/unit/test_*.py`
+-   **ALL integration tests**: `tests/integration/test_*.py`
+-   **Mock data**: `tests/mocks/`
+-   **Test configuration**: `tests/pytest.ini` and `tests/conftest.py`
+-   **NEVER create tests outside of `tests/` directory**
+
+### Unit Testing Standards
+
+-   Test each module independently with proper mocking
+-   Validate API integrations with mock responses
+-   Test error conditions and edge cases thoroughly
+-   Ensure proper resource cleanup after tests
+-   Use pytest fixtures for reusable test data
+-   Import from `ai.*`, `database.*`, `video.*`, `utils.*` (current modular structure)
+-   **Example**: `from ai.robust_script_generator import generate_video_scripts`
+-   **NO relative imports** - always use absolute imports from root level
+-   **Legacy imports allowed during migration**: `from streamgank_helpers import ...`
+
+### Integration Testing Standards
+
+-   Test full workflow end-to-end with realistic data
+-   Validate asset quality and timing precision
+-   Test with different genres and platforms
+-   Monitor resource usage and performance metrics
+-   Use database extraction + script generation + intro integration tests
+-   **Test Parameters**: `--country US --platform Netflix --genre Horror --content-type Film`
+
+### Test Development Rules
+
+-   **Create tests for every new feature in `tests/unit/`**
+-   Use meaningful test names: `test_generate_video_scripts_with_intro_integration`
+-   Mock external APIs (OpenAI, HeyGen, Creatomate) properly
+-   Validate intro integration: 3 HeyGen videos (movie1 includes intro+hook)
+-   Test database extraction workflows with mock data
+-   **Run tests from project root**: `python -m pytest tests/`
+
+### Quality Assurance
+
+-   Manual review of generated content
+-   Validation of video quality and audio sync
+-   Testing across different devices and platforms
+-   User acceptance testing for engagement metrics
+
+## 🚨 SECURITY AND COMPLIANCE
+
+### API Key Management
+
+-   Store API keys in environment variables
+-   Never commit secrets to version control
+-   Use separate keys for development and production
+-   Implement proper key rotation procedures
+
+### Data Privacy
+
+-   Handle movie metadata responsibly
+-   Comply with platform terms of service
+-   Respect copyright and fair use guidelines
+-   Implement proper data retention policies
+
+### Rate Limiting
+
+-   Respect API rate limits for all services
+-   Implement exponential backoff for retries
+-   Monitor usage patterns and costs
+-   Set up alerts for unusual activity
+
+## 📊 MONITORING AND ANALYTICS
+
+### Logging Standards
+
+-   Use structured logging with consistent formats
+-   Include correlation IDs for request tracking
+-   Log performance metrics and resource usage
+-   Implement proper log rotation and retention
+
+### Performance Monitoring
+
+-   Track API response times and success rates
+-   Monitor video generation completion rates
+-   Measure user engagement with generated content
+-   Set up alerts for system health issues
+
+### Cost Management
+
+-   Monitor API usage and costs across all services
+-   Optimize resource usage for cost efficiency
+-   Implement usage caps and budget alerts
+-   Regular cost analysis and optimization reviews
+
+---
+
+## 🎭 REMINDER: EXPERT DEVELOPER MINDSET
+
+-   Write code that your future self will thank you for
+-   Comment everything - assume no context knowledge
+-   Log every decision point and outcome
+-   Build for maintainability and scalability
+-   Always consider the user experience impact
+-   Test thoroughly before deployment
+-   Document all architectural decisions
+
+---
+
+## 📚 ADDITIONAL DOCUMENTATION
+
+**For detailed testing guidelines, see:** `.cursor/test_rules`
+
+**Key Testing Reminders:**
+
+-   ALL tests in `tests/` directory
+-   Import from `ai.*`, `database.*` modules using absolute imports (never relative imports)
+-   Mock external APIs (OpenAI, HeyGen, Creatomate)
+-   Validate intro integration: 3 HeyGen videos with movie1 containing intro+hook

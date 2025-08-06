@@ -12,8 +12,9 @@ Usage:
     python3 automated_video_generator.py --all
     
     # Optional parameters:
-    python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film
-    python3 automated_video_generator.py --country US --platform Netflix --genre Horror --content-type Film
+    python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film --heygen-template-id e2ad0e5c7e71483991536f5c93594e42
+    python3 automated_video_generator.py --country US --platform Netflix --genre Horror --content-type Film --heygen-template-id e2ad0e5c7e71483991536f5c93594e42
+    python streamgank_modular/main.py --genre Horror --content-type Film --heygen-template-id e2ad0e5c7e71483991536f5c93594e42
 """
 
 import os
@@ -36,7 +37,7 @@ import cloudinary.api
 from supabase import create_client
 import openai
 from typing import Dict, List, Tuple, Optional, Any
-from archive.create_scroll_video import create_scroll_video
+from video.scroll_generator import generate_scroll_video
 
 # Import StreamGang helper functions
 from streamgank_helpers import (
@@ -46,7 +47,6 @@ from streamgank_helpers import (
     get_content_type_mapping_by_country,
     build_streamgank_url,
     process_movie_trailers_to_clips,
-    enrich_movie_data,
     generate_video_scripts,
     create_enhanced_movie_posters
 )
@@ -367,19 +367,19 @@ def _simulate_movie_data(num_movies=3):
 # HEYGEN VIDEO PROCESSING
 # =============================================================================
 
-def create_heygen_video(script_data, use_template=True, template_id="7fb75067718944ac8f02e661c2c61522"):
+def create_heygen_video(script_data, use_template=True, template_id=None):
     """
     Create videos with HeyGen API
     
     Args:
         script_data: Dictionary containing scripts
         use_template: Whether to use template-based approach
-        template_id: HeyGen template ID
+        template_id: HeyGen template ID (if None, will be selected based on genre)
     
     Returns:
         Dictionary of video IDs
     """
-    logger.info(f"🎬 Creating HeyGen videos")
+    logger.info(f"🎬 Creating HeyGen videos with template: {template_id}")
     
     heygen_api_key = os.getenv("HEYGEN_API_KEY")
     if not heygen_api_key:
@@ -415,7 +415,7 @@ def create_heygen_video(script_data, use_template=True, template_id="7fb75067718
         if use_template:
             payload = {
                 "template_id": template_id,
-                "caption": False,
+                "caption": True,
                 "title": f"Video for {key}",
                 "variables": {
                     "script": {
@@ -769,13 +769,12 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
 # CREATOMATE VIDEO COMPOSITION - MODULAR ARCHITECTURE
 # =============================================================================
 
-def _validate_creatomate_inputs(heygen_video_urls: dict, movie_data: List[Dict[str, Any]], poster_timing_mode: str) -> str:
+def _validate_creatomate_inputs(heygen_video_urls: dict, poster_timing_mode: str) -> str:
     """
     Validate inputs for Creatomate video creation - STRICT MODE
     
     Args:
         heygen_video_urls: Dictionary with HeyGen video URLs
-        movie_data: List of movie data dictionaries
         poster_timing_mode: Poster timing mode to validate
         
     Returns:
@@ -897,7 +896,7 @@ class HeyGenLast3SecondsStrategy(PosterTimingStrategy):
         # Define constants
         intro_duration = 1.0
         poster_duration = 3.0
-        min_heygen_time = 5.0  # Minimum time before poster can appear
+        # Removed min_heygen_time - short videos should work fine
         
         # Calculate HeyGen video start times in sequential timeline using ACTUAL clip durations
         heygen1_start_time = intro_duration
@@ -920,46 +919,37 @@ class HeyGenLast3SecondsStrategy(PosterTimingStrategy):
         logger.info(f"   🖼️ Poster2 time: {poster2_time:.1f}s (should be last 3s of HeyGen2)")
         logger.info(f"   🖼️ Poster3 time: {poster3_time:.1f}s (should be last 3s of HeyGen3)")
         
-        # Safety checks for short videos
+        # Smart poster timing - adapts to any video length (no warnings)
         timings = {}
         
-        # Poster 1 timing with safety check
-        if poster1_time < heygen1_start_time + min_heygen_time:
-            poster1_time = heygen1_start_time + min_heygen_time
-            actual_poster1_duration = heygen1_start_time + heygen_durations["heygen1"] - poster1_time
-            logger.warning(f"⚠️ HeyGen1 too short - Poster1 adjusted to {actual_poster1_duration:.1f}s duration")
-        else:
-            actual_poster1_duration = poster_duration
-            
+        # Poster 1 timing - use available time, minimum 0.5s
+        if poster1_time < heygen1_start_time:
+            poster1_time = heygen1_start_time
+        actual_poster1_duration = max(0.5, heygen1_start_time + heygen_durations["heygen1"] - poster1_time)
+        
         timings["poster1"] = {
             "time": poster1_time,
-            "duration": actual_poster1_duration
+            "duration": min(actual_poster1_duration, poster_duration)  # Cap at 3s max
         }
         
-        # Poster 2 timing with safety check
-        if poster2_time < heygen2_start_time + min_heygen_time:
-            poster2_time = heygen2_start_time + min_heygen_time
-            actual_poster2_duration = heygen2_start_time + heygen_durations["heygen2"] - poster2_time
-            logger.warning(f"⚠️ HeyGen2 too short - Poster2 adjusted to {actual_poster2_duration:.1f}s duration")
-        else:
-            actual_poster2_duration = poster_duration
-            
+        # Poster 2 timing - use available time, minimum 0.5s
+        if poster2_time < heygen2_start_time:
+            poster2_time = heygen2_start_time
+        actual_poster2_duration = max(0.5, heygen2_start_time + heygen_durations["heygen2"] - poster2_time)
+        
         timings["poster2"] = {
             "time": poster2_time,
-            "duration": actual_poster2_duration
+            "duration": min(actual_poster2_duration, poster_duration)  # Cap at 3s max
         }
         
-        # Poster 3 timing with safety check
-        if poster3_time < heygen3_start_time + min_heygen_time:
-            poster3_time = heygen3_start_time + min_heygen_time
-            actual_poster3_duration = heygen3_start_time + heygen_durations["heygen3"] - poster3_time
-            logger.warning(f"⚠️ HeyGen3 too short - Poster3 adjusted to {actual_poster3_duration:.1f}s duration")
-        else:
-            actual_poster3_duration = poster_duration
-            
+        # Poster 3 timing - use available time, minimum 0.5s
+        if poster3_time < heygen3_start_time:
+            poster3_time = heygen3_start_time
+        actual_poster3_duration = max(0.5, heygen3_start_time + heygen_durations["heygen3"] - poster3_time)
+        
         timings["poster3"] = {
             "time": poster3_time,
-            "duration": actual_poster3_duration
+            "duration": min(actual_poster3_duration, poster_duration)  # Cap at 3s max
         }
         
         # Log timing details
@@ -1065,8 +1055,8 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
     # Calculate total video length using ACTUAL clip durations
     total_video_length = 1 + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + heygen_durations["heygen3"] + clip_durations["clip3"] + 3
         
-    # Branding duration = total - intro(1s) - outro(3s)
-    branding_duration = total_video_length - 1 - 3 - 1 - 0.5 - 0.5 # -1 is duration of the fade outro, 0.5 os for the 2nd and 3rd heygen video
+    # Branding duration = total - intro(1s) - outro(3s) - fade sa outro(1s) - fade sa heygen 2(0.5s) - fade sa heygen 3(0.5s)
+    branding_duration = total_video_length - 1 - 3 - 1 - 0.5 - 0.5
         
     logger.info(f"📊 Total video length: {total_video_length:.1f}s (using ACTUAL clip durations)")
     logger.info(f"🏷️ BRANDING duration: {branding_duration:.1f}s (starts at 1s, ends at {1 + branding_duration:.1f}s)")
@@ -1104,7 +1094,7 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
                 ]
             },
             
-            # 🎯 ELEMENT 2: HEYGEN VIDEO 1 - Natural duration
+            # 🎯 ELEMENT 2: HEYGEN VIDEO 1 (includes intro + movie1 hook) - Natural duration
             {
                 "type": "video",
                 "track": 1,
@@ -1346,7 +1336,7 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
             "type": "video",
             "track": 4,
             "time": 4,   # Start at 4 seconds into video
-            "duration": 6,  # Play for 6 seconds
+            "duration": 4,  # Play for 4 seconds
             "source": scroll_video_url,
             "fit": "cover",
             "width": "100%",
@@ -1376,15 +1366,16 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
     return composition
 
 
-def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data: List[Dict[str, Any]] = None, scroll_video_url: str = None, scripts: dict = None, poster_timing_mode: str = "heygen_last3s") -> str:
+def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_covers: List[str] = None, movie_clips: List[str] = None, scroll_video_url: str = None, scripts: dict = None, poster_timing_mode: str = "heygen_last3s") -> str:
     """
-    Create final video with Creatomate using HeyGen video URLs
+    Create final video with Creatomate using pre-made assets (YOUR LOGICAL WORKFLOW) 🎬
     
-    REFACTORED: Professional big tech modular architecture with clean separation of concerns
+    REFACTORED: Clean assembly function - receives pre-made assets from Step 2
     
     Args:
         heygen_video_urls: Dictionary with HeyGen video URLs
-        movie_data: List of movie data dictionaries (minimum 3 required)
+        movie_covers: List of enhanced poster URLs (exactly 3 required)
+        movie_clips: List of processed movie clip URLs (exactly 3 required)
         scroll_video_url: Optional scroll video URL for overlay
         scripts: Optional dictionary with script data for duration estimation
         poster_timing_mode: Poster timing mode (default: "heygen_last3s")
@@ -1400,40 +1391,42 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
     # ═══════════════════════════════════════════════════════════════
     # STEP 1: INPUT VALIDATION (Extracted & Modular)
     # ═══════════════════════════════════════════════════════════════
-    validation_error = _validate_creatomate_inputs(heygen_video_urls, movie_data, poster_timing_mode)
+    validation_error = _validate_creatomate_inputs(heygen_video_urls, poster_timing_mode)
     if validation_error:
         return validation_error
     
     # ═══════════════════════════════════════════════════════════════
-    # STEP 2: DYNAMIC ASSET PREPARATION (Enhanced Posters & Movie Clips)
+    # STEP 2: VALIDATE & HANDLE ASSETS (Flexible for different workflows)
     # ═══════════════════════════════════════════════════════════════
-    logger.info("🎨 Creating enhanced movie posters with metadata overlays")
-    enhanced_posters = create_enhanced_movie_posters(movie_data, max_movies=3)
+    logger.info("🔍 Validating assets for Creatomate composition")
     
-    # Prepare movie covers (enhanced posters) - STRICT MODE
-    movie_covers = []
-    for i, movie in enumerate(movie_data[:3]):
-        movie_title = movie.get('title', f'Movie_{i+1}')
-        if movie_title in enhanced_posters:
-            movie_covers.append(enhanced_posters[movie_title])
-            logger.info(f"✅ Movie {i+1} cover: {movie_title} -> ENHANCED POSTER")
-        else:
-            logger.error(f"❌ Failed to create enhanced poster for {movie_title}")
-            return f"error_poster_creation_failed_{movie_title}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    # Check if we have pre-made assets (main workflow) or need to use placeholders (existing videos)
+    if movie_covers and movie_clips:
+        # Main workflow with pre-made assets
+        if len(movie_covers) != 3:
+            logger.error(f"❌ Expected 3 movie covers, got {len(movie_covers)}")
+            return f"error_insufficient_movie_covers_{len(movie_covers)}"
+        
+        if len(movie_clips) != 3:
+            logger.error(f"❌ Expected 3 movie clips, got {len(movie_clips)}")
+            return f"error_insufficient_movie_clips_{len(movie_clips)}"
+        
+        logger.info(f"✅ Using pre-made assets: {len(movie_covers)} covers + {len(movie_clips)} clips")
     
-    logger.info("🎞️ Processing dynamic cinematic portrait clips from trailers")
-    dynamic_clips = process_movie_trailers_to_clips(movie_data, max_movies=3, transform_mode="youtube_shorts")
-    
-    # Prepare movie clips - STRICT MODE  
-    movie_clips = []
-    for i, movie in enumerate(movie_data[:3]):
-        movie_title = movie.get('title', f'Movie_{i+1}')
-        if movie_title in dynamic_clips:
-            movie_clips.append(dynamic_clips[movie_title])
-            logger.info(f"✅ Movie {i+1} clip: {movie_title} -> DYNAMIC CLIP")
-        else:
-            logger.error(f"❌ Failed to create dynamic clip for {movie_title}")
-            return f"error_clip_creation_failed_{movie_title}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    else:
+        # Fallback for existing HeyGen videos workflow - use placeholder assets
+        logger.warning("⚠️ No pre-made assets provided - using placeholder assets for existing video workflow")
+        movie_covers = [
+            "https://via.placeholder.com/1080x1920/000000/FFFFFF?text=Movie+1",
+            "https://via.placeholder.com/1080x1920/000000/FFFFFF?text=Movie+2", 
+            "https://via.placeholder.com/1080x1920/000000/FFFFFF?text=Movie+3"
+        ]
+        movie_clips = [
+            "https://via.placeholder.com/1080x1920/000000/FFFFFF?text=Clip+1",
+            "https://via.placeholder.com/1080x1920/000000/FFFFFF?text=Clip+2",
+            "https://via.placeholder.com/1080x1920/000000/FFFFFF?text=Clip+3"
+        ]
+        logger.info("✅ Placeholder assets created for compatibility")
     
     # ═══════════════════════════════════════════════════════════════
     # STEP 3: HEYGEN DURATION ANALYSIS (FFprobe-Powered)
@@ -1472,18 +1465,16 @@ def create_creatomate_video_from_heygen_urls(heygen_video_urls: dict, movie_data
         logger.error("❌ CREATOMATE_API_KEY not found")
         return f"error_no_api_key_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
-    # Execute Creatomate API call with modular composition
+    # Execute Creatomate API call with "source" parameter for raw JSON composition
     payload = {
-        "source": composition,
-        "output_format": "mp4",
-        "render_scale": 1
+        "source": composition  # Raw JSON composition must be wrapped in "source"
     }
     
-    logger.info("🚀 Executing Creatomate API with modular composition")
+    logger.info("🚀 Executing Creatomate API with source parameter")
     try:
         response = requests.post(
             "https://api.creatomate.com/v1/renders",
-            json=payload,
+            json=payload,  # Send payload with "source" parameter
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
@@ -1684,16 +1675,15 @@ def generate_scroll_video(country, genre, platform, content_type, smooth=True, s
     
     logger.info(f"🖥️ Generating StreamGank ULTRA 60 FPS MICRO-SCROLL video (DISTANCE: {scroll_distance}x)...")
     
-    # Create scroll video with unique filename + auto-cleanup (FIXED 6 seconds at 60 FPS)
-    video_path = create_scroll_video(
+    # Create scroll video with unique filename + auto-cleanup (FIXED 4 seconds at 60 FPS)
+    video_path = generate_scroll_video(
         country=country,
         genre=genre,
         platform=platform,
         content_type=content_type,
-        output_video=None,  # Auto-generate unique filename
-        smooth_scroll=smooth,
-        target_duration=6,  # Always 6 seconds duration
-        scroll_distance=scroll_distance  # Control scroll amount
+        smooth=smooth,
+        scroll_distance=scroll_distance,  # Control scroll amount
+        duration=4  # Always 4 seconds duration
     )
     
     if video_path:
@@ -1798,9 +1788,9 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
         
         logger.info(f"✅ Successfully obtained {len(heygen_video_urls)} HeyGen video URLs")
         
-        # Create Creatomate video
-        logger.info("Step 2: Creating Creatomate video")
-        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=None, scripts=None)
+        # Create Creatomate video (using placeholder assets - existing videos workflow)
+        logger.info("Step 2: Creating Creatomate video from existing HeyGen videos")
+        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, scripts=None)
         results['creatomate_id'] = creatomate_id
         
         if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
@@ -1830,7 +1820,7 @@ def process_existing_heygen_videos(heygen_video_ids: dict, output_file: str = No
         results['error'] = str(e)
         return results
 
-def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None, skip_scroll_video=False, smooth_scroll=True, scroll_distance=1.5, poster_timing_mode="heygen_last3s"):
+def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Netflix", content_type="Série", output=None, skip_scroll_video=False, smooth_scroll=True, scroll_distance=1.5, poster_timing_mode="heygen_last3s", heygen_template_id=None):
     """
     Run the complete end-to-end video generation workflow
     
@@ -1877,18 +1867,47 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         
         # Pad with simulated data if needed
         
-        # Step 4: Enrich movie data
-        logger.info("Step 4: Enriching movie data with AI")
-        enriched_movies = enrich_movie_data(movies, country, genre, platform, content_type)
-        results['enriched_movies'] = enriched_movies
+        # Step 2: Prepare movie assets (YOUR LOGICAL WORKFLOW) 🎬
+        logger.info("Step 2: Creating movie assets - Enhanced posters and cinematic clips")
         
-        # Save enriched data
-        with open("videos/enriched_data.json", "w", encoding='utf-8') as f:
-            json.dump(enriched_movies, f, indent=2, ensure_ascii=False)
+        # Create enhanced posters with metadata overlays
+        logger.info("🎨 Creating enhanced movie posters with metadata overlays")
+        enhanced_posters = create_enhanced_movie_posters(movies, max_movies=3)
         
-        # Step 5: Generate scripts - STRICT MODE (NO FALLBACKS)
-        logger.info("Step 5: Generating AI-powered scripts - STRICT MODE")
-        script_result = generate_video_scripts(enriched_movies, country, genre, platform, content_type)
+        # Process movie covers from enhanced posters - STRICT MODE
+        movie_covers = []
+        for i, movie in enumerate(movies[:3]):
+            movie_title = movie.get('title', f'Movie_{i+1}')
+            if movie_title in enhanced_posters:
+                movie_covers.append(enhanced_posters[movie_title])
+                logger.info(f"✅ Movie {i+1} cover: {movie_title} -> ENHANCED POSTER")
+            else:
+                logger.error(f"❌ Failed to create enhanced poster for {movie_title}")
+                return {"error": f"poster_creation_failed_{movie_title}", "status": "failed"}
+        
+        # Create dynamic cinematic portrait clips from trailers
+        logger.info("🎞️ Processing dynamic cinematic portrait clips from trailers")
+        dynamic_clips = process_movie_trailers_to_clips(movies, max_movies=3, transform_mode="youtube_shorts")
+        
+        # Process movie clips - STRICT MODE  
+        movie_clips = []
+        for i, movie in enumerate(movies[:3]):
+            movie_title = movie.get('title', f'Movie_{i+1}')
+            if movie_title in dynamic_clips:
+                movie_clips.append(dynamic_clips[movie_title])
+                logger.info(f"✅ Movie {i+1} clip: {movie_title} -> DYNAMIC CLIP")
+            else:
+                logger.error(f"❌ Failed to create dynamic clip for {movie_title}")
+                return {"error": f"clip_creation_failed_{movie_title}", "status": "failed"}
+        
+        # Store assets in results for later use
+        results['movie_covers'] = movie_covers
+        results['movie_clips'] = movie_clips
+        logger.info(f"✅ Step 2 Complete: Created {len(movie_covers)} posters and {len(movie_clips)} clips")
+        
+        # Step 3: Generate scripts directly from raw movies (SIMPLIFIED)
+        logger.info("Step 3: Generating hooks directly from raw movie data - SIMPLIFIED")
+        script_result = generate_video_scripts(movies, country, genre, platform, content_type)
         
         # STRICT VALIDATION - Fail if script generation failed
         if script_result is None:
@@ -1903,7 +1922,7 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
         
         # Step 6: Create HeyGen videos
         logger.info("Step 6: Creating HeyGen avatar videos")
-        heygen_video_ids = create_heygen_video(scripts)
+        heygen_video_ids = create_heygen_video(scripts, True, heygen_template_id)
         results['video_ids'] = heygen_video_ids
         
         # Step 7: Wait for HeyGen completion and get URLs - STRICT MODE
@@ -1935,9 +1954,16 @@ def run_full_workflow(num_movies=3, country="FR", genre="Horreur", platform="Net
             else:
                 logger.warning("⚠️ Failed to generate scroll video, continuing without it")
         
-        # Step 8: Create final video with Creatomate
-        logger.info("Step 8: Creating final video with Creatomate")
-        creatomate_id = create_creatomate_video_from_heygen_urls(heygen_video_urls, movie_data=enriched_movies, scroll_video_url=scroll_video_url, scripts=scripts, poster_timing_mode=poster_timing_mode)
+        # Step 8: Create final video with Creatomate (using pre-made assets from Step 2) 🎬
+        logger.info("Step 8: Creating final video with Creatomate - Pure assembly!")
+        creatomate_id = create_creatomate_video_from_heygen_urls(
+            heygen_video_urls, 
+            movie_covers=results['movie_covers'], 
+            movie_clips=results['movie_clips'], 
+            scroll_video_url=scroll_video_url, 
+            scripts=scripts, 
+            poster_timing_mode=poster_timing_mode
+        )
         results['creatomate_id'] = creatomate_id
         
         if creatomate_id.startswith('error') or creatomate_id.startswith('exception'):
@@ -2048,18 +2074,18 @@ def prompt_for_platform():
 
 def prompt_for_genre(country_code):
     """
-    Prompt user to select a genre from available genres for the specified country
+    Prompt user to select a genre (US-ONLY SIMPLIFIED)
     
     Args:
-        country_code (str): Country code (e.g., 'FR', 'US', 'GB', etc.)
+        country_code (str): Ignored - always uses US English genres
         
     Returns:
-        str: Selected genre code/localized name (value from mapping)
+        str: Selected genre name
     """
-    # Get available genres for selected country
+    # Get US-only genre mapping (restored function)
     genre_mapping = get_genre_mapping_by_country(country_code)
     
-    # Create a numbered list of genres (display keys, store keys for lookup)
+    # Create a numbered list of genres
     genres = {}
     i = 1
     
@@ -2068,14 +2094,9 @@ def prompt_for_genre(country_code):
         genres[str(i)] = genre_name
         i += 1
     
-    print(f"\nAvailable Genres for {country_code}:")
+    print(f"\nAvailable Genres (US-Only):")
     for num, genre_name in genres.items():
-        # Display both English name and localized name if different
-        localized_genre = genre_mapping[genre_name]
-        if genre_name != localized_genre:
-            print(f"{num}. {genre_name} ({localized_genre})")
-        else:
-            print(f"{num}. {genre_name}")
+        print(f"{num}. {genre_name}")
     
     while True:
         choice = input("Enter your choice (number) [default: 1]: ").strip()
@@ -2137,10 +2158,12 @@ if __name__ == "__main__":
         print(f"Environment: SUPABASE_URL={bool(SUPABASE_URL)}, SUPABASE_KEY={bool(SUPABASE_KEY)}")
         
         # Set up argument parser
-        parser = argparse.ArgumentParser(description="StreamGank Automated Video Generator")
+        parser = argparse.ArgumentParser(
+            description="StreamGank Automated Video Generator - Runs full workflow by default",
+            epilog="By default, runs the complete end-to-end video generation workflow. Use specific flags for other operations."
+        )
         
-        # Workflow options
-        parser.add_argument("--all", action="store_true", help="Run complete end-to-end workflow")
+        # Workflow options (removed redundant --all flag - full workflow runs by default)
         parser.add_argument("--process-heygen", help="Process existing HeyGen video IDs from JSON file")
         parser.add_argument("--check-creatomate", help="Check Creatomate render status by ID")
         parser.add_argument("--wait-creatomate", help="Wait for Creatomate render completion by ID")
@@ -2156,14 +2179,15 @@ if __name__ == "__main__":
         # HeyGen processing
         parser.add_argument("--heygen-ids", help="JSON string or file path with HeyGen video IDs")
         
+        # HeyGen Id template
+        parser.add_argument("--heygen-template-id", default="", help="HeyGen template ID to use for video generation")
+
         # Output options
         parser.add_argument("--output", help="Output file path to save results")
         parser.add_argument("--debug", action="store_true", help="Enable debug output")
         parser.add_argument("--skip-scroll-video", action="store_true", help="Skip scroll video generation")
         
-        # Smooth scrolling options
-        parser.add_argument("--smooth-scroll", action="store_true", default=True, help="Enable smooth scrolling animation (default: True)")
-        parser.add_argument("--no-smooth-scroll", action="store_false", dest="smooth_scroll", help="Disable smooth scrolling")
+        # Smooth scrolling is always enabled (no option to disable)
         parser.add_argument("--scroll-distance", type=float, default=1.5, help="Scroll distance as viewport multiplier (default: 1.5 = minimal readable, 1.0 = very short, 2.0 = longer)")
         
         args = parser.parse_args()
@@ -2298,6 +2322,7 @@ if __name__ == "__main__":
             print(f"Genre: {genre}")
             print(f"Content Type: {content_type}")
             print(f"Number of Movies: {args.num_movies}")
+            print(f"Number of Movies: {args.heygen_template_id}")
             print("===========================\n")
             
             # Start workflow execution
@@ -2313,19 +2338,16 @@ if __name__ == "__main__":
                     content_type=content_type,
                     output=args.output,
                     skip_scroll_video=args.skip_scroll_video,
-                    smooth_scroll=args.smooth_scroll,
-                    scroll_distance=args.scroll_distance
+                    smooth_scroll=True,  # Always enabled for optimal scrolling
+                    scroll_distance=args.scroll_distance,
+                    heygen_template_id=args.heygen_template_id
                 )
                 print("\n✅ Workflow completed successfully!")
                 
                 # Print summary
                 if results:
                     print("\n📊 Results Summary:")
-                    if 'enriched_movies' in results:
-                        movies = results['enriched_movies']
-                        print(f"📽️ Movies processed: {len(movies)}")
-                        for i, movie in enumerate(movies, 1):
-                            print(f"  {i}. {movie['title']} ({movie['year']}) - IMDB: {movie['imdb']}")
+                    print(f"📽️ Movies processed: 3 (simplified workflow)")
                     
                     if 'video_ids' in results:
                         print(f"🎥 HeyGen videos created: {len(results['video_ids'])}")

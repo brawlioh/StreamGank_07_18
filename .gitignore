@@ -45,3 +45,5 @@ voices_list.json
 .vscode/
 *.swp
 *.swo
+
+temp*

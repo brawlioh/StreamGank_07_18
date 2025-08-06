@@ -1,0 +1,98 @@
+{
+  "data": {
+    "combined_script": "Dare to dive into StreamGanks chilling trio of terror? These top 3 Netflix Horror flicks are causing a scream-sensation!\n\nDare to dive into StreamGanks chilling trio of terror? These top 3 Netflix Horror flicks are causing a scream-sensation! Everyones too scared to watch Godzilla Minus One, the horror masterpiece thats redefining terror on Netflix in 2023!\n\nEveryones too scared to watch this heart-stopping, zombie-infested journey; welcome aboard the Train to Busan!\n\nEveryones too scared to watch The Wailing, the horror masterpiece on Netflix that will leave you sleeping with the lights on!",
+    "script_file_path": "videos/combined_script.txt",
+    "individual_scripts": {
+      "movie1": {
+        "text": "Dare to dive into StreamGanks chilling trio of terror? These top 3 Netflix Horror flicks are causing a scream-sensation! Everyones too scared to watch Godzilla Minus One, the horror masterpiece thats redefining terror on Netflix in 2023!",
+        "path": "videos/script_movie1.txt"
+      },
+      "movie2": {
+        "text": "Everyones too scared to watch this heart-stopping, zombie-infested journey; welcome aboard the Train to Busan!",
+        "path": "videos/script_movie2.txt"
+      },
+      "movie3": {
+        "text": "Everyones too scared to watch The Wailing, the horror masterpiece on Netflix that will leave you sleeping with the lights on!",
+        "path": "videos/script_movie3.txt"
+      }
+    },
+    "raw_movies": [
+      {
+        "id": 7299,
+        "title": "Godzilla Minus One",
+        "year": 2023,
+        "imdb": "7.7/10 (175,531 votes)",
+        "imdb_score": 7.7,
+        "imdb_votes": 175531,
+        "runtime": "124 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/307410526/s332/godzilla-minus-one.avif",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1742896159/movie-posters/cf5f1812aa28d27febf656e07e2282d2.avif",
+        "trailer_url": "https://www.youtube.com/watch?v=nAYKaslCXPc",
+        "streaming_url": "https://www.netflix.com/title/81767635",
+        "genres": [
+          "Horror"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 33495,
+        "title": "Train to Busan",
+        "year": 2016,
+        "imdb": "7.6/10 (290,258 votes)",
+        "imdb_score": 7.6,
+        "imdb_votes": 290258,
+        "runtime": "118 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/164866704/s332/train-to-busan.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1751459107/movie-posters/f0f07f9e33ab865dc3edb66ded174009.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=1ovgxN2VWNc",
+        "streaming_url": "https://www.netflix.com/title/80117824",
+        "genres": [
+          "Horror"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 33496,
+        "title": "The Wailing",
+        "year": 2016,
+        "imdb": "7.4/10 (85,629 votes)",
+        "imdb_score": 7.4,
+        "imdb_votes": 85629,
+        "runtime": "156 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/204249971/s332/the-wailing.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1751459109/movie-posters/2973b8a79b07ff67fb541dbe61480106.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=43uAputjI4k",
+        "streaming_url": "https://www.netflix.com/title/80108974",
+        "genres": [
+          "Horror"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      }
+    ],
+    "parameters": {
+      "country": "US",
+      "genre": "Horror",
+      "platform": "Netflix",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "script_count": 3,
+    "generation_timestamp": 1754488317.1859334
+  },
+  "metadata": {
+    "data_type": "script_result",
+    "parameters": {
+      "country": "US",
+      "genre": "Horror",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1754488317.1860476,
+    "saved_datetime": "2025-08-06 21:51:57"
+  }
+}

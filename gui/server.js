@@ -1,7 +1,7 @@
-const express = require('express');
-const { spawn } = require('child_process');
-const path = require('path');
-const VideoQueueManager = require('./queue-manager');
+const express = require("express");
+const { spawn } = require("child_process");
+const path = require("path");
+const VideoQueueManager = require("./queue-manager");
 
 const app = express();
 const port = 3000;
@@ -15,59 +15,59 @@ app.use(express.static(path.join(__dirname)));
 
 // Enable CORS
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
 
 // Route to serve the main HTML file
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
 });
 
 // Platform mapping to match Python script expectations
 const platformMapping = {
-    prime: 'Prime',
-    apple_tvplus: 'Apple TV+',
-    disney_plus: 'Disney+',
-    hulu: 'Hulu',
-    max: 'Max',
-    netflix: 'Netflix',
+    prime: "Prime",
+    apple_tvplus: "Apple TV+",
+    disney_plus: "Disney+",
+    hulu: "Hulu",
+    max: "Max",
+    netflix: "Netflix",
 };
 
 // Content type mapping
 const contentTypeMapping = {
-    Film: 'Film',
-    Serie: 'Série',
-    all: 'Film', // Default to Film for 'all' option
+    Film: "Film",
+    Serie: "Série",
+    all: "Film", // Default to Film for 'all' option
 };
 
 // Helper function to execute Python script with async/await
-async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeoutMs = 30 * 60 * 1000) {
+async function executePythonScript(args, cwd = path.join(__dirname, ".."), timeoutMs = 30 * 60 * 1000) {
     return new Promise((resolve, reject) => {
-        console.log('Executing command:', 'python', args.join(' '));
+        // Executing command (same as CLI)
 
-        const pythonProcess = spawn('python', args, {
+        const pythonProcess = spawn("python", args, {
             cwd: cwd,
             env: {
                 ...process.env,
-                PYTHONIOENCODING: 'utf-8',
-                PYTHONUNBUFFERED: '1',
+                PYTHONIOENCODING: "utf-8",
+                PYTHONUNBUFFERED: "1",
             },
         });
 
-        let stdout = '';
-        let stderr = '';
+        let stdout = "";
+        let stderr = "";
         let isResolved = false;
 
         // Set up timeout (30 minutes default)
         const timeout = setTimeout(() => {
             if (!isResolved) {
                 isResolved = true;
-                pythonProcess.kill('SIGTERM');
+                pythonProcess.kill("SIGTERM");
                 reject({
                     code: -2,
-                    error: 'Python script execution timeout',
+                    error: "Python script execution timeout",
                     stdout,
                     stderr,
                 });
@@ -75,42 +75,46 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
         }, timeoutMs);
 
         // Handle stdout data
-        pythonProcess.stdout.on('data', (data) => {
+        pythonProcess.stdout.on("data", (data) => {
             try {
-                const output = data.toString('utf8');
+                const output = data.toString("utf8");
                 stdout += output;
-                console.log('Python stdout:', output);
+                // Output exactly like CLI - no prefixes
+                process.stdout.write(output);
             } catch (encodingError) {
-                console.warn('Encoding error in stdout:', encodingError.message);
-                const output = data.toString('latin1'); // Fallback encoding
+                console.warn("Encoding error in stdout:", encodingError.message);
+                const output = data.toString("latin1"); // Fallback encoding
                 stdout += output;
+                process.stdout.write(output);
             }
         });
 
         // Handle stderr data
-        pythonProcess.stderr.on('data', (data) => {
+        pythonProcess.stderr.on("data", (data) => {
             try {
-                const output = data.toString('utf8');
+                const output = data.toString("utf8");
                 stderr += output;
-                console.error('Python stderr:', output);
+                // Output exactly like CLI - no prefixes
+                process.stderr.write(output);
             } catch (encodingError) {
-                console.warn('Encoding error in stderr:', encodingError.message);
-                const output = data.toString('latin1'); // Fallback encoding
+                console.warn("Encoding error in stderr:", encodingError.message);
+                const output = data.toString("latin1"); // Fallback encoding
                 stderr += output;
+                process.stderr.write(output);
             }
         });
 
         // Handle process completion
-        pythonProcess.on('close', (code) => {
+        pythonProcess.on("close", (code) => {
             if (!isResolved) {
                 isResolved = true;
                 clearTimeout(timeout);
-                console.log(`Python process exited with code ${code}`);
+                // Process completed (code logged internally only if needed)
 
                 if (code !== 0) {
                     reject({
                         code,
-                        error: stderr || 'Python script failed with no error message',
+                        error: stderr || "Python script failed with no error message",
                         stdout,
                     });
                 } else {
@@ -124,16 +128,16 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
         });
 
         // Handle process errors
-        pythonProcess.on('error', (error) => {
+        pythonProcess.on("error", (error) => {
             if (!isResolved) {
                 isResolved = true;
                 clearTimeout(timeout);
-                console.error('Failed to start Python process:', error);
+                console.error("Failed to start Python process:", error);
                 reject({
                     code: -1,
                     error: error.message,
-                    stdout: '',
-                    stderr: '',
+                    stdout: "",
+                    stderr: "",
                 });
             }
         });
@@ -141,16 +145,16 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
 }
 
 // API endpoint to add video to Redis queue
-app.post('/api/generate', async (req, res) => {
+app.post("/api/generate", async (req, res) => {
     try {
         const { country, platform, genre, contentType } = req.body;
 
-        console.log('📨 Received queue request:', { country, platform, genre, contentType });
+        console.log("📨 Received queue request:", { country, platform, genre, contentType });
 
         if (!country || !platform || !genre || !contentType) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing required parameters',
+                message: "Missing required parameters",
                 received: { country, platform, genre, contentType },
             });
         }
@@ -159,7 +163,7 @@ app.post('/api/generate', async (req, res) => {
         const mappedPlatform = platformMapping[platform] || platform;
         const mappedContentType = contentTypeMapping[contentType] || contentType;
 
-        console.log('🔄 Mapped values:', {
+        console.log("🔄 Mapped values:", {
             country,
             platform: mappedPlatform,
             genre,
@@ -181,37 +185,37 @@ app.post('/api/generate', async (req, res) => {
         res.json({
             success: true,
             jobId: job.id,
-            message: 'Video added to queue successfully',
+            message: "Video added to queue successfully",
             queuePosition: queueStatus.pending + queueStatus.processing,
             queueStatus: queueStatus,
             job: job,
         });
     } catch (error) {
-        console.error('❌ Failed to add job to queue:', error);
+        console.error("❌ Failed to add job to queue:", error);
 
         res.status(500).json({
             success: false,
-            message: 'Failed to add video to queue',
+            message: "Failed to add video to queue",
             error: error.message,
         });
     }
 });
 
 // API endpoint to check Creatomate status
-app.get('/api/status/:creatomateId', async (req, res) => {
+app.get("/api/status/:creatomateId", async (req, res) => {
     try {
         const { creatomateId } = req.params;
 
-        const scriptPath = path.join(__dirname, '../automated_video_generator.py');
-        const args = [scriptPath, '--check-creatomate', creatomateId];
+        const scriptPath = path.join(__dirname, "../automated_video_generator.py");
+        const args = [scriptPath, "--check-creatomate", creatomateId];
 
         // Execute Python script with async/await
         const result = await executePythonScript(args);
         const { stdout } = result;
 
         // Parse status from output
-        let status = 'unknown';
-        let videoUrl = '';
+        let status = "unknown";
+        let videoUrl = "";
 
         const statusMatch = stdout.match(/Render Status[:\s]+(\w+)/i);
         if (statusMatch && statusMatch[1]) {
@@ -230,50 +234,50 @@ app.get('/api/status/:creatomateId', async (req, res) => {
             creatomateId: creatomateId,
         });
     } catch (error) {
-        console.error('Status check failed:', error);
+        console.error("Status check failed:", error);
 
         res.status(500).json({
             success: false,
-            message: 'Failed to check status',
+            message: "Failed to check status",
             error: error.error || error.message,
         });
     }
 });
 
 // API endpoint to test Python script and database connection
-app.get('/api/test', async (req, res) => {
+app.get("/api/test", async (req, res) => {
     try {
-        console.log('Testing Python script and database connection...');
+        console.log("Testing Python script and database connection...");
 
-        const scriptPath = path.join(__dirname, '../automated_video_generator.py');
-        const args = [scriptPath, '--country', 'FR', '--platform', 'Netflix', '--genre', 'Horror', '--content-type', 'Film', '--num-movies', '1', '--skip-scroll-video', '--all'];
+        const scriptPath = path.join(__dirname, "../automated_video_generator.py");
+        const args = [scriptPath, "--country", "FR", "--platform", "Netflix", "--genre", "Horror", "--content-type", "Film", "--num-movies", "1", "--skip-scroll-video"];
 
         // Execute with shorter timeout for testing
-        const result = await executePythonScript(args, path.join(__dirname, '..'), 5 * 60 * 1000);
+        const result = await executePythonScript(args, path.join(__dirname, ".."), 5 * 60 * 1000);
 
         res.json({
             success: true,
-            message: 'Python script test completed',
+            message: "Python script test completed",
             hasOutput: result.stdout.length > 0,
             outputLength: result.stdout.length,
-            preview: result.stdout.substring(0, 500) + (result.stdout.length > 500 ? '...' : ''),
+            preview: result.stdout.substring(0, 500) + (result.stdout.length > 500 ? "..." : ""),
         });
     } catch (error) {
-        console.error('Python script test failed:', error);
+        console.error("Python script test failed:", error);
 
         res.json({
             success: false,
-            message: 'Python script test failed',
+            message: "Python script test failed",
             error: error.error || error.message,
             code: error.code,
-            stdout: error.stdout ? error.stdout.substring(0, 500) : '',
-            stderr: error.stderr ? error.stderr.substring(0, 500) : '',
+            stdout: error.stdout ? error.stdout.substring(0, 500) : "",
+            stderr: error.stderr ? error.stderr.substring(0, 500) : "",
         });
     }
 });
 
 // API endpoint to get job status by ID
-app.get('/api/job/:jobId', async (req, res) => {
+app.get("/api/job/:jobId", async (req, res) => {
     try {
         const { jobId } = req.params;
         const job = await queueManager.getJob(jobId);
@@ -281,7 +285,7 @@ app.get('/api/job/:jobId', async (req, res) => {
         if (!job) {
             return res.status(404).json({
                 success: false,
-                message: 'Job not found',
+                message: "Job not found",
             });
         }
 
@@ -290,17 +294,17 @@ app.get('/api/job/:jobId', async (req, res) => {
             job: job,
         });
     } catch (error) {
-        console.error('❌ Failed to get job:', error);
+        console.error("❌ Failed to get job:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to get job status',
+            message: "Failed to get job status",
             error: error.message,
         });
     }
 });
 
 // API endpoint to get queue status
-app.get('/api/queue/status', async (req, res) => {
+app.get("/api/queue/status", async (req, res) => {
     try {
         // Clean up any orphaned processing jobs first
         await queueManager.cleanupProcessingQueue();
@@ -311,17 +315,17 @@ app.get('/api/queue/status', async (req, res) => {
             stats: stats,
         });
     } catch (error) {
-        console.error('❌ Failed to get queue status:', error);
+        console.error("❌ Failed to get queue status:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to get queue status',
+            message: "Failed to get queue status",
             error: error.message,
         });
     }
 });
 
 // API endpoint to get all jobs
-app.get('/api/queue/jobs', async (req, res) => {
+app.get("/api/queue/jobs", async (req, res) => {
     try {
         const jobs = await queueManager.getAllJobs();
         res.json({
@@ -329,35 +333,35 @@ app.get('/api/queue/jobs', async (req, res) => {
             jobs: jobs,
         });
     } catch (error) {
-        console.error('❌ Failed to get all jobs:', error);
+        console.error("❌ Failed to get all jobs:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to get jobs',
+            message: "Failed to get jobs",
             error: error.message,
         });
     }
 });
 
 // API endpoint to clear queue (admin only)
-app.post('/api/queue/clear', async (req, res) => {
+app.post("/api/queue/clear", async (req, res) => {
     try {
         await queueManager.clearAllQueues();
         res.json({
             success: true,
-            message: 'All queues cleared successfully',
+            message: "All queues cleared successfully",
         });
     } catch (error) {
-        console.error('❌ Failed to clear queues:', error);
+        console.error("❌ Failed to clear queues:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to clear queues',
+            message: "Failed to clear queues",
             error: error.message,
         });
     }
 });
 
 // API endpoint to update job with video URL after Creatomate completion
-app.post('/api/job/:jobId/complete', async (req, res) => {
+app.post("/api/job/:jobId/complete", async (req, res) => {
     try {
         const { jobId } = req.params;
         const { videoUrl } = req.body;
@@ -365,7 +369,7 @@ app.post('/api/job/:jobId/complete', async (req, res) => {
         if (!videoUrl) {
             return res.status(400).json({
                 success: false,
-                message: 'Video URL is required',
+                message: "Video URL is required",
             });
         }
 
@@ -373,7 +377,7 @@ app.post('/api/job/:jobId/complete', async (req, res) => {
         if (!job) {
             return res.status(404).json({
                 success: false,
-                message: 'Job not found',
+                message: "Job not found",
             });
         }
 
@@ -381,38 +385,38 @@ app.post('/api/job/:jobId/complete', async (req, res) => {
         job.videoUrl = videoUrl;
         job.progress = 100;
         job.completedAt = new Date().toISOString();
-        job.currentStep = 'Video rendering completed!';
+        job.currentStep = "Video rendering completed!";
 
         await queueManager.updateJob(job);
 
         res.json({
             success: true,
-            message: 'Job updated with video URL',
+            message: "Job updated with video URL",
             job: job,
         });
     } catch (error) {
-        console.error('❌ Failed to update job:', error);
+        console.error("❌ Failed to update job:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to update job',
+            message: "Failed to update job",
             error: error.message,
         });
     }
 });
 
 // API endpoint to get available platforms by region from database
-app.get('/api/platforms/:country', async (req, res) => {
+app.get("/api/platforms/:country", async (req, res) => {
     try {
         const { country } = req.params;
         console.log(`🌍 Fetching platforms for country: ${country}`);
 
         // Use the exact platform data provided by the user
         const availablePlatforms = {
-            FR: ['Prime', 'Apple TV+', 'Disney+', 'Max', 'Netflix', 'Free'],
-            US: ['Prime', 'Apple TV+', 'Disney+', 'Hulu', 'Max', 'Netflix'],
+            FR: ["Prime", "Apple TV+", "Disney+", "Max", "Netflix", "Free"],
+            US: ["Prime", "Apple TV+", "Disney+", "Hulu", "Max", "Netflix"],
         };
 
-        const platforms = availablePlatforms[country] || availablePlatforms['US']; // Default to US if country not found
+        const platforms = availablePlatforms[country] || availablePlatforms["US"]; // Default to US if country not found
 
         console.log(`✅ Found ${platforms.length} platforms for ${country}:`, platforms);
 
@@ -420,172 +424,98 @@ app.get('/api/platforms/:country', async (req, res) => {
             success: true,
             country: country,
             platforms: platforms,
-            source: 'user_defined',
+            source: "user_defined",
             count: platforms.length,
         });
     } catch (error) {
-        console.error('❌ Error fetching platforms:', error);
+        console.error("❌ Error fetching platforms:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch platforms',
+            message: "Failed to fetch platforms",
             error: error.message,
         });
     }
 });
 
 // API endpoint to validate StreamGank URL
-app.post('/api/validate-url', async (req, res) => {
+app.post("/api/validate-url", async (req, res) => {
     try {
         const { url } = req.body;
 
         if (!url) {
             return res.status(400).json({
                 success: false,
-                message: 'URL is required',
+                message: "URL is required",
             });
         }
 
         console.log(`🔍 Validating URL: ${url}`);
 
         // Use node's built-in fetch or a library like axios to check the URL
-        const https = require('https');
-        const http = require('http');
+        const https = require("https");
+        const http = require("http");
         const urlParsed = new URL(url);
 
-        const client = urlParsed.protocol === 'https:' ? https : http;
+        const client = urlParsed.protocol === "https:" ? https : http;
 
         const validation = await new Promise((resolve, reject) => {
             const request = client.get(
                 url,
                 {
                     headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                     },
                     timeout: 10000,
                 },
                 (response) => {
-                    let data = '';
+                    let data = "";
 
-                    response.on('data', (chunk) => {
+                    response.on("data", (chunk) => {
                         data += chunk;
                     });
 
-                    response.on('end', () => {
-                        // Check for indicators that no movies are available
-                        const htmlLower = data.toLowerCase();
+                    response.on("end", () => {
+                        // Simplified validation - check basic HTTP response success
+                        console.log(`🔍 Simplified validation for: ${url} - Status Code: ${response.statusCode}`);
 
-                        // More comprehensive empty result indicators
-                        const noMoviesIndicators = ['no movies found', 'no results', 'aucun film trouvé', 'aucun résultat', 'no content available', 'pas de contenu disponible', 'empty results', 'résultats vides', 'no movies available', 'aucun film disponible', 'no items found', 'nothing found', 'rien trouvé', 'empty page', 'page vide', '0 results', '0 résultats', 'no matches found', 'aucune correspondance', 'no content matches', 'pas de contenu correspondant', 'no movies match your criteria', 'try modifying your filters', 'modifying your filters', 'no movies match', 'match your criteria'];
+                        // Log first 200 characters of content for debugging
+                        console.log(`📄 First 200 chars of page content: ${data.substring(0, 200)}`);
 
-                        const hasNoMovies = noMoviesIndicators.some((indicator) => htmlLower.includes(indicator));
-
-                        // Additional specific check for the exact StreamGank message
-                        const streamgankNoMoviesMessage = htmlLower.includes('no movies match your criteria') || htmlLower.includes('try modifying your filters') || htmlLower.includes('modifying your filters');
-
-                        // Check if the page has very little content (might indicate empty results)
-                        const textContent = data
-                            .replace(/<[^>]*>/g, '')
-                            .replace(/\s+/g, ' ')
-                            .trim();
-                        const hasMinimalContent = textContent.length < 1200; // Increased threshold
-
-                        // More specific movie content detection - look for actual movie listings
-                        const movieContentIndicators = ['class="movie', 'class="film', 'movie-card', 'film-card', 'poster-image', 'movie-title', 'film-title', 'streaming-item', 'content-item', 'movie-poster', 'film-poster', 'content-card', 'media-card'];
-
-                        const hasMovieElements = movieContentIndicators.some((indicator) => htmlLower.includes(indicator));
-
-                        // Look for actual movie/show titles or IMDb ratings (strong indicators of content)
-                        const hasRatings = htmlLower.includes('imdb') || htmlLower.includes('rating') || htmlLower.includes('note');
-                        const hasWatchLinks = htmlLower.includes('watch') || htmlLower.includes('regarder') || htmlLower.includes('stream');
-
-                        // Basic content check
-                        const hasBasicMovieContent = htmlLower.includes('movie') || htmlLower.includes('film') || htmlLower.includes('série') || htmlLower.includes('show') || htmlLower.includes('title') || htmlLower.includes('poster');
-
-                        // Check for pagination or result count indicators
-                        const hasPagination = htmlLower.includes('page') || htmlLower.includes('next') || htmlLower.includes('previous');
-                        const hasResultCount = /\d+\s*(results|résultats|movies|films|shows|séries)/.test(htmlLower);
-
-                        // Check for zero results specifically
-                        const hasZeroResults = /0\s*(results|résultats|movies|films|shows|séries)/.test(htmlLower);
-
-                        console.log(`🔍 Validation analysis for: ${url}
-                        - Has no-movies indicators: ${hasNoMovies}
-                        - StreamGank no-movies message: ${streamgankNoMoviesMessage}
-                        - Content length: ${textContent.length}
-                        - Has minimal content: ${hasMinimalContent}
-                        - Has movie elements: ${hasMovieElements}
-                        - Has basic movie content: ${hasBasicMovieContent}
-                        - Has ratings: ${hasRatings}
-                        - Has watch links: ${hasWatchLinks}
-                        - Has pagination: ${hasPagination}
-                        - Has result count: ${hasResultCount}
-                        - Has zero results: ${hasZeroResults}`);
-
-                        // Log first 500 characters of content for debugging
-                        console.log(`📄 First 500 chars of page content: ${data.substring(0, 500)}`);
-
-                        // More strict validation logic
-                        if (hasNoMovies || hasZeroResults || streamgankNoMoviesMessage) {
-                            resolve({
-                                valid: false,
-                                reason: 'No movies available for the selected parameters',
-                                details: 'The StreamGank page explicitly indicates no content was found',
-                            });
-                        } else if (hasMinimalContent && !hasMovieElements && !hasRatings && !hasWatchLinks) {
-                            resolve({
-                                valid: false,
-                                reason: 'No movie content detected on the page',
-                                details: `The page has minimal content (${textContent.length} chars) and no movie indicators`,
-                            });
-                        } else if (!hasMovieElements && !hasResultCount && !hasPagination && !hasRatings && hasMinimalContent) {
-                            resolve({
-                                valid: false,
-                                reason: 'Page appears to have no movie listings',
-                                details: 'No movie elements, ratings, result counts, or pagination found',
-                            });
-                        } else if (hasBasicMovieContent && (hasMovieElements || hasRatings || hasWatchLinks || hasResultCount)) {
-                            resolve({
-                                valid: true,
-                                reason: 'Movies appear to be available for selected parameters',
-                                details: `Page analysis: content=${textContent.length} chars, elements=${hasMovieElements}, ratings=${hasRatings}`,
-                            });
-                        } else {
-                            // When in doubt, assume no movies to be safe
-                            resolve({
-                                valid: false,
-                                reason: 'Cannot confirm movie availability - page structure unclear',
-                                details: 'Page analysis inconclusive, assuming no content to avoid wasted processing',
-                            });
-                        }
+                        // Always return valid=true since no movies validation is removed
+                        resolve({
+                            valid: true,
+                            reason: "URL validation passed - no movies check removed",
+                            details: `Page loaded successfully with ${data.length} bytes of content`,
+                        });
                     });
                 }
             );
 
-            request.on('error', (error) => {
-                console.error('Validation request error:', error);
+            request.on("error", (error) => {
+                console.error("Validation request error:", error);
                 reject(error);
             });
 
-            request.on('timeout', () => {
+            request.on("timeout", () => {
                 request.destroy();
-                reject(new Error('Request timeout'));
+                reject(new Error("Request timeout"));
             });
         });
 
-        console.log(`✅ Validation result: ${validation.valid ? 'Valid' : 'Invalid'} - ${validation.reason}`);
+        console.log(`✅ Validation result: ${validation.valid ? "Valid" : "Invalid"} - ${validation.reason}`);
 
         res.json({
             success: true,
             ...validation,
         });
     } catch (error) {
-        console.error('❌ Error validating URL:', error);
+        console.error("❌ Error validating URL:", error);
 
         // If validation fails, return valid=true to continue (fail-safe approach)
         res.json({
             success: true,
             valid: true,
-            reason: 'Validation failed, proceeding anyway',
+            reason: "Validation failed, proceeding anyway",
             details: `Validation error: ${error.message}`,
         });
     }
@@ -596,30 +526,30 @@ async function startServer() {
     try {
         // Connect to Redis
         await queueManager.connect();
-        console.log('🔗 Redis queue manager connected');
+        console.log("🔗 Redis queue manager connected");
 
         // Start the server
         app.listen(port, () => {
             console.log(`🚀 StreamGank Video Generator GUI server running at http://localhost:${port}`);
             console.log(`📋 Redis queue system active`);
             console.log(`🗂️ Platform mappings loaded: ${Object.keys(platformMapping).length} platforms`);
-            console.log(`📝 Content type mappings: ${Object.keys(contentTypeMapping).join(', ')}`);
+            console.log(`📝 Content type mappings: ${Object.keys(contentTypeMapping).join(", ")}`);
         });
     } catch (error) {
-        console.error('❌ Failed to start server:', error);
+        console.error("❌ Failed to start server:", error);
         process.exit(1);
     }
 }
 
 // Handle graceful shutdown
-process.on('SIGINT', async () => {
-    console.log('\n🛑 Shutting down server...');
+process.on("SIGINT", async () => {
+    console.log("\n🛑 Shutting down server...");
     await queueManager.close();
     process.exit(0);
 });
 
-process.on('SIGTERM', async () => {
-    console.log('\n🛑 Shutting down server...');
+process.on("SIGTERM", async () => {
+    console.log("\n🛑 Shutting down server...");
     await queueManager.close();
     process.exit(0);
 });

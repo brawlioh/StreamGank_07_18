@@ -1,0 +1,98 @@
+{
+  "data": {
+    "combined_script": "Brace yourself for the most spine-chilling Horreur movies on Netflix that are setting the web ablaze!\n\nBrace yourself for the most spine-chilling Horreur movies on Netflix that are setting the web ablaze! Get ready for Ça, the 2017 Horreur sensation on Netflix thatll make you sleep with the lights on!\n\nGet ready for La Plateforme, the 2019 horror sensation on Netflix thats making everyone question what they would do for survival!\n\nEveryones talking about Us, the horreur spectacle on Netflix that will have you questioning your own reflection!",
+    "script_file_path": "videos/combined_script.txt",
+    "individual_scripts": {
+      "movie1": {
+        "text": "Brace yourself for the most spine-chilling Horreur movies on Netflix that are setting the web ablaze! Get ready for Ça, the 2017 Horreur sensation on Netflix thatll make you sleep with the lights on!",
+        "path": "videos/script_movie1.txt"
+      },
+      "movie2": {
+        "text": "Get ready for La Plateforme, the 2019 horror sensation on Netflix thats making everyone question what they would do for survival!",
+        "path": "videos/script_movie2.txt"
+      },
+      "movie3": {
+        "text": "Everyones talking about Us, the horreur spectacle on Netflix that will have you questioning your own reflection!",
+        "path": "videos/script_movie3.txt"
+      }
+    },
+    "raw_movies": [
+      {
+        "id": 23191,
+        "title": "Ça",
+        "year": 2017,
+        "imdb": "7.3/10 (651,879 votes)",
+        "imdb_score": 7.3,
+        "imdb_votes": 651879,
+        "runtime": "135 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/10619182/s332/ca.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743993742/movie-posters/9c289b7e7ea0c7d0699d7c6399a3d3dc.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=rm426QuGqUQ",
+        "streaming_url": "https://www.netflix.com/title/80177770",
+        "genres": [
+          "Horreur"
+        ],
+        "content_type": "Film",
+        "country_code": "FR"
+      },
+      {
+        "id": 15045,
+        "title": "La Plateforme",
+        "year": 2019,
+        "imdb": "7.0/10 (311,214 votes)",
+        "imdb_score": 7.0,
+        "imdb_votes": 311214,
+        "runtime": "95 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/321283739/s332/the-platform.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743364509/movie-posters/51b5d2b71273069154354b2a3b477841.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=Q6kEozJ4nrw",
+        "streaming_url": "https://www.netflix.com/title/81128579",
+        "genres": [
+          "Horreur"
+        ],
+        "content_type": "Film",
+        "country_code": "FR"
+      },
+      {
+        "id": 15049,
+        "title": "Us",
+        "year": 2019,
+        "imdb": "6.8/10 (350,835 votes)",
+        "imdb_score": 6.8,
+        "imdb_votes": 350835,
+        "runtime": "116 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/118652497/s332/us-2019.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743364514/movie-posters/d9d82fa5bc2208950622d39a9a86c05a.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=lE9Sh0quqZg",
+        "streaming_url": "https://www.netflix.com/title/81026600",
+        "genres": [
+          "Horreur"
+        ],
+        "content_type": "Film",
+        "country_code": "FR"
+      }
+    ],
+    "parameters": {
+      "country": "FR",
+      "genre": "Horreur",
+      "platform": "Netflix",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "script_count": 3,
+    "generation_timestamp": 1754490353.4630249
+  },
+  "metadata": {
+    "data_type": "script_result",
+    "parameters": {
+      "country": "FR",
+      "genre": "Horreur",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1754490353.463171,
+    "saved_datetime": "2025-08-06 22:25:53"
+  }
+}

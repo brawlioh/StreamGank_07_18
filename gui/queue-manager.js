@@ -1,6 +1,6 @@
-const redis = require('redis');
-const { spawn } = require('child_process');
-const path = require('path');
+const redis = require("redis");
+const { spawn } = require("child_process");
+const path = require("path");
 
 /**
  * Redis-based Video Queue Manager
@@ -12,27 +12,27 @@ class VideoQueueManager {
         // Try without TLS first (some Redis Cloud instances don't require it)
         this.client = redis.createClient({
             socket: {
-                host: 'redis-13734.c292.ap-southeast-1-1.ec2.redns.redis-cloud.com',
+                host: "redis-13734.c292.ap-southeast-1-1.ec2.redns.redis-cloud.com",
                 port: 13734,
                 // Remove TLS for now - will add back if needed
             },
-            password: '6zhDOqJpo5Z6EYsTfBoZF1d5oPVo7X67',
+            password: "6zhDOqJpo5Z6EYsTfBoZF1d5oPVo7X67",
             retryDelayOnFailover: 100,
             enableReadyCheck: false,
             maxRetriesPerRequest: null,
         });
 
         // Event handlers for Redis connection
-        this.client.on('error', (err) => {
-            console.error('❌ Redis Client Error:', err);
+        this.client.on("error", (err) => {
+            console.error("❌ Redis Client Error:", err);
         });
 
-        this.client.on('connect', () => {
-            console.log('✅ Connected to Redis server');
+        this.client.on("connect", () => {
+            console.log("✅ Connected to Redis server");
         });
 
-        this.client.on('ready', () => {
-            console.log('🚀 Redis client ready for operations');
+        this.client.on("ready", () => {
+            console.log("🚀 Redis client ready for operations");
         });
 
         // Queue processing state
@@ -41,11 +41,11 @@ class VideoQueueManager {
 
         // Redis queue keys
         this.keys = {
-            pending: 'streamgank:queue:pending',
-            processing: 'streamgank:queue:processing',
-            completed: 'streamgank:queue:completed',
-            failed: 'streamgank:queue:failed',
-            jobs: 'streamgank:jobs',
+            pending: "streamgank:queue:pending",
+            processing: "streamgank:queue:processing",
+            completed: "streamgank:queue:completed",
+            failed: "streamgank:queue:failed",
+            jobs: "streamgank:jobs",
         };
     }
 
@@ -55,9 +55,9 @@ class VideoQueueManager {
     async connect() {
         try {
             await this.client.connect();
-            console.log('🔗 Redis connection established');
+            console.log("🔗 Redis connection established");
         } catch (error) {
-            console.error('❌ Failed to connect to Redis:', error);
+            console.error("❌ Failed to connect to Redis:", error);
             throw error;
         }
     }
@@ -70,7 +70,7 @@ class VideoQueueManager {
     async addJob(parameters) {
         const job = {
             id: `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            status: 'pending',
+            status: "pending",
             parameters: parameters,
             createdAt: new Date().toISOString(),
             startedAt: null,
@@ -81,7 +81,7 @@ class VideoQueueManager {
             maxRetries: 3,
             error: null,
             progress: 0,
-            currentStep: 'Queued for processing...',
+            currentStep: "Queued for processing...",
         };
 
         try {
@@ -101,7 +101,7 @@ class VideoQueueManager {
 
             return job;
         } catch (error) {
-            console.error('❌ Failed to add job to queue:', error);
+            console.error("❌ Failed to add job to queue:", error);
             throw error;
         }
     }
@@ -122,7 +122,7 @@ class VideoQueueManager {
                 total: pending + processing + completed + failed,
             };
         } catch (error) {
-            console.error('❌ Failed to get queue status:', error);
+            console.error("❌ Failed to get queue status:", error);
             return { pending: 0, processing: 0, completed: 0, failed: 0, total: 0 };
         }
     }
@@ -142,7 +142,7 @@ class VideoQueueManager {
 
             return jobs;
         } catch (error) {
-            console.error('❌ Failed to get all jobs:', error);
+            console.error("❌ Failed to get all jobs:", error);
             return {};
         }
     }
@@ -179,12 +179,12 @@ class VideoQueueManager {
      */
     async startProcessing() {
         if (this.isProcessing) {
-            console.log('⚠️ Queue processing already running');
+            console.log("⚠️ Queue processing already running");
             return;
         }
 
         this.isProcessing = true;
-        console.log('🚀 Starting queue processing worker...');
+        console.log("🚀 Starting queue processing worker...");
 
         // Main processing loop
         while (this.isProcessing) {
@@ -197,13 +197,13 @@ class VideoQueueManager {
                     await this.processJob(job);
                 }
             } catch (error) {
-                console.error('❌ Queue processing error:', error);
+                console.error("❌ Queue processing error:", error);
                 // Wait before retrying to avoid rapid error loops
                 await this.sleep(5000);
             }
         }
 
-        console.log('🛑 Queue processing stopped');
+        console.log("🛑 Queue processing stopped");
     }
 
     /**
@@ -211,22 +211,24 @@ class VideoQueueManager {
      * @param {Object} job - Job to process
      */
     async processJob(job) {
-        console.log(`🔄 Processing job: ${job.id}`);
-        console.log(`📋 Job parameters:`, job.parameters);
+        // Job processing (UI queue management)
+        console.log(`\n🔄 Starting job: ${job.id}`);
+        console.log(`📋 Parameters:`, job.parameters);
+        console.log(`--- Python Script Output ---`);
 
         try {
             // Update job status to processing
-            job.status = 'processing';
+            job.status = "processing";
             job.startedAt = new Date().toISOString();
             job.progress = 10;
-            job.currentStep = 'Starting video generation...';
+            job.currentStep = "Starting video generation...";
             this.currentJob = job;
 
             // Move to processing queue and update job store
             await this.client.lPush(this.keys.processing, JSON.stringify(job));
             await this.updateJob(job);
 
-            console.log(`⚡ Job ${job.id} moved to processing queue`);
+            // Job queued for processing
 
             // Execute Python script for video generation
             job.progress = 20;
@@ -240,33 +242,33 @@ class VideoQueueManager {
             // Check if we have a video URL or just Creatomate ID
             if (result.videoUrl) {
                 // Video is fully complete
-                job.status = 'completed';
+                job.status = "completed";
                 job.completedAt = new Date().toISOString();
                 job.creatomateId = result.creatomateId;
                 job.videoUrl = result.videoUrl;
                 job.progress = 100;
-                job.currentStep = 'Video generation completed!';
+                job.currentStep = "Video generation completed!";
 
                 // Remove from processing queue and add to completed
                 await this.client.lRem(this.keys.processing, 1, processingJobState);
                 await this.client.lPush(this.keys.completed, JSON.stringify(job));
             } else if (result.creatomateId) {
                 // Python script done but video still rendering
-                job.status = 'completed'; // Mark as completed for Python script
+                job.status = "completed"; // Mark as completed for Python script
                 job.creatomateId = result.creatomateId;
                 job.videoUrl = null; // No video URL yet
                 job.progress = 90;
-                job.currentStep = 'Python script completed, video rendering in progress...';
+                job.currentStep = "Python script completed, video rendering in progress...";
 
                 // Remove from processing queue and add to completed (but video not ready)
                 await this.client.lRem(this.keys.processing, 1, processingJobState);
                 await this.client.lPush(this.keys.completed, JSON.stringify(job));
             } else {
                 // No video URL or Creatomate ID - something went wrong
-                job.status = 'completed';
+                job.status = "completed";
                 job.progress = 100;
-                job.currentStep = 'Script completed but no video information available';
-                job.error = 'No video URL or Creatomate ID returned';
+                job.currentStep = "Script completed but no video information available";
+                job.error = "No video URL or Creatomate ID returned";
 
                 // Remove from processing queue and add to completed
                 await this.client.lRem(this.keys.processing, 1, processingJobState);
@@ -278,8 +280,11 @@ class VideoQueueManager {
             // Set TTL for completed jobs (24 hours)
             await this.client.expire(`${this.keys.jobs}:${job.id}`, 86400);
 
-            console.log(`✅ Job completed successfully: ${job.id}`);
-            console.log(`🎬 Video URL: ${job.videoUrl}`);
+            console.log(`\n--- Job Completed ---`);
+            console.log(`✅ ${job.id} completed successfully`);
+            if (job.videoUrl) {
+                console.log(`🎬 Video URL: ${job.videoUrl}`);
+            }
         } catch (error) {
             console.error(`❌ Job failed: ${job.id}`, error);
 
@@ -287,7 +292,7 @@ class VideoQueueManager {
             const processingJobState = JSON.stringify(job);
 
             // Handle job failure
-            job.status = 'failed';
+            job.status = "failed";
             job.error = error.message;
             job.retryCount++;
             job.progress = 0;
@@ -296,8 +301,8 @@ class VideoQueueManager {
             // Retry logic
             if (job.retryCount < job.maxRetries) {
                 console.log(`🔄 Retrying job: ${job.id} (attempt ${job.retryCount + 1}/${job.maxRetries})`);
-                job.status = 'pending';
-                job.currentStep = 'Queued for retry...';
+                job.status = "pending";
+                job.currentStep = "Queued for retry...";
                 await this.client.lPush(this.keys.pending, JSON.stringify(job));
             } else {
                 console.log(`💀 Job permanently failed: ${job.id} (max retries exceeded)`);
@@ -322,30 +327,44 @@ class VideoQueueManager {
         return new Promise((resolve, reject) => {
             const { country, platform, genre, contentType } = parameters;
 
-            // Construct Python command
-            const scriptPath = path.join(__dirname, '../automated_video_generator.py');
-            const args = [scriptPath, '--country', country, '--platform', platform, '--genre', genre, '--content-type', contentType, '--all'];
+            // Construct Python command (UPDATED: Using modular system with job tracking)
+            const scriptPath = path.join(__dirname, "../src/main.py");
+            const args = [
+                scriptPath,
+                "--country",
+                country,
+                "--platform",
+                platform,
+                "--genre",
+                genre,
+                "--content-type",
+                contentType,
+                "--job-id",
+                job.id, // Pass job ID for workflow tracking
+            ];
 
-            console.log('🐍 Executing Python command:', 'python', args.join(' '));
+            // Executing Python command (same as CLI)
+            console.log("Executing:", "python", args.join(" "));
 
             // Spawn Python process
-            const pythonProcess = spawn('python', args, {
-                cwd: path.join(__dirname, '..'),
+            const pythonProcess = spawn("python", args, {
+                cwd: path.join(__dirname, ".."),
                 env: {
                     ...process.env,
-                    PYTHONIOENCODING: 'utf-8',
-                    PYTHONUNBUFFERED: '1',
+                    PYTHONIOENCODING: "utf-8",
+                    PYTHONUNBUFFERED: "1",
                 },
             });
 
-            let stdout = '';
-            let stderr = '';
+            let stdout = "";
+            let stderr = "";
 
             // Handle Python process output
-            pythonProcess.stdout.on('data', async (data) => {
-                const output = data.toString('utf8');
+            pythonProcess.stdout.on("data", async (data) => {
+                const output = data.toString("utf8");
                 stdout += output;
-                console.log('🐍 Python stdout:', output);
+                // Output exactly like CLI - no prefixes
+                process.stdout.write(output);
 
                 // Update job progress and status based on output
                 if (job) {
@@ -368,26 +387,26 @@ class VideoQueueManager {
                             // Allow 1% increments but avoid going backwards
                             if (percentage >= 0 && percentage <= 100 && percentage > job.progress) {
                                 // Try to extract more context about what's being processed
-                                let stepContext = 'Processing';
+                                let stepContext = "Processing";
                                 const lowerOutput = output.toLowerCase();
 
                                 // More specific context detection
-                                if (lowerOutput.includes('download')) stepContext = 'Downloading';
-                                else if (lowerOutput.includes('upload')) stepContext = 'Uploading';
-                                else if (lowerOutput.includes('screenshot')) stepContext = 'Capturing screenshots';
-                                else if (lowerOutput.includes('scroll')) stepContext = 'Creating scroll video';
-                                else if (lowerOutput.includes('render')) stepContext = 'Rendering';
-                                else if (lowerOutput.includes('convert')) stepContext = 'Converting';
-                                else if (lowerOutput.includes('extract')) stepContext = 'Extracting data';
-                                else if (lowerOutput.includes('generat')) stepContext = 'Generating content';
-                                else if (lowerOutput.includes('creat')) stepContext = 'Creating';
-                                else if (lowerOutput.includes('process')) stepContext = 'Processing';
-                                else if (lowerOutput.includes('analyz')) stepContext = 'Analyzing';
-                                else if (lowerOutput.includes('fetch')) stepContext = 'Fetching data';
-                                else if (lowerOutput.includes('build')) stepContext = 'Building';
+                                if (lowerOutput.includes("download")) stepContext = "Downloading";
+                                else if (lowerOutput.includes("upload")) stepContext = "Uploading";
+                                else if (lowerOutput.includes("screenshot")) stepContext = "Capturing screenshots";
+                                else if (lowerOutput.includes("scroll")) stepContext = "Creating scroll video";
+                                else if (lowerOutput.includes("render")) stepContext = "Rendering";
+                                else if (lowerOutput.includes("convert")) stepContext = "Converting";
+                                else if (lowerOutput.includes("extract")) stepContext = "Extracting data";
+                                else if (lowerOutput.includes("generat")) stepContext = "Generating content";
+                                else if (lowerOutput.includes("creat")) stepContext = "Creating";
+                                else if (lowerOutput.includes("process")) stepContext = "Processing";
+                                else if (lowerOutput.includes("analyz")) stepContext = "Analyzing";
+                                else if (lowerOutput.includes("fetch")) stepContext = "Fetching data";
+                                else if (lowerOutput.includes("build")) stepContext = "Building";
 
                                 // Try to extract more specific details from the line
-                                let additionalContext = '';
+                                let additionalContext = "";
                                 const contextMatch = output.match(/([A-Za-z\s]+).*?(\d{1,3})%/);
                                 if (contextMatch && contextMatch[1]) {
                                     const detectedContext = contextMatch[1].trim();
@@ -399,7 +418,7 @@ class VideoQueueManager {
                                 job.progress = percentage;
                                 job.currentStep = `${stepContext}... ${percentage}%${additionalContext}`;
                                 progressUpdated = true;
-                                console.log(`📊 Progress update: ${percentage}% - ${stepContext}${additionalContext}`);
+                                // Progress tracked internally - no extra logging to keep output clean
                                 break; // Exit loop once we find a match
                             }
                         }
@@ -407,44 +426,44 @@ class VideoQueueManager {
 
                     // More detailed progress tracking (fallback if no percentage found)
                     if (!progressUpdated) {
-                        if (output.includes('Connecting to database') || output.includes('extracting movies')) {
+                        if (output.includes("Connecting to database") || output.includes("extracting movies")) {
                             job.progress = Math.max(job.progress, 25);
-                            job.currentStep = 'Extracting movies from database...';
+                            job.currentStep = "Extracting movies from database...";
                             progressUpdated = true;
                         }
-                        if (output.includes('Movies processed') || output.includes('Successfully extracted')) {
+                        if (output.includes("Movies processed") || output.includes("Successfully extracted")) {
                             job.progress = Math.max(job.progress, 35);
-                            job.currentStep = 'Movies extracted successfully';
+                            job.currentStep = "Movies extracted successfully";
                             progressUpdated = true;
                         }
-                        if (output.includes('Capturing StreamGank screenshots') || output.includes('Screenshot')) {
+                        if (output.includes("Capturing StreamGank screenshots") || output.includes("Screenshot")) {
                             job.progress = Math.max(job.progress, 45);
-                            job.currentStep = 'Capturing screenshots...';
+                            job.currentStep = "Capturing screenshots...";
                             progressUpdated = true;
                         }
-                        if (output.includes('Uploading') && output.includes('Cloudinary')) {
+                        if (output.includes("Uploading") && output.includes("Cloudinary")) {
                             job.progress = Math.max(job.progress, 55);
-                            job.currentStep = 'Uploading files to Cloudinary...';
+                            job.currentStep = "Uploading files to Cloudinary...";
                             progressUpdated = true;
                         }
-                        if (output.includes('Enriching movie data') || output.includes('AI descriptions')) {
+                        if (output.includes("Enriching movie data") || output.includes("AI descriptions")) {
                             job.progress = Math.max(job.progress, 65);
-                            job.currentStep = 'Enriching movie data with AI...';
+                            job.currentStep = "Enriching movie data with AI...";
                             progressUpdated = true;
                         }
-                        if (output.includes('HeyGen videos created') || output.includes('Creating HeyGen')) {
+                        if (output.includes("HeyGen videos created") || output.includes("Creating HeyGen")) {
                             job.progress = Math.max(job.progress, 75);
-                            job.currentStep = 'Creating HeyGen avatar videos...';
+                            job.currentStep = "Creating HeyGen avatar videos...";
                             progressUpdated = true;
                         }
-                        if (output.includes('Creatomate') && !output.includes('Video URL')) {
+                        if (output.includes("Creatomate") && !output.includes("Video URL")) {
                             job.progress = Math.max(job.progress, 85);
-                            job.currentStep = 'Submitting to Creatomate for rendering...';
+                            job.currentStep = "Submitting to Creatomate for rendering...";
                             progressUpdated = true;
                         }
-                        if (output.includes('Video URL') || output.includes('succeeded')) {
+                        if (output.includes("Video URL") || output.includes("succeeded")) {
                             job.progress = Math.max(job.progress, 95);
-                            job.currentStep = 'Video rendering completed!';
+                            job.currentStep = "Video rendering completed!";
                             progressUpdated = true;
                         }
                     }
@@ -455,36 +474,38 @@ class VideoQueueManager {
                 }
             });
 
-            pythonProcess.stderr.on('data', (data) => {
-                const output = data.toString('utf8');
+            pythonProcess.stderr.on("data", (data) => {
+                const output = data.toString("utf8");
                 stderr += output;
-                console.error('🐍 Python stderr:', output);
+                // Output exactly like CLI - no prefixes
+                process.stderr.write(output);
             });
 
             // Handle process completion
-            pythonProcess.on('close', (code) => {
+            pythonProcess.on("close", (code) => {
+                console.log(`\n--- Python Script Completed ---`);
                 if (code !== 0) {
                     // Check for specific error messages to make them more user-friendly
                     const errorOutput = stdout + stderr;
 
-                    if (errorOutput.includes('No movies found matching criteria') || errorOutput.includes('Database query failed')) {
-                        reject(new Error('No movies found for the selected parameters (genre, platform, content type). Please try different filters to find available content.'));
+                    if (errorOutput.includes("No movies found matching criteria") || errorOutput.includes("Database query failed")) {
+                        reject(new Error("No movies found for the selected parameters (genre, platform, content type). Please try different filters to find available content."));
                         return;
                     }
 
-                    if (errorOutput.includes('Connection failed') || errorOutput.includes('Database connection failed')) {
-                        reject(new Error('Database connection failed. Please check your internet connection and try again.'));
+                    if (errorOutput.includes("Connection failed") || errorOutput.includes("Database connection failed")) {
+                        reject(new Error("Database connection failed. Please check your internet connection and try again."));
                         return;
                     }
 
                     // Generic error message for other failures
-                    reject(new Error(`Video generation failed: ${stderr || 'Unknown error occurred'}`));
+                    reject(new Error(`Video generation failed: ${stderr || "Unknown error occurred"}`));
                     return;
                 }
 
                 // Parse results from Python output
-                let creatomateId = '';
-                let videoUrl = '';
+                let creatomateId = "";
+                let videoUrl = "";
 
                 // Extract Creatomate ID (UUID format)
                 const creatomateMatch = stdout.match(/Creatomate.*?([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
@@ -507,7 +528,7 @@ class VideoQueueManager {
             });
 
             // Handle process errors
-            pythonProcess.on('error', (error) => {
+            pythonProcess.on("error", (error) => {
                 reject(new Error(`Failed to start Python process: ${error.message}`));
             });
         });
@@ -518,7 +539,7 @@ class VideoQueueManager {
      */
     stopProcessing() {
         this.isProcessing = false;
-        console.log('🛑 Queue processing stopped');
+        console.log("🛑 Queue processing stopped");
     }
 
     /**
@@ -527,9 +548,9 @@ class VideoQueueManager {
     async clearAllQueues() {
         try {
             await Promise.all([this.client.del(this.keys.pending), this.client.del(this.keys.processing), this.client.del(this.keys.completed), this.client.del(this.keys.failed), this.client.del(this.keys.jobs)]);
-            console.log('🗑️ All queues cleared');
+            console.log("🗑️ All queues cleared");
         } catch (error) {
-            console.error('❌ Failed to clear queues:', error);
+            console.error("❌ Failed to clear queues:", error);
         }
     }
 
@@ -547,7 +568,7 @@ class VideoQueueManager {
                     const jobDetails = await this.getJob(job.id);
 
                     // If job is completed or failed in job store but still in processing queue, remove it
-                    if (jobDetails && (jobDetails.status === 'completed' || jobDetails.status === 'failed')) {
+                    if (jobDetails && (jobDetails.status === "completed" || jobDetails.status === "failed")) {
                         await this.client.lRem(this.keys.processing, 1, jobStr);
                         cleanedCount++;
                         console.log(`🧹 Cleaned up orphaned processing job: ${job.id}`);
@@ -566,7 +587,7 @@ class VideoQueueManager {
 
             return cleanedCount;
         } catch (error) {
-            console.error('❌ Failed to cleanup processing queue:', error);
+            console.error("❌ Failed to cleanup processing queue:", error);
             return 0;
         }
     }
@@ -580,10 +601,10 @@ class VideoQueueManager {
             const jobs = await this.getAllJobs();
 
             const jobsByStatus = {
-                pending: Object.values(jobs).filter((job) => job.status === 'pending').length,
-                processing: Object.values(jobs).filter((job) => job.status === 'processing').length,
-                completed: Object.values(jobs).filter((job) => job.status === 'completed').length,
-                failed: Object.values(jobs).filter((job) => job.status === 'failed').length,
+                pending: Object.values(jobs).filter((job) => job.status === "pending").length,
+                processing: Object.values(jobs).filter((job) => job.status === "processing").length,
+                completed: Object.values(jobs).filter((job) => job.status === "completed").length,
+                failed: Object.values(jobs).filter((job) => job.status === "failed").length,
             };
 
             return {
@@ -593,7 +614,7 @@ class VideoQueueManager {
                 isProcessing: this.isProcessing,
             };
         } catch (error) {
-            console.error('❌ Failed to get queue stats:', error);
+            console.error("❌ Failed to get queue stats:", error);
             return null;
         }
     }
@@ -613,9 +634,9 @@ class VideoQueueManager {
         try {
             this.stopProcessing();
             await this.client.quit();
-            console.log('🔌 Redis connection closed');
+            console.log("🔌 Redis connection closed");
         } catch (error) {
-            console.error('❌ Error closing Redis connection:', error);
+            console.error("❌ Error closing Redis connection:", error);
         }
     }
 }
