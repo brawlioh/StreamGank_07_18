@@ -1100,26 +1100,27 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
     """
     logger.info("🎬 Building Creatomate composition with dynamic sources")
     
-    # Extract timing data for easy access
-    poster1_time = poster_timings["poster1"]["time"]
-    poster1_duration = poster_timings["poster1"]["duration"]
-    poster2_time = poster_timings["poster2"]["time"]
-    poster2_duration = poster_timings["poster2"]["duration"]
-    poster3_time = poster_timings["poster3"]["time"]
-    poster3_duration = poster_timings["poster3"]["duration"]
-    
+    # Calculate total video length using NATURAL HeyGen durations and ACTUAL clip durations
+    total_video_length = heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + heygen_durations["heygen3"] + clip_durations["clip3"] + 3
+        
+    # Branding duration = total - outro(3s) with natural HeyGen durations
+    branding_duration = total_video_length - 3 - 1 - 0.5 - 0.5 # -1 is duration of the fade outro, 0.5 for the 2nd and 3rd heygen video
 
-    # Calculate total video length using ACTUAL clip durations
-    total_video_length = 1 + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + heygen_durations["heygen3"] + clip_durations["clip3"] + 3
+    # Calculate poster overlay timings (during end of each HeyGen intro) - using natural durations
+    poster1_start = max(0, heygen_durations["heygen1"] - 4)  # Last 4 seconds of HeyGen1
+    poster2_start = heygen_durations["heygen1"] + clip_durations["clip1"] + max(0, heygen_durations["heygen2"] - 4)  # Last 4 seconds of HeyGen2
+    poster3_start = heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + max(0, heygen_durations["heygen3"] - 4)  # Last 4 seconds of HeyGen3
         
-    # Branding duration = total - intro(1s) - outro(3s)
-    branding_duration = total_video_length - 1 - 3 - 1 - 0.5 - 0.5 # -1 is duration of the fade outro, 0.5 os for the 2nd and 3rd heygen video
-        
-    logger.info(f"📊 Total video length: {total_video_length:.1f}s (using ACTUAL clip durations)")
-    logger.info(f"🏷️ BRANDING duration: {branding_duration:.1f}s (starts at 1s, ends at {1 + branding_duration:.1f}s)")
+    logger.info(f"📊 Total video length: {total_video_length:.1f}s (using NATURAL HeyGen + ACTUAL clip durations)")
+    logger.info(f"🏷️ BRANDING duration: {branding_duration:.1f}s")
     logger.info(f"🎬 OUTRO starts at: {total_video_length - 3:.1f}s")
-    logger.info(f"🔍 BRANDING vs OUTRO: Branding ends at {1 + branding_duration:.1f}s, Outro starts at {total_video_length - 3:.1f}s")
-    logger.info(f"🔍 Gap/Overlap: {(total_video_length - 3) - (1 + branding_duration):.1f}s")
+    logger.info(f"🎯 HeyGen1 (intro): {heygen_durations['heygen1']:.1f}s (natural duration, target ~10s)")
+    logger.info(f"🎯 HeyGen2: {heygen_durations['heygen2']:.1f}s (natural duration, target ~8s)")
+    logger.info(f"🎯 HeyGen3: {heygen_durations['heygen3']:.1f}s (natural duration, target ~8s)")
+    logger.info(f"📱 Scroll overlay: 4-8s (overlaps during HeyGen1 intro)")
+    logger.info(f"🖼️ Poster1: {poster1_start:.1f}s-{poster1_start + 4:.1f}s (during HeyGen1 ending)")
+    logger.info(f"🖼️ Poster2: {poster2_start:.1f}s-{poster2_start + 4:.1f}s (during HeyGen2 ending)")
+    logger.info(f"🖼️ Poster3: {poster3_start:.1f}s-{poster3_start + 4:.1f}s (during HeyGen3 ending)")
 
     
     # Base composition structure
@@ -1133,44 +1134,32 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
             # MAIN TIMELINE (Track 1) - Sequential elements
             # ═══════════════════════════════════════════════════════════════
             
-            # 🎯 ELEMENT 1: INTRO IMAGE (1 second)
-            {
-                "type": "image",
-                "track": 1,
-                "time": 0,
-                "duration": 1,
-                "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753263646/streamGank_intro_cwefmt.jpg",
-                "fit": "cover",
-                "animations": [
-                    {
-                        "time": 0,
-                        "duration": 1,
-                        "easing": "quadratic-out",
-                        "type": "fade"
-                    }
-                ]
-            },
-            
-            # 🎯 ELEMENT 2: HEYGEN VIDEO 1 - Natural duration
+            # 🎯 ELEMENT 1: HEYGEN VIDEO 1 - Intro + First Movie (natural duration, target ~10s)
             {
                 "type": "video",
                 "track": 1,
-                "time": "auto",
+                "time": 0,  # Start immediately as the intro
                 "source": heygen_video_urls["movie1"],
                 "fit": "cover"
             },
             
-            # 🎯 ELEMENT 3: MOVIE CLIP 1 (ACTUAL duration)
+            # 🎯 ELEMENT 2: MOVIE CLIP 1 - Full screen vertical, centered (ACTUAL duration)
             {
                 "type": "video", 
                 "track": 1,
                 "time": "auto",
                 "duration": clip_durations["clip1"],
                 "source": movie_clips[0],
-                "fit": "cover"
+                "fit": "cover",
+                "crop": {
+                    "left": "25%",    # Crop from sides to center the action
+                    "right": "25%",   # This will take the center 50% horizontally
+                    "top": "0%",      # Keep full height
+                    "bottom": "0%"    # Keep full height
+                }
             },
             
-            # 🎯 ELEMENT 4: HEYGEN VIDEO 2 - Natural duration
+            # 🎯 ELEMENT 3: HEYGEN VIDEO 2 - Natural duration (target ~8s)
             {
                 "type": "video",
                 "track": 1,
@@ -1180,24 +1169,30 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
                 "animations": [
                     {
                         "time": 0,
-                        "duration": 0.5, # Fade in and out duration of heygen 3rd video
+                        "duration": 0.5, # Fade in and out duration of heygen 2nd video
                         "transition": True,
                         "type": "fade"
                     }
                 ]
             },
             
-            # 🎯 ELEMENT 5: MOVIE CLIP 2 (ACTUAL duration)
+            # 🎯 ELEMENT 4: MOVIE CLIP 2 - Full screen vertical, centered (ACTUAL duration)
             {
                 "type": "video",
                 "track": 1, 
                 "time": "auto",
                 "duration": clip_durations["clip2"],
                 "source": movie_clips[1],
-                "fit": "cover"
+                "fit": "cover",
+                "crop": {
+                    "left": "25%",    # Crop from sides to center the action
+                    "right": "25%",   # This will take the center 50% horizontally
+                    "top": "0%",      # Keep full height
+                    "bottom": "0%"    # Keep full height
+                }
             },
             
-            # 🎯 ELEMENT 6: HEYGEN VIDEO 3 - Natural duration
+            # 🎯 ELEMENT 5: HEYGEN VIDEO 3 - Natural duration (target ~8s)
             {
                 "type": "video",
                 "track": 1,
@@ -1214,17 +1209,23 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
                 ]
             },
             
-            # 🎯 ELEMENT 7: MOVIE CLIP 3 (ACTUAL duration)
+            # 🎯 ELEMENT 6: MOVIE CLIP 3 - Full screen vertical, centered (ACTUAL duration)
             {
                 "type": "video",
                 "track": 1,
                 "time": "auto",
                 "duration": clip_durations["clip3"],
                 "source": movie_clips[2],
-                "fit": "cover"
+                "fit": "cover",
+                "crop": {
+                    "left": "25%",    # Crop from sides to center the action
+                    "right": "25%",   # This will take the center 50% horizontally
+                    "top": "0%",      # Keep full height
+                    "bottom": "0%"    # Keep full height
+                }
             },
             
-            # 🎯 ELEMENT 8: OUTRO IMAGE (3 seconds)
+            # 🎯 ELEMENT 7: OUTRO IMAGE (3 seconds)
             {
                 "type": "image",
                 "track": 1,
@@ -1246,14 +1247,14 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
             # OVERLAY ELEMENTS (Track 2) - Enhanced Posters with Perfect Timing
             # ═══════════════════════════════════════════════════════════════
             
-            # 🎯 POSTER 1 - Calculated timing with actual HeyGen duration
+            # 🎯 POSTER 1 - Full screen overlay during end of HeyGen1 intro
             {
                 "type": "image",
                 "track": 2,
-                "time": poster1_time,
-                "duration": poster1_duration,
+                "time": poster1_start,  # Show during last 4 seconds of HeyGen1
+                "duration": 4,  # Display for 4 seconds
                 "source": movie_covers[0],
-                "fit": "contain",
+                "fit": "cover",  # Full screen coverage
                 "animations": [
                     {
                         "time": 0,
@@ -1271,14 +1272,14 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
                 ]
             },
             
-            # 🎯 POSTER 2 - Calculated timing with actual HeyGen duration
+            # 🎯 POSTER 2 - Full screen overlay during end of HeyGen2 intro
             {
                 "type": "image",
                 "track": 2,  
-                "time": poster2_time - 0.5, # Dont remove this comment - 0.5 is the duration of the fade in and out of heygen 2nd video
-                "duration": poster2_duration,
+                "time": poster2_start,  # End of HeyGen2
+                "duration": 4,  # Display for 4 seconds
                 "source": movie_covers[1],
-                "fit": "contain",
+                "fit": "cover",  # Full screen coverage
                 "animations": [
                     {
                         "time": 0,
@@ -1296,14 +1297,14 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
                 ]
             },
             
-            # 🎯 POSTER 3 - Calculated timing with actual HeyGen duration
+            # 🎯 POSTER 3 - Full screen overlay during end of HeyGen3 intro
             {
                 "type": "image",
                 "track": 2,
-                "time": poster3_time - 0.5, # Dont remove this comment - 0.5 is the duration of the fade in and out of heygen 3rd video
-                "duration": poster3_duration,
+                "time": poster3_start,  # End of HeyGen3
+                "duration": 4,  # Display for 4 seconds
                 "source": movie_covers[2],
-                "fit": "contain",
+                "fit": "cover",  # Full screen coverage
                 "animations": [
                     {
                         "time": 0,
@@ -1386,14 +1387,14 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
         ]
     }
 
-    # Add scroll video overlay if provided (Track 6 - Top layer)
+    # Add scroll video overlay if provided (Track 4 - Overlays on HeyGen1 intro)
     if scroll_video_url:
         scroll_overlay = {
             "name": "ScrollVideo-Overlay",
             "type": "video",
             "track": 4,
-            "time": 4,   # Start at 4 seconds into video
-            "duration": 6,  # Play for 6 seconds
+            "time": 4,   # Start at 4 seconds into HeyGen1 intro video
+            "duration": 4,  # Play for 4 seconds (4-8s during HeyGen1 intro)
             "source": scroll_video_url,
             "fit": "cover",
             "width": "100%",
@@ -1415,7 +1416,7 @@ def _build_creatomate_composition(heygen_video_urls: dict, movie_covers: List[st
             ]
         }
         composition["elements"].append(scroll_overlay)
-        logger.info("✅ Scroll video overlay added to composition")
+        logger.info("✅ Scroll video overlay added to composition (4-8s during HeyGen1 intro)")
     else:
         logger.info("ℹ️ No scroll video URL provided - skipping overlay")
     
@@ -1731,7 +1732,7 @@ def generate_scroll_video(country, genre, platform, content_type, smooth=True, s
     
     logger.info(f"🖥️ Generating StreamGank ULTRA 60 FPS MICRO-SCROLL video (DISTANCE: {scroll_distance}x)...")
     
-    # Create scroll video with unique filename + auto-cleanup (FIXED 6 seconds at 60 FPS)
+    # Create scroll video with unique filename + auto-cleanup (FIXED 4 seconds at 60 FPS)
     video_path = create_scroll_video(
         country=country,
         genre=genre,
@@ -1739,7 +1740,7 @@ def generate_scroll_video(country, genre, platform, content_type, smooth=True, s
         content_type=content_type,
         output_video=None,  # Auto-generate unique filename
         smooth_scroll=smooth,
-        target_duration=6,  # Always 6 seconds duration
+        target_duration=4,  # Always 4 seconds duration
         scroll_distance=scroll_distance  # Control scroll amount
     )
     

@@ -96,7 +96,7 @@ def create_scroll_video(
     genre="Horreur", 
     platform="Netflix",
     content_type="Série",
-    target_duration=6,  # FIXED: Always 6 seconds duration
+    target_duration=4,  # FIXED: Always 4 seconds duration
     output_video=None,  # Will be auto-generated based on filters
     scroll_height=None,  # Will be calculated dynamically
     device_name="iPhone 12 Pro Max",
@@ -106,13 +106,14 @@ def create_scroll_video(
     """
     Create a DYNAMIC scrolling video of StreamGank with MICRO-SCROLLING for readability.
     NO MORE DISTORTION - Uses tiny scroll increments for natural reading experience!
+    Duration: 4 seconds at 60 FPS for ultra-smooth scrolling.
     
     Args:
         country: Country filter
         genre: Genre filter  
         platform: Platform filter
         content_type: Content type filter
-        target_duration: Fixed video duration in seconds (default: 6)
+        target_duration: Fixed video duration in seconds (default: 4)
         output_video: Output video filename
         scroll_height: Max scroll height (calculated dynamically if None)
         device_name: Mobile device to simulate
@@ -232,12 +233,12 @@ def create_scroll_video(
                 return None
             
             logger.info("✅ Content found - proceeding with scroll video generation!")
-            # Calculate OPTIMAL scroll height for smooth 6-second scrolling
+            # Calculate OPTIMAL scroll height for smooth 4-second scrolling
             if scroll_height is None:
                 viewport_height = content_info['viewport_height']
                 page_height = content_info['page_height']
                 
-                # OPTIMAL SCROLL CALCULATION FOR 6 SECONDS
+                # OPTIMAL SCROLL CALCULATION FOR 4 SECONDS
                 # Rule: 2.5x viewport height for natural scrolling speed
                 optimal_scroll = viewport_height * scroll_distance
                 
@@ -255,7 +256,7 @@ def create_scroll_video(
                 logger.info(f"   Page height: {page_height}px")
                 logger.info(f"   Optimal scroll (2.5x viewport): {optimal_scroll:.0f}px")
                 logger.info(f"   Final scroll height: {scroll_height:.0f}px")
-                logger.info(f"   Scroll speed: {scroll_height/6:.0f}px/second (SMOOTH!)")
+                logger.info(f"   Scroll speed: {scroll_height/target_duration:.0f}px/second (SMOOTH!)")
                 
                 if not content_info['needs_scrolling']:
                     # Very short page - use minimal scrolling
@@ -298,9 +299,9 @@ def create_scroll_video(
         wait_time = 0.04  # Ultra-fast capture timing
         target_fps = 60   # 60 FPS ultra-smooth!
         
-        # CALCULATE FRAMES FOR EXACTLY 6 SECONDS WITH 60 FPS MICRO-SCROLLING
+        # CALCULATE FRAMES FOR EXACTLY 4 SECONDS WITH 60 FPS MICRO-SCROLLING
         final_fps = target_fps  # NO motion interpolation - use native 60fps
-        num_frames = target_duration * target_fps  # 6 * 60 = 360 frames for ultra-smoothness
+        num_frames = target_duration * target_fps  # 4 * 60 = 240 frames for ultra-smoothness
         
         num_frames = int(num_frames)  # Ensure it's an integer
         
@@ -336,7 +337,7 @@ def create_scroll_video(
         browser.close()
     
     # STEP 9: Create video with ffmpeg (MICRO-SCROLLING - NO interpolation)
-    logger.info("🎬 Assembling frames into MICRO-SCROLLING 6-second video...")
+    logger.info("🎬 Assembling frames into MICRO-SCROLLING 4-second video...")
     
     try:
         cmd = [

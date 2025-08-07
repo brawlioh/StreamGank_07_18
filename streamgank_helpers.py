@@ -65,12 +65,12 @@ def get_translations():
             'focus_creative': "creative but focused",
             
             # Script Generation
-            'script_system_role': "You are a {genre} expert who creates engaging scripts for TikTok/YouTube videos. You follow timing and word count constraints PRECISELY.",
-            'script_intro_prompt': "Create a CINEMATIC, high-energy intro that immediately hooks viewers and builds excitement for this {content_type} collection! This should be a COMPREHENSIVE introduction that takes sufficient time to properly engage the audience. Start with a powerful opening statement that creates urgency and curiosity, then build momentum by setting the scene and context for what viewers are about to experience. Reference and tease the SPECIFIC SELECTED MOVIES from the StreamGank results - mention their titles, years, or compelling details to show viewers exactly what incredible {content_type}s they're about to discover. Explain WHY this collection is special, WHAT makes these specific {content_type}s worth watching, and HOW viewers will benefit from staying tuned. Use TikTok/YouTube Shorts presenter energy - think dynamic, punchy, and irresistible. Create anticipation by teasing the quality and variety of the specific content coming up from these StreamGank selections. Make viewers feel they're about to discover something incredible and that they absolutely cannot scroll away from these handpicked {content_type}s! Then smoothly transition to presenting the first {content_type} with enthusiasm and confidence. The intro should feel substantial and complete, not rushed.",
-            'script_movie_prompt': "Present this {content_type} recommendation. Be concise and compelling.",
-            'script_constraints': "CONSTRAINTS: Duration: {duration} | Max words: {word_count} | Max sentences: {sentence_limit}",
-            'script_content_info': "Content: {title} ({year}) - IMDb: {imdb}",
-            'script_instruction': "Respond ONLY with the final script text.",
+            'script_system_role': "You are a {genre} expert who creates engaging scripts for TikTok/YouTube videos. Focus on creating compelling, complete introductions that flow naturally while targeting the suggested timing.",
+            'script_intro_prompt': "Create an engaging, high-energy intro that immediately hooks viewers! Target around 8-10 seconds but prioritize completing your thoughts naturally. Start with excitement, briefly tease what's coming, and smoothly transition to the first {content_type}. End naturally with something like 'from StreamGank' or similar. Make it feel complete and engaging - never cut off mid-sentence just to hit a time limit.",
+            'script_movie_prompt': "Present this {content_type} recommendation with enthusiasm and engaging language. Target around 8 seconds but complete your sentences naturally. Create a compelling introduction that gets viewers excited about this movie. Never cut off mid-thought.",
+            'script_constraints': "TARGET GUIDELINES: Duration: {duration} | Suggested words: {word_count} | Sentences: {sentence_limit} | Complete sentences are priority over exact timing",
+            'script_content_info': "Content: {title} ({year})",
+            'script_instruction': "Respond ONLY with the final script text. Make it natural, engaging, and complete - prioritize sentence completion over exact timing.",
             
         },
         'fr': {
@@ -103,22 +103,22 @@ def get_translations():
             'focus_creative': "créatives mais focalisées",
             
             # Script Generation
-            'script_system_role': "Tu es un expert en {genre} qui crée des scripts engageants pour des vidéos TikTok/YouTube. Tu respectes PRÉCISÉMENT les contraintes de timing et de nombre de mots.",
-            'script_intro_prompt': "Crée une introduction CINÉMATIQUE et haute énergie qui accroche immédiatement les spectateurs et génère de l'excitation pour cette collection de {content_type} ! Cette introduction doit être COMPLÈTE et prendre le temps nécessaire pour engager correctement l'audience. Commence par une déclaration percutante qui crée de l'urgence et de la curiosité, puis développe l'élan en plantant le décor et le contexte de ce que les spectateurs s'apprêtent à vivre. Référence et teases les FILMS/SÉRIES SPÉCIFIQUES SÉLECTIONNÉS des résultats StreamGank - mentionne leurs titres, années, ou détails captivants pour montrer aux spectateurs exactement quels {content_type}s incroyables ils sont sur le point de découvrir. Explique POURQUOI cette collection est spéciale, CE QUI rend ces {content_type}s spécifiques dignes d'être regardés, et COMMENT les spectateurs vont bénéficier de rester jusqu'au bout. Utilise l'énergie d'un présentateur TikTok/YouTube Shorts - pense dynamique, percutant et irrésistible. Crée de l'anticipation en teasant la qualité et la variété du contenu spécifique à venir de ces sélections StreamGank. Fais en sorte que les spectateurs sentent qu'ils sont sur le point de découvrir quelque chose d'incroyable et qu'ils ne peuvent absolument pas faire défiler ces {content_type}s triés sur le volet ! Puis passe fluidement à la présentation du premier {content_type} avec enthousiasme et confiance. L'introduction doit paraître substantielle et complète, pas précipitée.",
-            'script_movie_prompt': "Présente cette recommandation de {content_type}. Sois concis et convaincant.",
-            'script_constraints': "CONTRAINTES: Durée: {duration} | Max mots: {word_count} | Max phrases: {sentence_limit}",
-            'script_content_info': "Contenu: {title} ({year}) - IMDb: {imdb}",
-            'script_instruction': "Réponds UNIQUEMENT avec le texte du script final.",
+            'script_system_role': "Tu es un expert en {genre} qui crée des scripts engageants pour des vidéos TikTok/YouTube. Concentre-toi sur la création d'introductions captivantes et complètes qui coulent naturellement tout en visant le timing suggéré.",
+            'script_intro_prompt': "Crée une introduction engageante et haute énergie qui accroche immédiatement les spectateurs ! Vise environ 8-10 secondes mais privilégie la finalisation naturelle de tes idées. Commence avec de l'enthousiasme, teases brièvement ce qui arrive, et passe fluidement au premier {content_type}. Termine naturellement avec quelque chose comme 'de StreamGank' ou similaire. Rends-le complet et engageant - ne coupe jamais au milieu d'une phrase juste pour respecter un délai.",
+            'script_movie_prompt': "Présente cette recommandation de {content_type} avec enthousiasme et un langage engageant. Vise environ 8 secondes mais termine tes phrases naturellement. Crée une introduction captivante qui excite les spectateurs pour ce film. Ne coupe jamais au milieu d'une pensée.",
+            'script_constraints': "LIGNES DIRECTRICES CIBLES: Durée: {duration} | Mots suggérés: {word_count} | Phrases: {sentence_limit} | Les phrases complètes sont prioritaires sur le timing exact",
+            'script_content_info': "Contenu: {title} ({year})",
+            'script_instruction': "Réponds UNIQUEMENT avec le texte du script final. Rends-le naturel, engageant et complet.",
             
         },
         'es': {
             # Script Generation (Spanish)
-            'script_system_role': "Eres un experto en {genre} que crea guiones atractivos para videos de TikTok/YouTube. Sigues PRECISAMENTE las restricciones de tiempo y conteo de palabras.",
-            'script_intro_prompt': "¡Crea una introducción CINEMATOGRÁFICA de alta energía que enganche inmediatamente a los espectadores y genere emoción por esta colección de {content_type}! Esta debe ser una introducción COMPLETA que tome el tiempo suficiente para involucrar apropiadamente a la audiencia. Comienza con una declaración poderosa que cree urgencia y curiosidad, luego construye impulso estableciendo la escena y el contexto de lo que los espectadores están a punto de experimentar. Referencia y adelanta las PELÍCULAS/SERIES ESPECÍFICAS SELECCIONADAS de los resultados de StreamGank - menciona sus títulos, años, o detalles convincentes para mostrar a los espectadores exactamente qué {content_type}s increíbles están a punto de descubrir. Explica POR QUÉ esta colección es especial, QUÉ hace que estas {content_type}s específicas valgan la pena ver, y CÓMO se beneficiarán los espectadores de quedarse hasta el final. Usa la energía de un presentador de TikTok/YouTube Shorts - piensa dinámico, impactante e irresistible. Crea expectativa adelantando la calidad y variedad del contenido específico que viene de estas selecciones de StreamGank. ¡Haz que los espectadores sientan que están a punto de descubrir algo increíble y que absolutamente no pueden hacer scroll de estas {content_type}s cuidadosamente seleccionadas! Luego haz una transición fluida para presentar la primera {content_type} con entusiasmo y confianza. La introducción debe sentirse sustancial y completa, no apresurada.",
-            'script_movie_prompt': "Presenta esta recomendación de {content_type}. Sé conciso y convincente.",
-            'script_constraints': "RESTRICCIONES: Duración: {duration} | Máx palabras: {word_count} | Máx oraciones: {sentence_limit}",
-            'script_content_info': "Contenido: {title} ({year}) - IMDb: {imdb}",
-            'script_instruction': "Responde SOLO con el texto del guión final.",
+            'script_system_role': "Eres un experto en {genre} que crea guiones atractivos para videos de TikTok/YouTube. Enfócate en crear introducciones convincentes y completas que fluyan naturalmente mientras apuntas al timing sugerido.",
+            'script_intro_prompt': "¡Crea una introducción atractiva de alta energía que enganche inmediatamente a los espectadores! Apunta a alrededor de 8-10 segundos pero prioriza completar tus pensamientos naturalmente. Comienza con entusiasmo, adelanta brevemente lo que viene, y transiciona suavemente al primer {content_type}. Termina naturalmente con algo como 'de StreamGank' o similar. Hazlo sentir completo y atractivo - nunca cortes a la mitad de una oración solo para cumplir un límite de tiempo.",
+            'script_movie_prompt': "Presenta esta recomendación de {content_type} con entusiasmo y lenguaje atractivo. Apunta a alrededor de 8 segundos pero completa tus oraciones naturalmente. Crea una introducción convincente que emocione a los espectadores sobre esta película. Nunca cortes en medio de un pensamiento.",
+            'script_constraints': "PAUTAS OBJETIVO: Duración: {duration} | Palabras sugeridas: {word_count} | Oraciones: {sentence_limit} | Las oraciones completas son prioridad sobre el timing exacto",
+            'script_content_info': "Contenido: {title} ({year})",
+            'script_instruction': "Responde SOLO con el texto del guión final. Hazlo natural, atractivo y completo.",
         },
         'de': {
             # Script Generation (German)
@@ -126,7 +126,7 @@ def get_translations():
             'script_intro_prompt': "Erstelle eine CINEMATISCHE, energiegeladene Einführung, die sofort die Zuschauer fesselt und Begeisterung für diese {content_type}-Sammlung aufbaut! Dies sollte eine UMFASSENDE Einführung sein, die sich ausreichend Zeit nimmt, um das Publikum richtig einzubinden. Beginne mit einer kraftvollen Aussage, die Dringlichkeit und Neugier erzeugt, dann baue Schwung auf, indem du die Szene und den Kontext für das setzt, was die Zuschauer gleich erleben werden. Referenziere und tease die SPEZIFISCHEN AUSGEWÄHLTEN FILME/SERIEN aus den StreamGank-Ergebnissen - erwähne ihre Titel, Jahre oder überzeugende Details, um den Zuschauern genau zu zeigen, welche unglaublichen {content_type}s sie gleich entdecken werden. Erkläre WARUM diese Sammlung besonders ist, WAS diese spezifischen {content_type}s sehenswert macht, und WIE die Zuschauer davon profitieren werden, dranzubleiben. Nutze die Energie eines TikTok/YouTube Shorts Moderators - denke dynamisch, packend und unwiderstehlich. Schaffe Vorfreude, indem du die Qualität und Vielfalt des spezifischen kommenden Inhalts aus diesen StreamGank-Auswahlen anteaserst. Lass die Zuschauer spüren, dass sie etwas Unglaubliches entdecken werden und dass sie absolut nicht von diesen handverlesenen {content_type}s wegscrollen können! Dann gehe flüssig zur Präsentation des ersten {content_type} mit Begeisterung und Selbstvertrauen über. Die Einführung sollte sich substanziell und vollständig anfühlen, nicht gehetzt.",
             'script_movie_prompt': "Präsentiere diese {content_type}-Empfehlung. Sei prägnant und überzeugend.",
             'script_constraints': "BESCHRÄNKUNGEN: Dauer: {duration} | Max Wörter: {word_count} | Max Sätze: {sentence_limit}",
-            'script_content_info': "Inhalt: {title} ({year}) - IMDb: {imdb}",
+            'script_content_info': "Inhalt: {title} ({year})",
             'script_instruction': "Antworte NUR mit dem finalen Skripttext.",
         },
         'it': {
@@ -135,7 +135,7 @@ def get_translations():
             'script_intro_prompt': "Crea un'introduzione CINEMATOGRAFICA ad alta energia che catturi immediatamente gli spettatori e generi eccitazione per questa collezione di {content_type}! Questa deve essere un'introduzione COMPLETA che prenda il tempo sufficiente per coinvolgere adeguatamente il pubblico. Inizia con una dichiarazione potente che crei urgenza e curiosità, poi costruisci slancio stabilendo la scena e il contesto per quello che gli spettatori stanno per sperimentare. Riferisci e anticipa i FILM/SERIE SPECIFICI SELEZIONATI dai risultati di StreamGank - menziona i loro titoli, anni, o dettagli convincenti per mostrare agli spettatori esattamente quali {content_type} incredibili stanno per scoprire. Spiega PERCHÉ questa collezione è speciale, COSA rende questi {content_type} specifici degni di essere visti, e COME gli spettatori beneficeranno dal rimanere sintonizzati. Usa l'energia di un presentatore TikTok/YouTube Shorts - pensa dinamico, incisivo e irresistibile. Crea aspettativa anticipando la qualità e varietà del contenuto specifico in arrivo da queste selezioni StreamGank. Fai sentire agli spettatori che stanno per scoprire qualcosa di incredibile e che assolutamente non possono scrollare via da questi {content_type} selezionati con cura! Poi passa fluidamente alla presentazione del primo {content_type} con entusiasmo e fiducia. L'introduzione deve sembrare sostanziale e completa, non affrettata.",
             'script_movie_prompt': "Presenta questa raccomandazione di {content_type}. Sii conciso e convincente.",
             'script_constraints': "VINCOLI: Durata: {duration} | Max parole: {word_count} | Max frasi: {sentence_limit}",
-            'script_content_info': "Contenuto: {title} ({year}) - IMDb: {imdb}",
+            'script_content_info': "Contenuto: {title} ({year})",
             'script_instruction': "Rispondi SOLO con il testo dello script finale.",
         },
         'pt': {
@@ -144,7 +144,7 @@ def get_translations():
             'script_intro_prompt': "Crie uma introdução CINEMATOGRÁFICA de alta energia que capture imediatamente os espectadores e gere empolgação por esta coleção de {content_type}! Esta deve ser uma introdução ABRANGENTE que tome tempo suficiente para envolver adequadamente a audiência. Comece com uma declaração poderosa que crie urgência e curiosidade, depois construa momentum estabelecendo o cenário e contexto para o que os espectadores estão prestes a experienciar. Referencie e antecipe os FILMES/SÉRIES ESPECÍFICOS SELECIONADOS dos resultados do StreamGank - mencione seus títulos, anos, ou detalhes convincentes para mostrar aos espectadores exatamente quais {content_type}s incríveis eles estão prestes a descobrir. Explique POR QUE esta coleção é especial, O QUE torna estes {content_type}s específicos dignos de serem assistidos, e COMO os espectadores se beneficiarão de ficar até o fim. Use a energia de um apresentador do TikTok/YouTube Shorts - pense dinâmico, impactante e irresistível. Crie expectativa antecipando a qualidade e variedade do conteúdo específico que vem por aí dessas seleções do StreamGank. Faça os espectadores sentirem que estão prestes a descobrir algo incrível e que absolutamente não podem rolar a tela destes {content_type}s cuidadosamente selecionados! Depois faça uma transição suave para apresentar o primeiro {content_type} com entusiasmo e confiança. A introdução deve parecer substancial e completa, não apressada.",
             'script_movie_prompt': "Apresente esta recomendação de {content_type}. Seja conciso e convincente.",
             'script_constraints': "RESTRIÇÕES: Duração: {duration} | Máx palavras: {word_count} | Máx frases: {sentence_limit}",
-            'script_content_info': "Conteúdo: {title} ({year}) - IMDb: {imdb}",
+            'script_content_info': "Conteúdo: {title} ({year})",
             'script_instruction': "Responda APENAS com o texto do roteiro final.",
         }
     }
@@ -390,7 +390,7 @@ def create_script_prompt(movie, rule, content_type, genre, platform, lang, all_m
         enhanced_content_info = f"""
 {movies_summary}
 
-First {content_type or ('film' if lang == 'fr' else 'movie')} to present: {title} ({year}) - IMDb: {imdb}
+First {content_type or ('film' if lang == 'fr' else 'movie')} to present: {title} ({year})
 Platform: {platform or 'streaming platform'} | Genre: {genre or 'entertainment'}"""
         
         return f"""{prompt_type.format(content_type=content_type or ('film' if lang == 'fr' else 'movie'))}
@@ -419,7 +419,7 @@ Platform: {platform or 'streaming platform'} | Genre: {genre or 'entertainment'}
     sentence_limit=rule['sentence_limit']
 )}
 
-{t['script_content_info'].format(title=title, year=year, imdb=imdb)}
+{t['script_content_info'].format(title=title, year=year)}
 
 {t['script_instruction']}"""
 
@@ -468,28 +468,28 @@ def generate_video_scripts(enriched_movies, country=None, genre=None, platform=N
     # Get language
     lang = get_language_code(country)
     
-    # Script timing rules for reels (60-90 seconds total)
+    # Script timing rules - Target 8-10 seconds but allow natural sentence completion
     script_rules = [
         {
             "name": "movie1", 
-            "duration": "25-30 seconds",
-            "word_count": "50-70",
-            "sentence_limit": "2-3",
+            "duration": "around 10 seconds (target)",
+            "word_count": "25-30",  # Flexible for natural speech completion
+            "sentence_limit": "2-3",  # Complete engaging sentences
             "movie_index": 0,
             "is_intro": True  # Special flag for intro + movie1 combination
         },
         {
             "name": "movie2",
-            "duration": "15-20 seconds", 
-            "word_count": "30-45",
-            "sentence_limit": "1-2",
+            "duration": "around 8 seconds (target)", 
+            "word_count": "20-25",  # Flexible for natural speech completion
+            "sentence_limit": "1-2",  # Complete movie presentation
             "movie_index": 1
         },
         {
             "name": "movie3",
-            "duration": "15-20 seconds", 
-            "word_count": "30-45",
-            "sentence_limit": "1-2",
+            "duration": "around 8 seconds (target)", 
+            "word_count": "20-25",  # Flexible for natural speech completion
+            "sentence_limit": "1-2",  # Complete movie presentation
             "movie_index": 2
         }
     ]
