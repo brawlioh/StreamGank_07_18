@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 HEYGEN_TEMPLATES = {
     # Horror/Thriller Templates
     'horror': {
-        'id': 'e2ad0e5c7e71483991536f5c93594e42',
+        'id': 'ed21a309a5c84b0d873fde68642adea3',
         'name': 'Horror Template',
         'description': 'Specialized template for horror and thriller content',
         'genres': ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller']

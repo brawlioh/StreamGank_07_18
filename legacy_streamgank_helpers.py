@@ -630,19 +630,20 @@ def get_content_type_mapping():
         
     Example:
         >>> mapping = get_content_type_mapping()
-        >>> mapping.get('Série')    # Returns 'Serie'
-        >>> mapping.get('Émission') # Returns 'Serie' (French TV show term)
+        >>> mapping.get('Série')    # Returns 'Série' (with accent for URL encoding)
+        >>> mapping.get('Émission') # Returns 'Série' (French TV show term)
     """
     
     # Universal content type mapping (supports both French and English terms)
     return {
         'Film': 'Film',
         'Movie': 'Film',
-        'Série': 'Serie',
-        'Series': 'Serie',
-        'TV Show': 'Serie',
-        'TV Series': 'Serie',
-        'Émission': 'Serie'  # French TV show term
+        'Série': 'Série',  # Keep French accent for proper URL encoding
+        'Serie': 'Série',   # Map Serie input to Série for URL encoding
+        'Series': 'Série',  # Map English Series to Série for URL encoding
+        'TV Show': 'Série',
+        'TV Series': 'Série',
+        'Émission': 'Série'  # French TV show term
     }
 
 def get_content_type_mapping_by_country(country_code):
@@ -729,7 +730,10 @@ def build_streamgank_url(country=None, genre=None, platform=None, content_type=N
         # Use universal content type mapping (same across all countries)
         type_mapping = get_content_type_mapping()
         streamgank_type = type_mapping.get(content_type, content_type)
-        url_params.append(f"type={streamgank_type}")
+        # URL encode to handle accents (e.g., "Série" -> "S%C3%A9rie")
+        import urllib.parse
+        encoded_type = urllib.parse.quote(streamgank_type)
+        url_params.append(f"type={encoded_type}")
     
     # Construct final URL
     if url_params:

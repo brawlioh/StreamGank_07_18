@@ -1325,7 +1325,7 @@ def select_optimal_template(genre: Optional[str] = None,
 def _get_template_name(template_id: str, genre: str = None) -> str:
     """Get human-readable template name."""
     template_names = {
-        'e2ad0e5c7e71483991536f5c93594e42': 'Horror/Thriller Cinematic',
+        'ed21a309a5c84b0d873fde68642adea3': 'Horror/Thriller Cinematic',
         '15d9eadcb46a45dbbca1834aa0a23ede': 'Comedy/Light Entertainment',
         'e44b139a1b94446a997a7f2ac5ac4178': 'Action/Adventure Dynamic',
         'cc6718c5363e42b282a123f99b94b335': 'Universal Default'

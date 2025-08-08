@@ -12,9 +12,9 @@ Usage:
     python3 automated_video_generator.py --all
     
     # Optional parameters:
-    python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film --heygen-template-id e2ad0e5c7e71483991536f5c93594e42
-    python3 automated_video_generator.py --country US --platform Netflix --genre Horror --content-type Film --heygen-template-id e2ad0e5c7e71483991536f5c93594e42
-    python streamgank_modular/main.py --genre Horror --content-type Film --heygen-template-id e2ad0e5c7e71483991536f5c93594e42
+    python3 automated_video_generator.py --country FR --platform Netflix --genre Horreur --content-type Film --heygen-template-id ed21a309a5c84b0d873fde68642adea3
+    python3 automated_video_generator.py --country US --platform Netflix --genre Horror --content-type Film --heygen-template-id ed21a309a5c84b0d873fde68642adea3
+    python streamgank_modular/main.py --genre Horror --content-type Film --heygen-template-id ed21a309a5c84b0d873fde68642adea3
 """
 
 import os

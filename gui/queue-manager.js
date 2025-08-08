@@ -341,8 +341,8 @@ class VideoQueueManager {
                 args.push('--pause-after-extraction');
             }
 
-            // Executing Python command (same as CLI)
-            console.log('Executing:', 'python', args.join(' '));
+            // Executing exact CLI command as requested
+            console.log('🚀 Executing exact CLI command:', 'python', args.join(' '));
 
             // Spawn Python process
             const pythonProcess = spawn('python', args, {

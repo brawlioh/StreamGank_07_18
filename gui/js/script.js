@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // HeyGen Template configurations matching the backend
     const heygenTemplates = {
         horror: {
-            id: 'e2ad0e5c7e71483991536f5c93594e42',
+            id: 'ed21a309a5c84b0d873fde68642adea3',
             name: 'Horror/Thriller Cinematic',
             description: 'Specialized template for horror and thriller content',
             genres: ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller', 'Mystère & Thriller'],
@@ -215,11 +215,11 @@ document.addEventListener('DOMContentLoaded', function () {
         Western: 'Western',
     };
 
-    // Content type mapping for FR (display name -> URL parameter value)
+    // Content type mapping (HTML values -> StreamGank URL parameter values)
     const contentTypeMapping = {
-        Movies: 'Film',
-        'TV Shows': 'Série', // Keep French accent for proper StreamGank URL
-        All: 'all',
+        Film: 'Film', // Movies
+        Serie: 'Série', // TV Shows - needs proper French accent for URL
+        all: 'all', // All content
     };
 
     // Function to update platforms based on selected country (user-defined data)
@@ -497,8 +497,8 @@ document.addEventListener('DOMContentLoaded', function () {
         previewTemplate.textContent = template ? template.text : 'Universal Default';
         previewType.textContent = contentType.id === 'all' ? 'All' : contentType.id === 'movie' ? 'Movies' : 'TV Shows';
 
-        // Build and update URL - pass display text for mapping lookup
-        const url = buildStreamGankUrl(country.value, genre.text, platform.text, contentType.id === 'all' ? 'All' : contentType.id === 'movie' ? 'Movies' : 'TV Shows');
+        // Build and update URL - pass actual radio button values for correct mapping
+        const url = buildStreamGankUrl(country.value, genre.text, platform.text, contentType.value);
         previewUrl.textContent = url;
     }
 
@@ -593,7 +593,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const genre_obj = genreSelect.options[genreSelect.selectedIndex];
         const contentType_obj = document.querySelector('input[name="contentType"]:checked');
 
-        const targetUrl = buildStreamGankUrl(country_obj.value, genre_obj.text, platform_obj.text, contentType_obj.id === 'all' ? 'All' : contentType_obj.id === 'movie' ? 'Movies' : 'TV Shows');
+        const targetUrl = buildStreamGankUrl(country_obj.value, genre_obj.text, platform_obj.text, contentType_obj.value);
 
         // Validate the URL before proceeding
         addStatusMessage('info', '🚀', 'Starting video generation process...');

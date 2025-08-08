@@ -1,77 +1,77 @@
 {
   "data": {
-    "combined_script": "Dare to dive into StreamGanks most bone-chilling Horreur flicks on Netflix; these 3 nightmares are setting the horror scene on fire!\n\nDare to dive into StreamGanks most bone-chilling Horreur flicks on Netflix; these 3 nightmares are setting the horror scene on fire! Get ready for the chilling ride of your life with Ça – the Horreur sensation thats giving Netflix viewers nightmares!\n\nGet ready for the most horrifying food frenzy, La Plateforme takes cannibalism to a whole new, stomach-churning level on Netflix!\n\nGet ready for Us, the 2019 Horreur sensation that redefines terror, now chilling audiences on Netflix!",
+    "combined_script": "Dare to dive into the spine-chilling world of StreamGanks top 3 Horreur movies on Netflix! Stay tuned if you dare!\n\nDare to dive into the spine-chilling world of StreamGanks top 3 Horreur movies on Netflix! Stay tuned if you dare! Get ready for Stranger Things, the chilling 2016 Netflix sensation that redefines Horreur - its the mystery you wont sleep until you solve.\n\nGet ready for the chilling climax thats making The Haunting of Hill House the most terrifying Netflix sensation of 2018!\n\nGet ready for the thrill of your life with Love, Death & Robots - the Horreur sensation everyones losing sleep over!",
     "script_file_path": "videos/combined_script.txt",
     "individual_scripts": {
       "movie1": {
-        "text": "Dare to dive into StreamGanks most bone-chilling Horreur flicks on Netflix; these 3 nightmares are setting the horror scene on fire! Get ready for the chilling ride of your life with Ça – the Horreur sensation thats giving Netflix viewers nightmares!",
+        "text": "Dare to dive into the spine-chilling world of StreamGanks top 3 Horreur movies on Netflix! Stay tuned if you dare! Get ready for Stranger Things, the chilling 2016 Netflix sensation that redefines Horreur - its the mystery you wont sleep until you solve.",
         "path": "videos/script_movie1.txt"
       },
       "movie2": {
-        "text": "Get ready for the most horrifying food frenzy, La Plateforme takes cannibalism to a whole new, stomach-churning level on Netflix!",
+        "text": "Get ready for the chilling climax thats making The Haunting of Hill House the most terrifying Netflix sensation of 2018!",
         "path": "videos/script_movie2.txt"
       },
       "movie3": {
-        "text": "Get ready for Us, the 2019 Horreur sensation that redefines terror, now chilling audiences on Netflix!",
+        "text": "Get ready for the thrill of your life with Love, Death & Robots - the Horreur sensation everyones losing sleep over!",
         "path": "videos/script_movie3.txt"
       }
     },
     "raw_movies": [
       {
-        "id": 23191,
-        "title": "Ça",
-        "year": 2017,
-        "imdb": "7.3/10 (651,879 votes)",
-        "imdb_score": 7.3,
-        "imdb_votes": 651879,
-        "runtime": "135 min",
+        "id": 23090,
+        "title": "Stranger Things",
+        "year": 2016,
+        "imdb": "8.6/10 (1,471,468 votes)",
+        "imdb_score": 8.6,
+        "imdb_votes": 1471468,
+        "runtime": "61 min",
         "platform": "Netflix",
-        "poster_url": "https://images.justwatch.com/poster/10619182/s332/ca.webp",
-        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743993742/movie-posters/9c289b7e7ea0c7d0699d7c6399a3d3dc.webp",
-        "trailer_url": "https://www.youtube.com/watch?v=rm426QuGqUQ",
-        "streaming_url": "https://www.netflix.com/title/80177770",
+        "poster_url": "https://images.justwatch.com/poster/166136683/s332/stranger-things.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743993621/movie-posters/0ef5e761b191b4b28ac38a3da065a109.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=8T4ffTSFCaQ",
+        "streaming_url": "https://www.netflix.com/title/80057281",
         "genres": [
           "Horreur"
         ],
-        "content_type": "Film",
+        "content_type": "Série",
         "country_code": "FR"
       },
       {
-        "id": 15045,
-        "title": "La Plateforme",
-        "year": 2019,
-        "imdb": "7.0/10 (311,214 votes)",
-        "imdb_score": 7.0,
-        "imdb_votes": 311214,
-        "runtime": "95 min",
+        "id": 14919,
+        "title": "The Haunting of Hill House",
+        "year": 2018,
+        "imdb": "8.5/10 (313,671 votes)",
+        "imdb_score": 8.5,
+        "imdb_votes": 313671,
+        "runtime": "58 min",
         "platform": "Netflix",
-        "poster_url": "https://images.justwatch.com/poster/321283739/s332/the-platform.webp",
-        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743364509/movie-posters/51b5d2b71273069154354b2a3b477841.webp",
-        "trailer_url": "https://www.youtube.com/watch?v=Q6kEozJ4nrw",
-        "streaming_url": "https://www.netflix.com/title/81128579",
+        "poster_url": "https://images.justwatch.com/poster/186888639/s332/the-haunting-of-hill-house.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743364360/movie-posters/9e8c8cce80543720024f3024604c10ed.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=zr6pV2svobI",
+        "streaming_url": "https://www.netflix.com/title/80189221",
         "genres": [
           "Horreur"
         ],
-        "content_type": "Film",
+        "content_type": "Série",
         "country_code": "FR"
       },
       {
-        "id": 15049,
-        "title": "Us",
+        "id": 15005,
+        "title": "Love, Death & Robots",
         "year": 2019,
-        "imdb": "6.8/10 (350,835 votes)",
-        "imdb_score": 6.8,
-        "imdb_votes": 350835,
-        "runtime": "116 min",
+        "imdb": "8.4/10 (203,042 votes)",
+        "imdb_score": 8.4,
+        "imdb_votes": 203042,
+        "runtime": "13 min",
         "platform": "Netflix",
-        "poster_url": "https://images.justwatch.com/poster/118652497/s332/us-2019.webp",
-        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743364514/movie-posters/d9d82fa5bc2208950622d39a9a86c05a.webp",
-        "trailer_url": "https://www.youtube.com/watch?v=lE9Sh0quqZg",
-        "streaming_url": "https://www.netflix.com/title/81026600",
+        "poster_url": "https://images.justwatch.com/poster/298562183/s332/love-death-and-robots.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743364465/movie-posters/2283b7879f648e82970ca7569fa1c053.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=7kQsA-jAJck",
+        "streaming_url": "https://www.netflix.com/title/80174608",
         "genres": [
           "Horreur"
         ],
-        "content_type": "Film",
+        "content_type": "Série",
         "country_code": "FR"
       }
     ],
@@ -79,11 +79,11 @@
       "country": "FR",
       "genre": "Horreur",
       "platform": "Netflix",
-      "content_type": "Film",
+      "content_type": "Série",
       "num_movies": 3
     },
     "script_count": 3,
-    "generation_timestamp": 1754493313.351093
+    "generation_timestamp": 1754662597.6304235
   },
   "metadata": {
     "data_type": "script_result",
@@ -92,7 +92,7 @@
       "genre": "Horreur",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1754493313.3512118,
-    "saved_datetime": "2025-08-06 23:15:13"
+    "saved_timestamp": 1754662597.6305127,
+    "saved_datetime": "2025-08-08 22:16:37"
   }
 }
