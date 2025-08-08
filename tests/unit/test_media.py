@@ -14,38 +14,35 @@ from pathlib import Path
 from PIL import Image
 
 # Import modules to test
-from streamgank_modular.assets.poster_generator import (
-    create_enhanced_movie_poster,
+from video.poster_generator import (
     create_enhanced_movie_posters,
     generate_poster_metadata,
     apply_cinematic_effects
 )
 
-from streamgank_modular.assets.clip_processor import (
-    extract_youtube_video_id,
-    download_youtube_trailer,
-    extract_highlight_clip,
+from video.clip_processor import (
     process_movie_trailers_to_clips,
-    batch_extract_clips
+    extract_youtube_video_id,
+    extract_highlight_clip
 )
 
-from streamgank_modular.assets.cloudinary_uploader import (
+from media.cloudinary_uploader import (
     upload_poster_to_cloudinary,
     upload_clip_to_cloudinary,
+    get_cloudinary_config_status,
     get_cloudinary_transformation,
-    batch_upload_assets,
-    get_cloudinary_config_status
+    batch_upload_assets
 )
 
-from streamgank_modular.assets.media_utils import (
+from media.media_utils import (
     validate_image_url,
     validate_video_file,
     get_video_duration,
-    get_image_dimensions,
-    get_fallback_poster,
     clean_temp_files,
+    get_fallback_poster,
     detect_media_format,
-    is_portrait_format
+    is_portrait_format,
+    get_image_dimensions
 )
 
 

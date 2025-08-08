@@ -23,7 +23,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 from utils.url_builder import build_streamgank_url
-from assets.cloudinary_uploader import upload_clip_to_cloudinary
+from media.cloudinary_uploader import upload_clip_to_cloudinary
 from utils.file_utils import ensure_directory
 
 logger = logging.getLogger(__name__)
