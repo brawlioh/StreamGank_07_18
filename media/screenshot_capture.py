@@ -27,9 +27,9 @@ except ImportError:
     PLAYWRIGHT_AVAILABLE = False
     logging.warning("Playwright not available - screenshot functionality disabled")
 
-from ..utils.url_builder import build_streamgank_url
-from ..config.settings import get_cloudinary_config
-from .cloudinary_uploader import upload_file_to_cloudinary
+from utils.url_builder import build_streamgank_url
+from config.settings import get_cloudinary_config
+from media.cloudinary_uploader import upload_file_to_cloudinary
 
 logger = logging.getLogger(__name__)
 
