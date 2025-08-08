@@ -52,7 +52,8 @@ def run_full_workflow(num_movies: int = 3,
                      smooth_scroll: bool = None,
                      scroll_distance: float = None,
                      poster_timing_mode: str = "heygen_last3s",
-                     heygen_template_id: str = None) -> dict:
+                     heygen_template_id: str = None,
+                     pause_after_extraction: bool = False) -> dict:
     """
     Run the complete StreamGank video generation workflow.
     
@@ -141,6 +142,36 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['steps_completed'].append('database_extraction')
         
         print(f"✅ STEP 1 COMPLETED - Found {len(raw_movies)} movies in {time.time() - step_start:.1f}s")
+        
+        # =============================================================================
+        # PAUSE AFTER EXTRACTION (if requested)
+        # =============================================================================
+        if pause_after_extraction:
+            print(f"\n⏸️  PROCESS PAUSED - Movie extraction completed")
+            print(f"📋 Found {len(raw_movies)} movies:")
+            for i, movie in enumerate(raw_movies, 1):
+                title = movie.get('title', 'Unknown Title')
+                year = movie.get('year', 'Unknown Year')
+                imdb_score = movie.get('imdb_score', 'N/A')
+                print(f"   {i}. {title} ({year}) - IMDB: {imdb_score}")
+            
+            print(f"\n💡 To continue with video generation, run without --pause-after-extraction flag")
+            print(f"📊 Movies data saved to workflow results")
+            
+            # Return results with extracted movies for review
+            workflow_results['paused_after_extraction'] = True
+            workflow_results['extraction_summary'] = {
+                'total_movies': len(raw_movies),
+                'movies': raw_movies,
+                'filters_used': {
+                    'country': country,
+                    'genre': genre, 
+                    'platform': platform,
+                    'content_type': content_type
+                }
+            }
+            
+            return workflow_results
         
         # =============================================================================
         # STEP 2: SCRIPT GENERATION (MODULAR FUNCTION WITH TEST DATA CACHING)

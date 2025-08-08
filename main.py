@@ -66,6 +66,7 @@ def main():
     parser.add_argument("--output", help="Output file path to save results")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     parser.add_argument("--skip-scroll-video", action="store_true", help="Skip scroll video generation")
+    parser.add_argument("--pause-after-extraction", action="store_true", help="Pause process after movie extraction for review")
     
     parser.add_argument("--scroll-distance", type=float, 
                        default=1.5, 
@@ -221,7 +222,8 @@ def main():
                 skip_scroll_video=args.skip_scroll_video,
                 smooth_scroll=None,  # Use settings default
                 scroll_distance=args.scroll_distance,
-                heygen_template_id=args.heygen_template_id
+                heygen_template_id=args.heygen_template_id,
+                pause_after_extraction=args.pause_after_extraction
             )
             print("\n✅ Workflow completed successfully!")
             

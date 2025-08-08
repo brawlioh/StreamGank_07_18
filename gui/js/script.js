@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const countrySelect = document.getElementById('country');
     const platformSelect = document.getElementById('platform');
     const genreSelect = document.getElementById('genre');
+    const templateSelect = document.getElementById('template');
     const contentTypeRadios = document.querySelectorAll('input[name="contentType"]');
     const generateButton = document.getElementById('generate-video');
     const progressContainer = document.getElementById('progress-container');
@@ -12,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const previewCountry = document.getElementById('preview-country');
     const previewPlatform = document.getElementById('preview-platform');
     const previewGenre = document.getElementById('preview-genre');
+    const previewTemplate = document.getElementById('preview-template');
     const previewType = document.getElementById('preview-type');
     const previewUrl = document.getElementById('preview-url');
 
@@ -149,6 +151,34 @@ document.addEventListener('DOMContentLoaded', function () {
             SF: 'Science Fiction',
             Thriller: 'Thriller',
             Western: 'Western',
+        },
+    };
+
+    // HeyGen Template configurations matching the backend
+    const heygenTemplates = {
+        horror: {
+            id: 'e2ad0e5c7e71483991536f5c93594e42',
+            name: 'Horror/Thriller Cinematic',
+            description: 'Specialized template for horror and thriller content',
+            genres: ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller', 'Mystère & Thriller'],
+        },
+        comedy: {
+            id: '15d9eadcb46a45dbbca1834aa0a23ede',
+            name: 'Comedy/Light Entertainment',
+            description: 'Optimized template for comedy and humorous content',
+            genres: ['Comedy', 'Comédie', 'Comédie Romantique'],
+        },
+        action: {
+            id: 'e44b139a1b94446a997a7f2ac5ac4178',
+            name: 'Action/Adventure Dynamic',
+            description: 'High-energy template for action and adventure content',
+            genres: ['Action', 'Action & Adventure', 'Action & Aventure'],
+        },
+        default: {
+            id: 'cc6718c5363e42b282a123f99b94b335',
+            name: 'Universal Default',
+            description: 'General-purpose template for all other content types',
+            genres: ['*'], // Wildcard for all other genres
         },
     };
 
@@ -309,6 +339,69 @@ document.addEventListener('DOMContentLoaded', function () {
         return platformName.toLowerCase().replace(/[^a-z0-9]/g, '_');
     }
 
+    // Function to get HeyGen template for a genre
+    function getTemplateForGenre(genre) {
+        if (!genre) {
+            return heygenTemplates['default'];
+        }
+
+        // Check each template category for genre match
+        for (const [templateKey, templateInfo] of Object.entries(heygenTemplates)) {
+            if (templateKey === 'default') continue; // Skip default, it's the fallback
+
+            // Case-insensitive genre matching
+            for (const templateGenre of templateInfo.genres) {
+                if (genre.toLowerCase() === templateGenre.toLowerCase()) {
+                    return templateInfo;
+                }
+            }
+        }
+
+        // No specific match found, use default
+        return heygenTemplates['default'];
+    }
+
+    // Function to update templates based on selected genre
+    function updateTemplates() {
+        const selectedGenre = genreSelect.value;
+
+        // Clear existing options
+        templateSelect.innerHTML = '';
+
+        // Get all available templates and mark which one is recommended for this genre
+        const recommendedTemplate = getTemplateForGenre(selectedGenre);
+
+        // Add all templates as options
+        Object.entries(heygenTemplates).forEach(([templateKey, templateInfo]) => {
+            if (templateKey === 'default') return; // Skip adding default separately, it will be added at the end
+
+            const option = document.createElement('option');
+            option.value = templateInfo.id;
+            option.textContent = templateInfo.name;
+
+            // Mark recommended template
+            if (templateInfo.id === recommendedTemplate.id) {
+                option.textContent += ' (Recommended)';
+                option.selected = true;
+            }
+
+            templateSelect.appendChild(option);
+        });
+
+        // Always add default template at the end
+        const defaultOption = document.createElement('option');
+        defaultOption.value = heygenTemplates['default'].id;
+        defaultOption.textContent = heygenTemplates['default'].name;
+
+        // Select default if no other template was recommended
+        if (recommendedTemplate.id === heygenTemplates['default'].id) {
+            defaultOption.selected = true;
+            defaultOption.textContent += ' (Recommended)';
+        }
+
+        templateSelect.appendChild(defaultOption);
+    }
+
     // Function to update genres based on selected country
     function updateGenres() {
         const selectedCountry = countrySelect.value;
@@ -331,6 +424,9 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             genreSelect.value = 'Horror'; // English default
         }
+
+        // Update templates after genres are updated
+        updateTemplates();
     }
 
     // Update preview when form elements change
@@ -340,7 +436,11 @@ document.addEventListener('DOMContentLoaded', function () {
         updatePreview();
     });
     platformSelect.addEventListener('change', updatePreview);
-    genreSelect.addEventListener('change', updatePreview);
+    genreSelect.addEventListener('change', function () {
+        updateTemplates();
+        updatePreview();
+    });
+    templateSelect.addEventListener('change', updatePreview);
     contentTypeRadios.forEach((radio) => {
         radio.addEventListener('change', updatePreview);
     });
@@ -348,6 +448,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initial setup
     updatePlatforms();
     updateGenres();
+    updateTemplates();
     updatePreview();
 
     // Handle form submission
@@ -386,12 +487,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const country = countrySelect.options[countrySelect.selectedIndex];
         const platform = platformSelect.options[platformSelect.selectedIndex];
         const genre = genreSelect.options[genreSelect.selectedIndex];
+        const template = templateSelect.options[templateSelect.selectedIndex];
         const contentType = document.querySelector('input[name="contentType"]:checked');
 
         // Update preview text
         previewCountry.textContent = country.text;
         previewPlatform.textContent = platform.text;
         previewGenre.textContent = genre.text;
+        previewTemplate.textContent = template ? template.text : 'Universal Default';
         previewType.textContent = contentType.id === 'all' ? 'All' : contentType.id === 'movie' ? 'Movies' : 'TV Shows';
 
         // Build and update URL - pass display text for mapping lookup
@@ -478,9 +581,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Get selected options
         const country = countrySelect.value;
-        const platform = platformSelect.value.replace('_', ''); // Format for API
+        const platform = platformSelect.value; // Send platform value as-is
         const genre = genreSelect.value;
+        const template = templateSelect.value; // Get selected template ID
         const contentType = document.querySelector('input[name="contentType"]:checked').value;
+        const pauseAfterExtraction = document.getElementById('pauseAfterExtraction').checked;
 
         // Build target URL for validation
         const country_obj = countrySelect.options[countrySelect.selectedIndex];
@@ -512,7 +617,7 @@ document.addEventListener('DOMContentLoaded', function () {
         addStatusMessage('info', 'ℹ️', `Target URL: ${targetUrl}`);
 
         // Call the actual API endpoint (demo mode disabled)
-        callGenerateAPI(country, platform, genre, contentType);
+        callGenerateAPI(country, platform, genre, contentType, template, pauseAfterExtraction);
     }
 
     // Function to simulate video generation (in production would call the Python script)
@@ -652,12 +757,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Function to call the generate API - now adds to Redis queue
-    async function callGenerateAPI(country, platform, genre, contentType) {
+    async function callGenerateAPI(country, platform, genre, contentType, template, pauseAfterExtraction) {
         try {
             // Set progress bar to 10%
             progressBar.style.width = '10%';
 
-            addStatusMessage('info', '📋', 'Adding video to Redis queue...');
+            // Add different message based on pause flag
+            if (pauseAfterExtraction) {
+                addStatusMessage('info', '📋', 'Adding movie extraction job to queue (will pause after finding movies)...');
+            } else {
+                addStatusMessage('info', '📋', 'Adding video to Redis queue...');
+            }
 
             // Prepare the request data
             const requestData = {
@@ -665,6 +775,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 platform: platform,
                 genre: genre,
                 contentType: contentType,
+                template: template, // Include selected template ID
+                pauseAfterExtraction: pauseAfterExtraction, // Include pause flag
             };
 
             // Call the API endpoint to add to queue
