@@ -695,6 +695,50 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                         "shadow_blur": "2 vmin"
                     }
                 ]
+            },
+
+            # ═══════════════════════════════════════════════════════════════
+            # AUDIO ELEMENTS (Track 5) 
+            # ═══════════════════════════════════════════════════════════════
+
+            {
+                "id": "7405c69c-5557-4b19-9989-f4128fdebce6",
+                "name": "Composition-3ZN",
+                "type": "composition",
+                "track": 5,
+                "time": 0,
+                "elements": [
+                    # AUDIO 1 - Start with intro, duration ends with 1st HeyGen video
+                    {
+                        "name": "Audio-3P3",
+                        "type": "audio",
+                        "track": 1,
+                        "time": 0,
+                        "duration": 1 + heygen_durations["heygen1"],  # Intro (1s) + HeyGen1 duration
+                        "source": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3",
+                        "volume": "40%"
+                    },
+                    # AUDIO 2 - Start with 2nd HeyGen video, duration matches HeyGen2
+                    {
+                        "name": "Audio-8X4",
+                        "type": "audio",
+                        "track": 1,
+                        "time": 1 + heygen_durations["heygen1"] + clip_durations["clip1"],  # Start of HeyGen2
+                        "duration": heygen_durations["heygen2"],  # Duration of HeyGen2
+                        "source": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3",
+                        "volume": "40%"
+                    },
+                    # AUDIO 3 - Start with 3rd HeyGen video, duration matches HeyGen3
+                    {
+                        "name": "Audio-49L",
+                        "type": "audio",
+                        "track": 1,
+                        "time": 1 + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"],  # Start of HeyGen3
+                        "duration": heygen_durations["heygen3"],  # Duration of HeyGen3
+                        "source": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3",
+                        "volume": "40%"
+                    }
+                ]
             }
         ]
     }
@@ -733,7 +777,7 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
         logger.info("ℹ️ No scroll video URL provided - skipping overlay")
     
     logger.info(f"🎬 Composition built with {len(composition['elements'])} total elements")
-    return composition
+    return composition 
 
 
 # Helper functions removed - full composition now built in _build_composition_structure
