@@ -1,0 +1,98 @@
+{
+  "data": {
+    "combined_script": "Brace yourselves for StreamGanks top 3 kiddie-flick sensations on Netflix that are taking the world by storm!\n\nBrace yourselves for StreamGanks top 3 kiddie-flick sensations on Netflix that are taking the world by storm! Get ready for Anne, the Pour enfants sensation on Netflix thats touching hearts and sparking imaginations worldwide!\n\nGet ready for the rollercoaster journey of the Baudelaire orphans that will leave you at the edge of your seat!\n\nGet ready for the most mind-blowing journey of a child prodigy in Young Sheldon - Everyones binge-watching it on Netflix NOW!",
+    "script_file_path": "videos/combined_script.txt",
+    "individual_scripts": {
+      "movie1": {
+        "text": "Brace yourselves for StreamGanks top 3 kiddie-flick sensations on Netflix that are taking the world by storm! Get ready for Anne, the Pour enfants sensation on Netflix thats touching hearts and sparking imaginations worldwide!",
+        "path": "videos/script_movie1.txt"
+      },
+      "movie2": {
+        "text": "Get ready for the rollercoaster journey of the Baudelaire orphans that will leave you at the edge of your seat!",
+        "path": "videos/script_movie2.txt"
+      },
+      "movie3": {
+        "text": "Get ready for the most mind-blowing journey of a child prodigy in Young Sheldon - Everyones binge-watching it on Netflix NOW!",
+        "path": "videos/script_movie3.txt"
+      }
+    },
+    "raw_movies": [
+      {
+        "id": 23152,
+        "title": "Anne",
+        "year": 2017,
+        "imdb": "8.6/10 (75,493 votes)",
+        "imdb_score": 8.6,
+        "imdb_votes": 75493,
+        "runtime": "46 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/8171422/s332/anne.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743993701/movie-posters/117b3dfb8551fc8d30197f1df0b12fcb.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=WG6faTKqgAA",
+        "streaming_url": "https://www.netflix.com/title/80136311",
+        "genres": [
+          "Pour enfants"
+        ],
+        "content_type": "Série",
+        "country_code": "FR"
+      },
+      {
+        "id": 23179,
+        "title": "Les Désastreuses Aventures des orphelins Baudelaire",
+        "year": 2017,
+        "imdb": "7.7/10 (70,168 votes)",
+        "imdb_score": 7.7,
+        "imdb_votes": 70168,
+        "runtime": "47 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/293928939/s332/les-desastreuses-aventures-des-orphelins-baudelaire.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743993730/movie-posters/d464f063c3eebf1a1f61f209ef65180f.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=T1bQzkLR4i4",
+        "streaming_url": "https://www.netflix.com/title/80050008",
+        "genres": [
+          "Pour enfants"
+        ],
+        "content_type": "Série",
+        "country_code": "FR"
+      },
+      {
+        "id": 23178,
+        "title": "Young Sheldon",
+        "year": 2017,
+        "imdb": "7.7/10 (136,572 votes)",
+        "imdb_score": 7.7,
+        "imdb_votes": 136572,
+        "runtime": "19 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/47368348/s332/young-sheldon.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743993729/movie-posters/01d78839fdb57ed26cfc80bbc47ef331.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=e9lAWW-CQUE",
+        "streaming_url": "https://www.netflix.com/title/80192612",
+        "genres": [
+          "Pour enfants"
+        ],
+        "content_type": "Série",
+        "country_code": "FR"
+      }
+    ],
+    "parameters": {
+      "country": "FR",
+      "genre": "Pour enfants",
+      "platform": "Netflix",
+      "content_type": "Série",
+      "num_movies": 3
+    },
+    "script_count": 3,
+    "generation_timestamp": 1754741394.5457332
+  },
+  "metadata": {
+    "data_type": "script_result",
+    "parameters": {
+      "country": "FR",
+      "genre": "Pour enfants",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1754741394.545835,
+    "saved_datetime": "2025-08-09 20:09:54"
+  }
+}

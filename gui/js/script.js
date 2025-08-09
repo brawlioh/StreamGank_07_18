@@ -224,6 +224,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // US genres
         'Action & Adventure': 'Action+%26+Adventure',
+        Animation: 'Animation',
         Comedy: 'Comedy',
         Crime: 'Crime',
         Documentary: 'Documentary',
@@ -235,9 +236,12 @@ document.addEventListener('DOMContentLoaded', function () {
         'Made in Europe': 'Made+in+Europe',
         'Music & Musical': 'Music+%26+Musical',
         'Mystery & Thriller': 'Mystery+%26+Thriller',
+        'Reality TV': 'Reality+TV',
         Romance: 'Romance',
+        'Science-Fiction': 'Science-Fiction',
         Sport: 'Sport',
         'War & Military': 'War+%26+Military',
+        Western: 'Western',
     };
 
     // Content type mapping (HTML values -> StreamGank URL parameter values)
@@ -945,8 +949,49 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Show current step only if it changed
                     const stepMessage = job.currentStep || `Processing (${progress}% complete)`;
                     if (lastStep !== stepMessage) {
-                        addStatusMessage('info', '🔄', stepMessage);
+                        // Determine the appropriate icon based on the step message
+                        let icon = '🔄';
+                        let type = 'info';
+
+                        if (stepMessage.includes('✅') || stepMessage.includes('completed')) {
+                            icon = '✅';
+                            type = 'success';
+                        } else if (stepMessage.includes('🗃️')) {
+                            icon = '🗃️';
+                        } else if (stepMessage.includes('🤖')) {
+                            icon = '🤖';
+                        } else if (stepMessage.includes('🎨')) {
+                            icon = '🎨';
+                        } else if (stepMessage.includes('🎭')) {
+                            icon = '🎭';
+                        } else if (stepMessage.includes('⏳')) {
+                            icon = '⏳';
+                        } else if (stepMessage.includes('📱')) {
+                            icon = '📱';
+                        } else if (stepMessage.includes('🎬')) {
+                            icon = '🎬';
+                        } else if (stepMessage.includes('🎉')) {
+                            icon = '🎉';
+                            type = 'success';
+                        }
+
+                        addStatusMessage(type, icon, stepMessage);
                         lastStep = stepMessage;
+                    }
+
+                    // Check if we should show extracted movies immediately (after Step 1)
+                    if (job.showExtractedMovies && !shownMessages.has('extracted-movies')) {
+                        if (job.extractedMovies) {
+                            addStatusMessage('info', '📋', 'Movies extracted from database:');
+                            const movieLines = job.extractedMovies.split('\n').filter((line) => line.trim());
+                            movieLines.forEach((movieLine) => {
+                                const cleanLine = movieLine.trim().replace(/^\d+\.\s*/, '');
+                                if (cleanLine) {
+                                    addStatusMessage('info', '🎬', cleanLine);
+                                }
+                            });
+                            shownMessages.add('extracted-movies');
+                        }
                     }
                 } else if (job.status === 'completed') {
                     progressBar.style.width = '90%';
@@ -987,6 +1032,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Only show completion message once for non-paused jobs
                     if (lastStatus !== 'completed') {
                         addStatusMessage('success', '✅', 'Python script completed successfully!');
+
+                        // Display extracted movie names if available (for normal workflow)
+                        if (job.extractedMovies) {
+                            addStatusMessage('info', '📋', 'Movies used for video generation:');
+                            const movieLines = job.extractedMovies.split('\n').filter((line) => line.trim());
+                            movieLines.forEach((movieLine) => {
+                                const cleanLine = movieLine.trim().replace(/^\d+\.\s*/, '');
+                                if (cleanLine) {
+                                    addStatusMessage('info', '🎬', cleanLine);
+                                }
+                            });
+                        }
+
                         lastStatus = 'completed';
                     }
 
@@ -1068,7 +1126,52 @@ document.addEventListener('DOMContentLoaded', function () {
                         const errorMessage = job.error || 'Unknown error';
 
                         // Check for specific error types and provide better UI feedback
-                        if (errorMessage.includes('Not enough movies available') || (errorMessage.includes('only') && errorMessage.includes('found with current filters'))) {
+                        if (errorMessage.includes('💳 Insufficient Creatomate credits')) {
+                            addStatusMessage('error', '💳', 'Creatomate Credits Exhausted');
+                            addStatusMessage('error', '❌', errorMessage);
+                            addStatusMessage('info', '💡', 'To resolve this issue:');
+                            addStatusMessage('info', '💰', '• Check your Creatomate account balance');
+                            addStatusMessage('info', '📈', '• Upgrade your Creatomate subscription');
+                            addStatusMessage('info', '🔄', '• Wait for your credits to reset (monthly plans)');
+                            addStatusMessage('info', '🔗', '• Visit: https://creatomate.com/account/billing');
+                            addStatusMessage('success', '✅', 'Fix your credits and try again - the system is ready!');
+                        } else if (errorMessage.includes('🔐 Creatomate authentication failed')) {
+                            addStatusMessage('error', '🔐', 'Creatomate Authentication Problem');
+                            addStatusMessage('error', '❌', errorMessage);
+                            addStatusMessage('info', '💡', 'To resolve this issue:');
+                            addStatusMessage('info', '🔑', '• Check your Creatomate API key configuration');
+                            addStatusMessage('info', '⚙️', '• Verify API key permissions in your account');
+                            addStatusMessage('info', '🔗', '• Visit: https://creatomate.com/account/api-keys');
+                        } else if (errorMessage.includes('⏳ Creatomate rate limit exceeded')) {
+                            addStatusMessage('error', '⏳', 'Creatomate Rate Limit Exceeded');
+                            addStatusMessage('error', '❌', errorMessage);
+                            addStatusMessage('info', '💡', 'To resolve this issue:');
+                            addStatusMessage('info', '⏰', '• Wait a few minutes before retrying');
+                            addStatusMessage('info', '📈', '• Consider upgrading your plan for higher limits');
+                            addStatusMessage('success', '✅', 'Wait a bit and try again - the system is ready!');
+                        } else if (errorMessage.includes('🎭 HeyGen API error')) {
+                            addStatusMessage('error', '🎭', 'HeyGen API Problem');
+                            addStatusMessage('error', '❌', errorMessage);
+                            addStatusMessage('info', '💡', 'To resolve this issue:');
+                            addStatusMessage('info', '🔑', '• Check your HeyGen API credentials');
+                            addStatusMessage('info', '💰', '• Verify your HeyGen account has sufficient credits');
+                            addStatusMessage('info', '🔗', '• Visit: https://app.heygen.com/settings');
+                        } else if (errorMessage.includes('📸 Screenshot capture failed')) {
+                            addStatusMessage('error', '📸', 'Screenshot Capture Failed');
+                            addStatusMessage('error', '❌', errorMessage);
+                            addStatusMessage('info', '💡', 'To resolve this issue:');
+                            addStatusMessage('info', '🌐', '• Check your internet connection');
+                            addStatusMessage('info', '🔄', '• Try again in a few minutes');
+                            addStatusMessage('info', '🎭', '• Try different genre/platform combination');
+                            addStatusMessage('success', '✅', 'Network issues are usually temporary - try again!');
+                        } else if (errorMessage.includes('🌐 Database connection failed')) {
+                            addStatusMessage('error', '🌐', 'Database Connection Problem');
+                            addStatusMessage('error', '❌', errorMessage);
+                            addStatusMessage('info', '💡', 'To resolve this issue:');
+                            addStatusMessage('info', '📡', '• Check your internet connection');
+                            addStatusMessage('info', '🔄', '• Try refreshing the page and retry');
+                            addStatusMessage('success', '✅', 'Connection issues are usually temporary!');
+                        } else if (errorMessage.includes('🎬 Not enough movies available') || (errorMessage.includes('only') && errorMessage.includes('found with current filters'))) {
                             addStatusMessage('warning', '🎬', 'Insufficient Movies Found');
 
                             // Extract and display the main error message
@@ -1088,7 +1191,11 @@ document.addEventListener('DOMContentLoaded', function () {
                             addStatusMessage('info', '🌍', '• Try a different country');
                             addStatusMessage('success', '✅', 'You can immediately try new settings - the system is ready!');
                         } else {
-                            addStatusMessage('error', '❌', `Job failed: ${errorMessage}`);
+                            // Generic error handling for other failures
+                            addStatusMessage('error', '❌', 'Process Failed');
+                            addStatusMessage('error', '⚠️', errorMessage);
+                            addStatusMessage('info', '💡', 'You can try again with the same or different settings');
+                            addStatusMessage('success', '✅', 'The system is ready for your next attempt!');
                         }
 
                         if (job.retryCount < job.maxRetries) {

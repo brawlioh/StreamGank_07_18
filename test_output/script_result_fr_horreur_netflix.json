@@ -1,18 +1,18 @@
 {
   "data": {
-    "combined_script": "Dare to keep watching? Dive into StreamGanks top 3 spine-chilling Horreur flicks on Netflix, guaranteed to haunt your dreams!\n\nDare to keep watching? Dive into StreamGanks top 3 spine-chilling Horreur flicks on Netflix, guaranteed to haunt your dreams! Get ready for Stranger Things, the 2016 Horreur sensation on Netflix that makes your worst nightmares feel like bedtime stories!\n\nGet ready for the bone-chilling horror that made Hill House the most haunted mansion on Netflix!\n\nGet ready for Love, Death & Robots—the chilling horror spectacle on Netflix thats haunting everyones dreams!",
+    "combined_script": "Brace yourselves for StreamGanks top 3 spine-chilling Horreur movies on Netflix that are causing a monstrous uproar!\n\nBrace yourselves for StreamGanks top 3 spine-chilling Horreur movies on Netflix that are causing a monstrous uproar! Get ready for the chilling ride of your life; Stranger Things is the horrifying phenomenon everyones losing sleep over!\n\nGet ready for the most spine-chilling journey as The Haunting of Hill House redefines fear, making your nightmares look like fairy tales.\n\nGet ready for a chilling rollercoaster ride as Love, Death & Robots redefines Horreur like never before on Netflix!",
     "script_file_path": "videos/combined_script.txt",
     "individual_scripts": {
       "movie1": {
-        "text": "Dare to keep watching? Dive into StreamGanks top 3 spine-chilling Horreur flicks on Netflix, guaranteed to haunt your dreams! Get ready for Stranger Things, the 2016 Horreur sensation on Netflix that makes your worst nightmares feel like bedtime stories!",
+        "text": "Brace yourselves for StreamGanks top 3 spine-chilling Horreur movies on Netflix that are causing a monstrous uproar! Get ready for the chilling ride of your life; Stranger Things is the horrifying phenomenon everyones losing sleep over!",
         "path": "videos/script_movie1.txt"
       },
       "movie2": {
-        "text": "Get ready for the bone-chilling horror that made Hill House the most haunted mansion on Netflix!",
+        "text": "Get ready for the most spine-chilling journey as The Haunting of Hill House redefines fear, making your nightmares look like fairy tales.",
         "path": "videos/script_movie2.txt"
       },
       "movie3": {
-        "text": "Get ready for Love, Death & Robots—the chilling horror spectacle on Netflix thats haunting everyones dreams!",
+        "text": "Get ready for a chilling rollercoaster ride as Love, Death & Robots redefines Horreur like never before on Netflix!",
         "path": "videos/script_movie3.txt"
       }
     },
@@ -21,9 +21,9 @@
         "id": 23090,
         "title": "Stranger Things",
         "year": 2016,
-        "imdb": "8.6/10 (1,471,468 votes)",
+        "imdb": "8.6/10 (1,471,801 votes)",
         "imdb_score": 8.6,
-        "imdb_votes": 1471468,
+        "imdb_votes": 1471801,
         "runtime": "61 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/166136683/s332/stranger-things.webp",
@@ -40,9 +40,9 @@
         "id": 14919,
         "title": "The Haunting of Hill House",
         "year": 2018,
-        "imdb": "8.5/10 (313,671 votes)",
+        "imdb": "8.5/10 (313,721 votes)",
         "imdb_score": 8.5,
-        "imdb_votes": 313671,
+        "imdb_votes": 313721,
         "runtime": "58 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/186888639/s332/the-haunting-of-hill-house.webp",
@@ -83,7 +83,7 @@
       "num_movies": 3
     },
     "script_count": 3,
-    "generation_timestamp": 1754731410.1092823
+    "generation_timestamp": 1754743971.9914014
   },
   "metadata": {
     "data_type": "script_result",
@@ -92,7 +92,7 @@
       "genre": "Horreur",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1754731410.1093712,
-    "saved_datetime": "2025-08-09 17:23:30"
+    "saved_timestamp": 1754743971.9914744,
+    "saved_datetime": "2025-08-09 20:52:51"
   }
 }

@@ -1,25 +1,25 @@
 {
   "data": {
     "enhanced_posters": {
-      "Joker": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754739084/streamgank/posters/enhanced_joker_1.jpg",
-      "Blade Runner 2049": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754739086/streamgank/posters/enhanced_blade_runner_2049_2.jpg",
-      "Le Cercle des neiges": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754739088/streamgank/posters/enhanced_le_cercle_des_neiges_3.jpg"
+      "Narcos": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754738449/streamgank/posters/enhanced_narcos_1.jpg",
+      "Dark": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754738451/streamgank/posters/enhanced_dark_2.jpg",
+      "Blue Eye Samurai": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754738453/streamgank/posters/enhanced_blue_eye_samurai_3.jpg"
     },
     "dynamic_clips": {
-      "Joker": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754739121/movie_clips/movie_clips/joker_15006_10s.mp4",
-      "Blade Runner 2049": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754739149/movie_clips/movie_clips/blade_runner_2049_23169_10s.mp4",
-      "Le Cercle des neiges": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754739180/movie_clips/movie_clips/le_cercle_des_neiges_3932_10s.mp4"
+      "Narcos": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754741708/movie_clips/movie_clips/narcos_23030_10s.mp4",
+      "Dark": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754741736/movie_clips/movie_clips/dark_23149_10s.mp4",
+      "Blue Eye Samurai": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754741764/movie_clips/movie_clips/blue_eye_samurai_6516_10s.mp4"
     },
     "parameters": {
       "country": "FR",
       "genre": "Mystère & Thriller",
       "platform": "Netflix",
-      "content_type": "Film",
+      "content_type": "Série",
       "num_movies": 3
     },
     "poster_count": 3,
     "clip_count": 3,
-    "generation_timestamp": 1754739187.7210698
+    "generation_timestamp": 1754741772.6245265
   },
   "metadata": {
     "data_type": "assets",
@@ -28,7 +28,7 @@
       "genre": "Mystère & Thriller",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1754739187.7211618,
-    "saved_datetime": "2025-08-09 19:33:07"
+    "saved_timestamp": 1754741772.6246092,
+    "saved_datetime": "2025-08-09 20:16:12"
   }
 }

@@ -289,7 +289,7 @@ SUPPORTED_COUNTRIES = {
 # =============================================================================
 
 US_GENRE_MAPPING = {
-    "Action & Adventure": "Action & Adventure",
+    "Action & Adventure": "Action+%26+Adventure",
     "Animation": "Animation", 
     "Comedy": "Comedy",
     "Crime": "Crime",
@@ -298,15 +298,38 @@ US_GENRE_MAPPING = {
     "Fantasy": "Fantasy",
     "History": "History",
     "Horror": "Horror",
-    "Kids & Family": "Kids & Family",
-    "Made in Europe": "Made in Europe",
-    "Music & Musical": "Music & Musical", 
-    "Mystery & Thriller": "Mystery & Thriller",
-    "Reality TV": "Reality TV",
+    "Kids & Family": "Kids+%26+Family",
+    "Made in Europe": "Made+in+Europe",
+    "Music & Musical": "Music+%26+Musical", 
+    "Mystery & Thriller": "Mystery+%26+Thriller",
+    "Reality TV": "Reality+TV",
     "Romance": "Romance",
     "Science-Fiction": "Science-Fiction",
     "Sport": "Sport",
-    "War & Military": "War & Military",
+    "War & Military": "War+%26+Military",
+    "Western": "Western"
+}
+
+# French genre mapping with proper URL encoding
+FR_GENRE_MAPPING = {
+    "Action & Aventure": "Family%2CAction+%26+Aventure",
+    "Animation": "Animation",
+    "Comédie": "Com%C3%A9die",
+    "Comédie Romantique": "Com%C3%A9die+Romantique",
+    "Crime & Thriller": "Crime+%26+Thriller",
+    "Documentaire": "Documentaire",
+    "Drame": "Drame",
+    "Fantastique": "Fantastique",
+    "Film de guerre": "Film+de+guerre",
+    "Histoire": "Histoire",
+    "Horreur": "Horreur",
+    "Musique & Comédie Musicale": "Musique+%26+Com%C3%A9die+Musicale",
+    "Mystère & Thriller": "Myst%C3%A8re+%26+Thriller",
+    "Pour enfants": "Pour+enfants",
+    "Reality TV": "Reality+TV",
+    "Réalisé en Europe": "R%C3%A9alis%C3%A9+en+Europe",
+    "Science-Fiction": "Science-Fiction",
+    "Sport & Fitness": "Sport+%26+Fitness",
     "Western": "Western"
 }
 

@@ -10,7 +10,7 @@ for StreamGank's filtering system.
 
 import logging
 from typing import Dict, Optional, List, Tuple
-from config.constants import US_GENRE_MAPPING, PLATFORM_MAPPING, CONTENT_TYPES
+from config.constants import US_GENRE_MAPPING, FR_GENRE_MAPPING, PLATFORM_MAPPING, CONTENT_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -20,23 +20,28 @@ logger = logging.getLogger(__name__)
 
 def get_genre_mapping_by_country(country_code: str) -> Dict[str, str]:
     """
-    Get genre mapping dictionary (US-ONLY SIMPLIFIED)
+    Get genre mapping dictionary with proper URL encoding for each country
     
     Args:
-        country_code (str): Ignored - always returns US English genre mapping
+        country_code (str): Country code (US, FR, etc.)
         
     Returns:
-        dict: US English genre mapping for StreamGank URLs
+        dict: Genre mapping with proper URL encoding for StreamGank URLs
         
     Example:
         >>> mapping = get_genre_mapping_by_country('US')
-        >>> mapping.get('Horror')   # Returns 'Horror' (no translation needed)
+        >>> mapping.get('Mystery & Thriller')   # Returns 'Mystery+%26+Thriller'
+        >>> mapping = get_genre_mapping_by_country('FR')
+        >>> mapping.get('Mystère & Thriller')   # Returns 'Myst%C3%A8re+%26+Thriller'
     """
     logger.debug(f"Getting genre mapping for country: {country_code}")
     
-    # Always return US English mapping regardless of country_code
-    # This is the simplified US-only workflow approach
-    return US_GENRE_MAPPING.copy()
+    # Return country-specific genre mapping with proper URL encoding
+    if country_code == 'FR':
+        return FR_GENRE_MAPPING.copy()
+    else:
+        # Default to US mapping for all other countries
+        return US_GENRE_MAPPING.copy()
 
 
 def get_available_genres_for_country(country_code: str) -> list:

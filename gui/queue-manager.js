@@ -383,9 +383,39 @@ class VideoQueueManager {
                 const output = data.toString('utf8');
                 stdout += output;
 
-                // Check for movie extraction completion and log movie names
+                // Check for movie extraction completion and capture for UI display
                 if (output.includes('📋 Movies extracted from database:')) {
-                    console.log('\n🎬 Movies successfully extracted - details will be shown in UI');
+                    // Initialize movie capture for UI display only
+                    job.extractedMoviesOutput = '';
+                    job.capturingMovies = true;
+                }
+
+                // Capture movie lines after the extraction header (for normal workflow)
+                if (job.capturingMovies) {
+                    // Look for movie lines with format "   1. Title (Year) - IMDB: Score" or similar variations
+                    const movieLineMatch = output.match(/^\s+\d+\.\s+.+\(\d{4}\)\s+-\s+IMDB:/);
+                    if (movieLineMatch) {
+                        job.extractedMoviesOutput += output.trim() + '\n';
+                        console.log(`📋 Captured movie line: ${output.trim()}`);
+                    }
+
+                    // Stop capturing when we hit the next step or completion
+                    if (output.includes('✅ STEP 1 COMPLETED') || output.includes('[STEP 2/7]')) {
+                        // Finalize the captured movies and immediately display in UI
+                        if (job.extractedMoviesOutput.trim()) {
+                            job.extractedMovies = job.extractedMoviesOutput.trim();
+                            // Movies captured for UI display only
+
+                            // Update job progress with movie extraction step and trigger UI update
+                            job.progress = Math.max(job.progress, 22);
+                            job.currentStep = '📋 Movies extracted - displaying in UI...';
+                            job.showExtractedMovies = true; // Flag to trigger immediate UI display
+                            await this.updateJob(job);
+                        }
+                        // Clean up temporary properties
+                        delete job.extractedMoviesOutput;
+                        delete job.capturingMovies;
+                    }
                 }
 
                 // Output exactly like CLI - no prefixes
@@ -395,101 +425,169 @@ class VideoQueueManager {
                 if (job) {
                     let progressUpdated = false;
 
-                    // First check for CLI percentage progress (like 3%, 5%, 10%, etc.)
-                    // Handle different progress bar formats
-                    const percentageMatches = [
-                        output.match(/(\d{1,3})%/), // Simple percentage: 5%
-                        output.match(/\[.*?(\d{1,3})%.*?\]/), // Progress bar: [=====> 25%    ]
-                        output.match(/Progress:\s*(\d{1,3})%/i), // Progress: 50%
-                        output.match(/(\d{1,3})%\s*\|/), // 75% |████████
-                        output.match(/(\d{1,3})%\s*complete/i), // 90% complete
-                    ];
+                    // DISABLED: Generic percentage-based progress updates
+                    // We now use detailed step-by-step progress tracking instead of generic "Downloading... X%" messages
+                    // This provides much better user experience with specific workflow information
 
-                    for (const match of percentageMatches) {
-                        if (match && match[1]) {
-                            const percentage = parseInt(match[1]);
-                            // Only update if it's a reasonable progress value and higher than current
-                            // Allow 1% increments but avoid going backwards
-                            if (percentage >= 0 && percentage <= 100 && percentage > job.progress) {
-                                // Try to extract more context about what's being processed
-                                let stepContext = 'Processing';
-                                const lowerOutput = output.toLowerCase();
+                    // Enhanced step detection with detailed CLI workflow steps (fallback if no percentage found)
+                    if (!progressUpdated) {
+                        // Detect and capture specific workflow step messages
+                        const stepPatterns = [
+                            // Step 1: Database Extraction
+                            {
+                                patterns: ['STEP 1/7'],
+                                progress: 15,
+                                step: '🗃️ Step 1/7: Extracting movies from database...',
+                            },
+                            {
+                                patterns: ['✅ STEP 1 COMPLETED'],
+                                progress: 20,
+                                step: '✅ Step 1 completed: Movies extracted successfully',
+                            },
 
-                                // More specific context detection
-                                if (lowerOutput.includes('download')) stepContext = 'Downloading';
-                                else if (lowerOutput.includes('upload')) stepContext = 'Uploading';
-                                else if (lowerOutput.includes('screenshot')) stepContext = 'Capturing screenshots';
-                                else if (lowerOutput.includes('scroll')) stepContext = 'Creating scroll video';
-                                else if (lowerOutput.includes('render')) stepContext = 'Rendering';
-                                else if (lowerOutput.includes('convert')) stepContext = 'Converting';
-                                else if (lowerOutput.includes('extract')) stepContext = 'Extracting data';
-                                else if (lowerOutput.includes('generat')) stepContext = 'Generating content';
-                                else if (lowerOutput.includes('creat')) stepContext = 'Creating';
-                                else if (lowerOutput.includes('process')) stepContext = 'Processing';
-                                else if (lowerOutput.includes('analyz')) stepContext = 'Analyzing';
-                                else if (lowerOutput.includes('fetch')) stepContext = 'Fetching data';
-                                else if (lowerOutput.includes('build')) stepContext = 'Building';
+                            // Step 2: Script Generation
+                            {
+                                patterns: ['STEP 2/7'],
+                                progress: 25,
+                                step: '🤖 Step 2/7: Generating AI-powered scripts...',
+                            },
+                            {
+                                patterns: ['✅ STEP 2 COMPLETED'],
+                                progress: 35,
+                                step: '✅ Step 2 completed: AI scripts generated successfully',
+                            },
 
-                                // Try to extract more specific details from the line
-                                let additionalContext = '';
-                                const contextMatch = output.match(/([A-Za-z\s]+).*?(\d{1,3})%/);
-                                if (contextMatch && contextMatch[1]) {
-                                    const detectedContext = contextMatch[1].trim();
-                                    if (detectedContext.length > 3 && detectedContext.length < 50) {
-                                        additionalContext = ` - ${detectedContext}`;
-                                    }
-                                }
+                            // Step 3: Asset Preparation
+                            {
+                                patterns: ['STEP 3/7'],
+                                progress: 40,
+                                step: '🎨 Step 3/7: Creating enhanced posters and clips...',
+                            },
+                            {
+                                patterns: ['✅ STEP 3 COMPLETED'],
+                                progress: 50,
+                                step: '✅ Step 3 completed: Assets created successfully',
+                            },
 
-                                job.progress = percentage;
-                                job.currentStep = `${stepContext}... ${percentage}%${additionalContext}`;
+                            // Step 4: HeyGen Video Creation
+                            {
+                                patterns: ['STEP 4/7'],
+                                progress: 55,
+                                step: '🎭 Step 4/7: Creating HeyGen AI avatar videos...',
+                            },
+                            {
+                                patterns: ['✅ STEP 4 COMPLETED'],
+                                progress: 65,
+                                step: '✅ Step 4 completed: HeyGen videos created successfully',
+                            },
+
+                            // Step 5: HeyGen Video Processing
+                            {
+                                patterns: ['STEP 5/7'],
+                                progress: 70,
+                                step: '⏳ Step 5/7: Processing HeyGen video URLs...',
+                            },
+                            {
+                                patterns: ['✅ STEP 5 COMPLETED'],
+                                progress: 75,
+                                step: '✅ Step 5 completed: Video URLs processed successfully',
+                            },
+
+                            // Step 6: Scroll Video Generation
+                            {
+                                patterns: ['STEP 6/7'],
+                                progress: 80,
+                                step: '📱 Step 6/7: Generating scroll video overlay...',
+                            },
+                            {
+                                patterns: ['✅ STEP 6 COMPLETED'],
+                                progress: 85,
+                                step: '✅ Step 6 completed: Scroll overlay generated successfully',
+                            },
+                            {
+                                patterns: ['STEP 6/7', 'SKIPPED'],
+                                progress: 85,
+                                step: '⏭️ Step 6 skipped: No scroll video needed',
+                            },
+
+                            // Step 7: Creatomate Assembly
+                            {
+                                patterns: ['STEP 7/7'],
+                                progress: 90,
+                                step: '🎬 Step 7/7: Assembling final video with Creatomate...',
+                            },
+                            {
+                                patterns: ['✅ STEP 7 COMPLETED'],
+                                progress: 95,
+                                step: '✅ Step 7 completed: Final video submitted for rendering',
+                            },
+
+                            // Workflow Completion
+                            {
+                                patterns: ['🎉 WORKFLOW COMPLETED SUCCESSFULLY'],
+                                progress: 100,
+                                step: '🎉 Workflow completed successfully!',
+                            },
+                        ];
+
+                        // Check each pattern to find a match
+                        for (const pattern of stepPatterns) {
+                            const matchesAll = pattern.patterns.every((p) => output.toLowerCase().includes(p.toLowerCase()));
+
+                            if (matchesAll) {
+                                // Step pattern matched - update job for UI display only
+                                job.progress = Math.max(job.progress, pattern.progress);
+                                job.currentStep = pattern.step;
                                 progressUpdated = true;
-                                // Progress tracked internally - no extra logging to keep output clean
-                                break; // Exit loop once we find a match
+                                await this.updateJob(job); // Force immediate job update for UI
+                                break; // Stop at first match to avoid conflicts
                             }
                         }
-                    }
 
-                    // More detailed progress tracking (fallback if no percentage found)
-                    if (!progressUpdated) {
-                        if (output.includes('Connecting to database') || output.includes('extracting movies')) {
-                            job.progress = Math.max(job.progress, 25);
-                            job.currentStep = 'Extracting movies from database...';
-                            progressUpdated = true;
-                        }
-                        if (output.includes('Movies processed') || output.includes('Successfully extracted')) {
-                            job.progress = Math.max(job.progress, 35);
-                            job.currentStep = 'Movies extracted successfully';
-                            progressUpdated = true;
-                        }
-                        if (output.includes('Capturing StreamGank screenshots') || output.includes('Screenshot')) {
-                            job.progress = Math.max(job.progress, 45);
-                            job.currentStep = 'Capturing screenshots...';
-                            progressUpdated = true;
-                        }
-                        if (output.includes('Uploading') && output.includes('Cloudinary')) {
-                            job.progress = Math.max(job.progress, 55);
-                            job.currentStep = 'Uploading files to Cloudinary...';
-                            progressUpdated = true;
-                        }
-                        if (output.includes('Enriching movie data') || output.includes('AI descriptions')) {
-                            job.progress = Math.max(job.progress, 65);
-                            job.currentStep = 'Enriching movie data with AI...';
-                            progressUpdated = true;
-                        }
-                        if (output.includes('HeyGen videos created') || output.includes('Creating HeyGen')) {
-                            job.progress = Math.max(job.progress, 75);
-                            job.currentStep = 'Creating HeyGen avatar videos...';
-                            progressUpdated = true;
-                        }
-                        if (output.includes('Creatomate') && !output.includes('Video URL')) {
-                            job.progress = Math.max(job.progress, 85);
-                            job.currentStep = 'Submitting to Creatomate for rendering...';
-                            progressUpdated = true;
-                        }
-                        if (output.includes('Video URL') || output.includes('succeeded')) {
-                            job.progress = Math.max(job.progress, 95);
-                            job.currentStep = 'Video rendering completed!';
-                            progressUpdated = true;
+                        // Note: CLI output remains unchanged - only UI logs are enhanced
+
+                        // Legacy detection patterns (fallback for any missed cases)
+                        if (!progressUpdated) {
+                            if (output.includes('Connecting to database') || output.includes('extracting movies')) {
+                                job.progress = Math.max(job.progress, 25);
+                                job.currentStep = 'Extracting movies from database...';
+                                progressUpdated = true;
+                            }
+                            if (output.includes('Movies processed') || output.includes('Successfully extracted')) {
+                                job.progress = Math.max(job.progress, 35);
+                                job.currentStep = 'Movies extracted successfully';
+                                progressUpdated = true;
+                            }
+                            if (output.includes('Capturing StreamGank screenshots') || output.includes('Screenshot')) {
+                                job.progress = Math.max(job.progress, 45);
+                                job.currentStep = 'Capturing screenshots...';
+                                progressUpdated = true;
+                            }
+                            if (output.includes('Uploading') && output.includes('Cloudinary')) {
+                                job.progress = Math.max(job.progress, 55);
+                                job.currentStep = 'Uploading files to Cloudinary...';
+                                progressUpdated = true;
+                            }
+                            if (output.includes('Enriching movie data') || output.includes('AI descriptions')) {
+                                job.progress = Math.max(job.progress, 65);
+                                job.currentStep = 'Enriching movie data with AI...';
+                                progressUpdated = true;
+                            }
+                            if (output.includes('HeyGen videos created') || output.includes('Creating HeyGen')) {
+                                job.progress = Math.max(job.progress, 75);
+                                job.currentStep = 'Creating HeyGen avatar videos...';
+                                progressUpdated = true;
+                            }
+                            if (output.includes('Creatomate') && !output.includes('Video URL')) {
+                                job.progress = Math.max(job.progress, 85);
+                                job.currentStep = 'Submitting to Creatomate for rendering...';
+                                progressUpdated = true;
+                            }
+                            if (output.includes('Video URL') || output.includes('succeeded')) {
+                                job.progress = Math.max(job.progress, 95);
+                                job.currentStep = 'Video rendering completed!';
+                                progressUpdated = true;
+                            }
                         }
                     }
 
@@ -517,6 +615,45 @@ class VideoQueueManager {
                     // Check for specific error messages to make them more user-friendly
                     const errorOutput = stdout + stderr;
 
+                    // Check for Creatomate API errors (insufficient credits, etc.)
+                    if (errorOutput.includes('Creatomate API error')) {
+                        const creatomateErrorMatch = errorOutput.match(/Creatomate API error: (\d+) - ({.*?})/);
+                        if (creatomateErrorMatch) {
+                            const statusCode = creatomateErrorMatch[1];
+                            let errorMessage = '';
+
+                            try {
+                                const errorData = JSON.parse(creatomateErrorMatch[2]);
+                                if (statusCode === '402') {
+                                    errorMessage = `💳 Insufficient Creatomate credits - ${errorData.hint || 'Please check your subscription usage'}`;
+                                } else if (statusCode === '401') {
+                                    errorMessage = `🔐 Creatomate authentication failed - ${errorData.hint || 'Please check your API key'}`;
+                                } else if (statusCode === '429') {
+                                    errorMessage = `⏳ Creatomate rate limit exceeded - ${errorData.hint || 'Please wait before retrying'}`;
+                                } else if (statusCode === '400') {
+                                    errorMessage = `⚠️ Invalid Creatomate request - ${errorData.hint || errorData.message || 'Please check your video parameters'}`;
+                                } else {
+                                    errorMessage = `🔧 Creatomate API error (${statusCode}) - ${errorData.hint || errorData.message || 'Unknown API error'}`;
+                                }
+                            } catch (e) {
+                                errorMessage = `🔧 Creatomate API error (${statusCode}) - Please check your account status and try again`;
+                            }
+
+                            reject(new Error(errorMessage));
+                            return;
+                        }
+                    }
+
+                    // Check for HeyGen API errors
+                    if (errorOutput.includes('HeyGen API error') || errorOutput.includes('HeyGen error')) {
+                        const heygenErrorMatch = errorOutput.match(/HeyGen.*?error[:\s]+(.*?)(?:\n|$)/i);
+                        if (heygenErrorMatch) {
+                            const errorMsg = heygenErrorMatch[1].trim();
+                            reject(new Error(`🎭 HeyGen API error - ${errorMsg}. Please check your HeyGen account and API settings.`));
+                            return;
+                        }
+                    }
+
                     // Check for insufficient movies error (less than 3 movies found)
                     if (errorOutput.includes('Insufficient movies found') || (errorOutput.includes('only') && errorOutput.includes('movie(s) available'))) {
                         const movieCountMatch = errorOutput.match(/only (\d+) movie\(s\) available/);
@@ -536,17 +673,25 @@ class VideoQueueManager {
                             }
                         }
 
-                        reject(new Error(`Not enough movies available - only ${movieCount} found with current filters.${movieNames} Please try different genre, platform, or content type to find more movies.`));
+                        reject(new Error(`🎬 Not enough movies available - only ${movieCount} found with current filters.${movieNames} Please try different genre, platform, or content type to find more movies.`));
                         return;
                     }
 
+                    // Check for database errors
                     if (errorOutput.includes('No movies found matching criteria') || errorOutput.includes('Database query failed')) {
-                        reject(new Error('No movies found for the selected parameters (genre, platform, content type). Please try different filters to find available content.'));
+                        reject(new Error('🗃️ No movies found for the selected parameters (genre, platform, content type). Please try different filters to find available content.'));
                         return;
                     }
 
+                    // Check for connection errors
                     if (errorOutput.includes('Connection failed') || errorOutput.includes('Database connection failed')) {
-                        reject(new Error('Database connection failed. Please check your internet connection and try again.'));
+                        reject(new Error('🌐 Database connection failed. Please check your internet connection and try again.'));
+                        return;
+                    }
+
+                    // Check for screenshot/browser errors
+                    if (errorOutput.includes('Screenshot') && errorOutput.includes('failed')) {
+                        reject(new Error('📸 Screenshot capture failed. This might be due to network issues or website accessibility. Please try again.'));
                         return;
                     }
 
@@ -647,7 +792,8 @@ class VideoQueueManager {
 
             // If this is the currently processing job, kill the Python process
             if (this.currentJob && this.currentJob.id === jobId && this.currentProcess) {
-                console.log(`🛑 Killing Python process for job ${jobId} (PID: ${this.currentProcess.pid})`);
+                const processPid = this.currentProcess.pid; // Store PID before nullifying
+                console.log(`🛑 Killing Python process for job ${jobId} (PID: ${processPid})`);
 
                 try {
                     // On Windows, use taskkill for more reliable process termination
@@ -655,22 +801,23 @@ class VideoQueueManager {
                         console.log('🪟 Using Windows taskkill for process termination');
 
                         // Kill the process tree (including child processes)
-                        exec(`taskkill /pid ${this.currentProcess.pid} /t /f`, (error, stdout, stderr) => {
+                        exec(`taskkill /pid ${processPid} /t /f`, (error, stdout, stderr) => {
                             if (error) {
                                 console.error(`❌ Error killing process: ${error}`);
                             } else {
-                                console.log(`✅ Process ${this.currentProcess.pid} killed successfully`);
+                                console.log(`✅ Process ${processPid} killed successfully`);
                             }
                         });
                     } else {
                         // Unix-like systems: use SIGTERM first, then SIGKILL
-                        this.currentProcess.kill('SIGTERM');
+                        const processToKill = this.currentProcess; // Store reference before nullifying
+                        processToKill.kill('SIGTERM');
 
                         // Force kill after 5 seconds if still running
                         setTimeout(() => {
-                            if (this.currentProcess && !this.currentProcess.killed) {
-                                console.log(`🔪 Force killing Python process for job ${jobId}`);
-                                this.currentProcess.kill('SIGKILL');
+                            if (processToKill && !processToKill.killed) {
+                                console.log(`🔪 Force killing Python process for job ${jobId} (PID: ${processPid})`);
+                                processToKill.kill('SIGKILL');
                             }
                         }, 5000);
                     }
