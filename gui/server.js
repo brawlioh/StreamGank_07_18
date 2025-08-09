@@ -409,6 +409,30 @@ app.post('/api/job/:jobId/complete', async (req, res) => {
     }
 });
 
+// API endpoint to cancel a job
+app.post('/api/job/:jobId/cancel', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        console.log(`🛑 Cancelling job: ${jobId}`);
+
+        // Use the queue manager's cancelJob method which handles process killing
+        const job = await queueManager.cancelJob(jobId);
+
+        res.json({
+            success: true,
+            message: 'Job cancelled successfully',
+            job: job,
+        });
+    } catch (error) {
+        console.error('❌ Failed to cancel job:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to cancel job',
+            error: error.message,
+        });
+    }
+});
+
 // API endpoint to get available platforms by region from database
 app.get('/api/platforms/:country', async (req, res) => {
     try {
@@ -448,10 +472,10 @@ app.get('/api/genres/:country', async (req, res) => {
         const { country } = req.params;
         console.log(`🎭 Fetching genres for country: ${country}`);
 
-        // Use the exact genre data for the system
+        // Use the exact genre data for the system - Updated to match StreamGank
         const availableGenres = {
             FR: ['Action & Aventure', 'Animation', 'Comédie', 'Comédie Romantique', 'Crime & Thriller', 'Documentaire', 'Drame', 'Fantastique', 'Film de guerre', 'Histoire', 'Horreur', 'Musique & Comédie Musicale', 'Mystère & Thriller', 'Pour enfants', 'Reality TV', 'Réalisé en Europe', 'Science-Fiction', 'Sport & Fitness', 'Western'],
-            US: ['Action', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery', 'Romance', 'Science Fiction', 'Thriller', 'Western'],
+            US: ['Action & Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Fantasy', 'History', 'Horror', 'Kids & Family', 'Made in Europe', 'Music & Musical', 'Mystery & Thriller', 'Reality TV', 'Romance', 'Science-Fiction', 'Sport', 'War & Military', 'Western'],
         };
 
         const genres = availableGenres[country] || availableGenres['US'];

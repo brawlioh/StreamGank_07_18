@@ -37,6 +37,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // Track if video ready message has been shown for current video
     let videoReadyMessageShown = false;
 
+    // Track current job monitoring state
+    let currentJobMonitoring = null;
+    let isGenerationActive = false;
+
     // Video event handlers (defined once to prevent duplicates)
     function videoLoadStartHandler() {
         if (!videoReadyMessageShown) {
@@ -56,45 +60,48 @@ document.addEventListener('DOMContentLoaded', function () {
         console.error('Video load error:', e);
     }
 
-    // Genre data organized by country
+    // Genre data organized by country - Updated to match StreamGank exact genres
     const genresByCountry = {
         FR: {
-            'Action & Aventure': 'Action & Aventure',
+            'Action & Aventure': 'Action & Adventure',
             Animation: 'Animation',
-            Comédie: 'Comédie',
-            'Comédie Romantique': 'Comédie Romantique',
+            Comédie: 'Comedy',
+            'Comédie Romantique': 'Romantic Comedy',
             'Crime & Thriller': 'Crime & Thriller',
-            Documentaire: 'Documentaire',
-            Drame: 'Drame',
-            Fantastique: 'Fantastique',
-            'Film de guerre': 'Film de guerre',
-            Histoire: 'Histoire',
-            Horreur: 'Horreur',
-            'Musique & Comédie Musicale': 'Musique & Comédie Musicale',
-            'Mystère & Thriller': 'Mystère & Thriller',
-            'Pour enfants': 'Pour enfants',
+            Documentaire: 'Documentary',
+            Drame: 'Drama',
+            Fantastique: 'Fantasy',
+            'Film de guerre': 'War Movies',
+            Histoire: 'History',
+            Horreur: 'Horror',
+            'Musique & Comédie Musicale': 'Music & Musical Comedy',
+            'Mystère & Thriller': 'Mystery & Thriller',
+            'Pour enfants': 'Kids',
             'Reality TV': 'Reality TV',
-            'Réalisé en Europe': 'Réalisé en Europe',
-            'Science-Fiction': 'Science-Fiction',
+            'Réalisé en Europe': 'Made in Europe',
+            'Science-Fiction': 'Science Fiction',
             'Sport & Fitness': 'Sport & Fitness',
             Western: 'Western',
         },
         US: {
-            Action: 'Action',
+            'Action & Adventure': 'Action & Adventure',
             Animation: 'Animation',
             Comedy: 'Comedy',
             Crime: 'Crime',
             Documentary: 'Documentary',
             Drama: 'Drama',
-            Family: 'Family',
             Fantasy: 'Fantasy',
             History: 'History',
             Horror: 'Horror',
-            Music: 'Music',
-            Mystery: 'Mystery',
+            'Kids & Family': 'Kids & Family',
+            'Made in Europe': 'Made in Europe',
+            'Music & Musical': 'Music & Musical',
+            'Mystery & Thriller': 'Mystery & Thriller',
+            'Reality TV': 'Reality TV',
             Romance: 'Romance',
-            SF: 'Science Fiction',
-            Thriller: 'Thriller',
+            'Science-Fiction': 'Science-Fiction',
+            Sport: 'Sport',
+            'War & Military': 'War & Military',
             Western: 'Western',
         },
         // For other countries, default to English genres
@@ -192,12 +199,13 @@ document.addEventListener('DOMContentLoaded', function () {
         Free: 'free',
     };
 
-    // Genre value mapping for FR (display name -> URL parameter value)
+    // Genre value mapping (display name -> URL parameter value)
     const genreMapping = {
-        'Action & Aventure': 'Action+%26+Aventure',
+        // French genres (note: first entry has Family prefix as per StreamGank data)
+        'Action & Aventure': 'Family%2CAction+%26+Aventure',
         Animation: 'Animation',
-        Comédie: 'Comédie',
-        'Comédie Romantique': 'Comédie+Romantique',
+        Comédie: 'Com%C3%A9die',
+        'Comédie Romantique': 'Com%C3%A9die+Romantique',
         'Crime & Thriller': 'Crime+%26+Thriller',
         Documentaire: 'Documentaire',
         Drame: 'Drame',
@@ -205,14 +213,31 @@ document.addEventListener('DOMContentLoaded', function () {
         'Film de guerre': 'Film+de+guerre',
         Histoire: 'Histoire',
         Horreur: 'Horreur',
-        'Musique & Comédie Musicale': 'Musique+%26+Comédie+Musicale',
-        'Mystère & Thriller': 'Mystère+%26+Thriller',
+        'Musique & Comédie Musicale': 'Musique+%26+Com%C3%A9die+Musicale',
+        'Mystère & Thriller': 'Myst%C3%A8re+%26+Thriller',
         'Pour enfants': 'Pour+enfants',
         'Reality TV': 'Reality+TV',
-        'Réalisé en Europe': 'Réalisé+en+Europe',
+        'Réalisé en Europe': 'R%C3%A9alis%C3%A9+en+Europe',
         'Science-Fiction': 'Science-Fiction',
         'Sport & Fitness': 'Sport+%26+Fitness',
         Western: 'Western',
+
+        // US genres
+        'Action & Adventure': 'Action+%26+Adventure',
+        Comedy: 'Comedy',
+        Crime: 'Crime',
+        Documentary: 'Documentary',
+        Drama: 'Drama',
+        Fantasy: 'Fantasy',
+        History: 'History',
+        Horror: 'Horror',
+        'Kids & Family': 'Kids+%26+Family',
+        'Made in Europe': 'Made+in+Europe',
+        'Music & Musical': 'Music+%26+Musical',
+        'Mystery & Thriller': 'Mystery+%26+Thriller',
+        Romance: 'Romance',
+        Sport: 'Sport',
+        'War & Military': 'War+%26+Military',
     };
 
     // Content type mapping (HTML values -> StreamGank URL parameter values)
@@ -497,8 +522,8 @@ document.addEventListener('DOMContentLoaded', function () {
         previewTemplate.textContent = template ? template.text : 'Universal Default';
         previewType.textContent = contentType.id === 'all' ? 'All' : contentType.id === 'movie' ? 'Movies' : 'TV Shows';
 
-        // Build and update URL - pass actual radio button values for correct mapping
-        const url = buildStreamGankUrl(country.value, genre.text, platform.text, contentType.value);
+        // Build and update URL - pass genre.value (French key) for correct mapping
+        const url = buildStreamGankUrl(country.value, genre.value, platform.text, contentType.value);
         previewUrl.textContent = url;
     }
 
@@ -562,6 +587,53 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Function to stop video generation process
+    // This only stops the current video generation job, not the entire CLI/server
+    function stopVideoGeneration() {
+        if (window.currentJobId) {
+            addStatusMessage('warning', '🛑', `Stopping current video generation job: ${window.currentJobId}`);
+            console.log(`🔍 Attempting to cancel job: ${window.currentJobId}`);
+
+            // Call API to cancel the job
+            fetch(`/api/job/${window.currentJobId}/cancel`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.success) {
+                        addStatusMessage('success', '✅', 'Process stopped successfully');
+                    } else {
+                        addStatusMessage('error', '❌', 'Failed to stop process: ' + data.message);
+                    }
+                })
+                .catch((error) => {
+                    addStatusMessage('error', '❌', 'Error stopping process: ' + error.message);
+                });
+        } else {
+            addStatusMessage('warning', '⚠️', 'No active job to stop');
+            console.log('⚠️ No currentJobId available for cancellation');
+        }
+
+        // Clear monitoring
+        if (currentJobMonitoring) {
+            clearTimeout(currentJobMonitoring);
+            currentJobMonitoring = null;
+        }
+
+        // Reset UI state
+        isGenerationActive = false;
+        generateButton.disabled = false;
+        generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
+        document.getElementById('stop-process-btn').style.display = 'none';
+        progressContainer.classList.add('d-none');
+        progressBar.style.width = '0%';
+
+        addStatusMessage('info', 'ℹ️', 'Job stopped. Ready to generate a new video.');
+    }
+
     // Function to start video generation process
     async function startVideoGeneration() {
         // Clear previous status messages
@@ -570,14 +642,18 @@ document.addEventListener('DOMContentLoaded', function () {
         // Reset video ready message flag for new video
         videoReadyMessageShown = false;
 
+        // Set generation active state
+        isGenerationActive = true;
+
         // Show progress bar and reset color
         progressContainer.classList.remove('d-none');
         progressBar.style.width = '0%';
         progressBar.classList.remove('bg-success'); // Reset to default color
 
-        // Disable generate button
+        // Disable generate button and show stop button
         generateButton.disabled = true;
         generateButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+        document.getElementById('stop-process-btn').style.display = 'inline-block';
 
         // Get selected options
         const country = countrySelect.value;
@@ -676,9 +752,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to finish generation process
     function finishGeneration(data, showVideo = false) {
-        // Re-enable generate button
+        // Reset generation state
+        isGenerationActive = false;
+
+        // Re-enable generate button and hide stop button
         generateButton.disabled = false;
         generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
+        document.getElementById('stop-process-btn').style.display = 'none';
 
         // Show results
         videoResults.classList.remove('d-none');
@@ -871,7 +951,40 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else if (job.status === 'completed') {
                     progressBar.style.width = '90%';
 
-                    // Only show completion message once
+                    // Check if this was a paused extraction job
+                    if (job.pausedAfterExtraction) {
+                        // Only show completion message once
+                        if (lastStatus !== 'completed') {
+                            addStatusMessage('success', '✅', 'Movie extraction completed successfully!');
+                            addStatusMessage('info', '⏸️', 'Process paused after extraction as requested');
+
+                            // Display extracted movie names if available
+                            if (job.extractedMovies) {
+                                addStatusMessage('info', '📋', 'Movies found:');
+                                const movieLines = job.extractedMovies.split('\n').filter((line) => line.trim());
+                                movieLines.forEach((movieLine) => {
+                                    const cleanLine = movieLine.trim().replace(/^\d+\.\s*/, '');
+                                    if (cleanLine) {
+                                        addStatusMessage('info', '🎬', cleanLine);
+                                    }
+                                });
+                            }
+
+                            addStatusMessage('success', '✅', 'You can now adjust filters and generate again, or continue with these movies');
+                            lastStatus = 'completed';
+                        }
+
+                        // Reset generate button - user can start new jobs
+                        generateButton.disabled = false;
+                        generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
+                        document.getElementById('stop-process-btn').style.display = 'none';
+                        isGenerationActive = false;
+                        progressBar.style.width = '100%';
+                        progressBar.classList.add('bg-success');
+                        return; // Stop monitoring
+                    }
+
+                    // Only show completion message once for non-paused jobs
                     if (lastStatus !== 'completed') {
                         addStatusMessage('success', '✅', 'Python script completed successfully!');
                         lastStatus = 'completed';
@@ -952,7 +1065,31 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Only show failure message once
                     if (lastStatus !== 'failed') {
-                        addStatusMessage('error', '❌', `Job failed: ${job.error || 'Unknown error'}`);
+                        const errorMessage = job.error || 'Unknown error';
+
+                        // Check for specific error types and provide better UI feedback
+                        if (errorMessage.includes('Not enough movies available') || (errorMessage.includes('only') && errorMessage.includes('found with current filters'))) {
+                            addStatusMessage('warning', '🎬', 'Insufficient Movies Found');
+
+                            // Extract and display the main error message
+                            const mainError = errorMessage.split('Found movies:')[0].trim();
+                            addStatusMessage('error', '❌', mainError);
+
+                            // Extract and display found movies if available
+                            const movieMatch = errorMessage.match(/Found movies: ([^.]+)\./);
+                            if (movieMatch && movieMatch[1]) {
+                                addStatusMessage('info', '🎭', `Movies available: ${movieMatch[1]}`);
+                            }
+
+                            addStatusMessage('info', '💡', 'Try these suggestions:');
+                            addStatusMessage('info', '🎭', '• Select a different genre');
+                            addStatusMessage('info', '📺', '• Try a different platform (Netflix, Prime, etc.)');
+                            addStatusMessage('info', '🎥', '• Switch between Movies and TV Shows');
+                            addStatusMessage('info', '🌍', '• Try a different country');
+                            addStatusMessage('success', '✅', 'You can immediately try new settings - the system is ready!');
+                        } else {
+                            addStatusMessage('error', '❌', `Job failed: ${errorMessage}`);
+                        }
 
                         if (job.retryCount < job.maxRetries) {
                             addStatusMessage('info', '🔄', `Job will be retried (attempt ${job.retryCount + 1}/${job.maxRetries})`);
@@ -961,9 +1098,26 @@ document.addEventListener('DOMContentLoaded', function () {
                         lastStatus = 'failed';
                     }
 
-                    // Reset generate button
+                    // Reset generate button and hide stop button
                     generateButton.disabled = false;
                     generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
+                    document.getElementById('stop-process-btn').style.display = 'none';
+                    isGenerationActive = false;
+                    return; // Stop monitoring
+                } else if (job.status === 'cancelled') {
+                    progressBar.style.width = '0%';
+
+                    // Only show cancellation message once
+                    if (lastStatus !== 'cancelled') {
+                        addStatusMessage('warning', '🛑', 'Job was cancelled');
+                        lastStatus = 'cancelled';
+                    }
+
+                    // Reset generate button and hide stop button
+                    generateButton.disabled = false;
+                    generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
+                    document.getElementById('stop-process-btn').style.display = 'none';
+                    isGenerationActive = false;
                     return; // Stop monitoring
                 }
 
@@ -971,7 +1125,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (attempts < maxAttempts && (job.status === 'pending' || job.status === 'processing')) {
                     // Use shorter interval for processing jobs to get real-time updates
                     const interval = job.status === 'processing' ? 3000 : 8000; // 3s for processing, 8s for pending
-                    setTimeout(monitorJob, interval);
+                    currentJobMonitoring = setTimeout(monitorJob, interval);
                 } else if (attempts >= maxAttempts) {
                     if (!shownMessages.has('timeout')) {
                         addStatusMessage('warning', '⚠️', 'Job monitoring timeout reached');
@@ -992,7 +1146,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Retry monitoring if not too many attempts
                 if (attempts < maxAttempts) {
-                    setTimeout(monitorJob, 15000); // Retry in 15 seconds
+                    currentJobMonitoring = setTimeout(monitorJob, 15000); // Retry in 15 seconds
                 } else {
                     generateButton.disabled = false;
                     generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
@@ -1001,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', function () {
         };
 
         // Start monitoring after 5 seconds
-        setTimeout(monitorJob, 5000);
+        currentJobMonitoring = setTimeout(monitorJob, 5000);
     }
 
     // Function to monitor Creatomate status (legacy - may not be needed with Redis queue)
@@ -1294,30 +1448,18 @@ document.addEventListener('DOMContentLoaded', function () {
         videoReadyMessageShown = false;
     });
 
-    // Add test button to force show video section (for debugging)
-    const testVideoBtn = document.createElement('button');
-    testVideoBtn.textContent = '🎬 Test Video Display';
-    testVideoBtn.className = 'btn btn-warning btn-sm ms-2';
-    testVideoBtn.addEventListener('click', function () {
-        console.log('🧪 Testing video display...');
-
-        // Force show video section with test data
-        finishGeneration(
-            {
-                videoUrl: 'https://player.vimeo.com/external/371433846.sd.mp4?s=236da2f3c0fd273d2c6d9a064f3ae35579b2bbdf&profile_id=139&oauth2_token_id=57447761',
-                creatomateId: 'test-12345',
-                groupId: 'test-group',
-                moviesCount: 3,
-                videosCount: 3,
-            },
-            true
-        );
-
-        addStatusMessage('success', '🧪', 'Test video display triggered!');
+    // Add stop button to control video generation process
+    const stopButton = document.createElement('button');
+    stopButton.textContent = '🛑 Stop Process';
+    stopButton.className = 'btn btn-danger btn-sm ms-2';
+    stopButton.id = 'stop-process-btn';
+    stopButton.style.display = 'none'; // Initially hidden
+    stopButton.addEventListener('click', function () {
+        stopVideoGeneration();
     });
 
-    // Add test button next to clear logs
-    document.getElementById('clear-logs-btn').parentNode.appendChild(testVideoBtn);
+    // Add stop button next to clear logs
+    document.getElementById('clear-logs-btn').parentNode.appendChild(stopButton);
 
     // Queue status button event listener
     document.getElementById('queue-status-btn').addEventListener('click', function () {

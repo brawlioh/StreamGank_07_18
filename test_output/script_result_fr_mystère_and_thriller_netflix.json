@@ -1,0 +1,98 @@
+{
+  "data": {
+    "combined_script": "Brace yourself for the 3 most spine-chilling Mystère & Thriller flicks on Netflix, handpicked by StreamGank, that are setting the web on fire!\n\nBrace yourself for the 3 most spine-chilling Mystère & Thriller flicks on Netflix, handpicked by StreamGank, that are setting the web on fire! Get ready for the chilling transformation that turned a failed comedian into Gothams most feared, in the gritty masterpiece, Joker!\n\nGet ready for Blade Runner 2049, the future-noir thriller that will leave your pulse racing and your mind utterly blown!\n\nEveryones talking about Le Cercle des neiges, the thriller where secrets are colder and deadlier than the harshest winter on Netflix!",
+    "script_file_path": "videos/combined_script.txt",
+    "individual_scripts": {
+      "movie1": {
+        "text": "Brace yourself for the 3 most spine-chilling Mystère & Thriller flicks on Netflix, handpicked by StreamGank, that are setting the web on fire! Get ready for the chilling transformation that turned a failed comedian into Gothams most feared, in the gritty masterpiece, Joker!",
+        "path": "videos/script_movie1.txt"
+      },
+      "movie2": {
+        "text": "Get ready for Blade Runner 2049, the future-noir thriller that will leave your pulse racing and your mind utterly blown!",
+        "path": "videos/script_movie2.txt"
+      },
+      "movie3": {
+        "text": "Everyones talking about Le Cercle des neiges, the thriller where secrets are colder and deadlier than the harshest winter on Netflix!",
+        "path": "videos/script_movie3.txt"
+      }
+    },
+    "raw_movies": [
+      {
+        "id": 15006,
+        "title": "Joker",
+        "year": 2019,
+        "imdb": "8.3/10 (1,629,719 votes)",
+        "imdb_score": 8.3,
+        "imdb_votes": 1629719,
+        "runtime": "122 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/146820524/s332/joker-2019.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743364466/movie-posters/199f476f53832fed71b4788298422368.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=OoTx1cYC5u8",
+        "streaming_url": "https://www.netflix.com/title/81092221",
+        "genres": [
+          "Mystère & Thriller"
+        ],
+        "content_type": "Film",
+        "country_code": "FR"
+      },
+      {
+        "id": 23169,
+        "title": "Blade Runner 2049",
+        "year": 2017,
+        "imdb": "8.0/10 (723,054 votes)",
+        "imdb_score": 8.0,
+        "imdb_votes": 723054,
+        "runtime": "164 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/21030494/s332/blade-runner-2049.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743993719/movie-posters/8680e04e66d1d949b794c874e778718f.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=O4C5cwSbXZ8",
+        "streaming_url": "https://www.netflix.com/title/80185760",
+        "genres": [
+          "Mystère & Thriller"
+        ],
+        "content_type": "Film",
+        "country_code": "FR"
+      },
+      {
+        "id": 3932,
+        "title": "Le Cercle des neiges",
+        "year": 2023,
+        "imdb": "7.8/10 (164,671 votes)",
+        "imdb_score": 7.8,
+        "imdb_votes": 164671,
+        "runtime": "144 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/309792281/s332/le-cercle-des-neiges.avif",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1742219208/movie-posters/4cc4cc8a5d7fc3d2c125aa2f2affc94c.avif",
+        "trailer_url": "https://www.youtube.com/watch?v=24gdHaK6qTg",
+        "streaming_url": "https://www.netflix.com/title/81268316",
+        "genres": [
+          "Mystère & Thriller"
+        ],
+        "content_type": "Film",
+        "country_code": "FR"
+      }
+    ],
+    "parameters": {
+      "country": "FR",
+      "genre": "Mystère & Thriller",
+      "platform": "Netflix",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "script_count": 3,
+    "generation_timestamp": 1754739080.5704176
+  },
+  "metadata": {
+    "data_type": "script_result",
+    "parameters": {
+      "country": "FR",
+      "genre": "Mystère & Thriller",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1754739080.5705092,
+    "saved_datetime": "2025-08-09 19:31:20"
+  }
+}

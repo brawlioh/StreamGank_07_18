@@ -1,5 +1,5 @@
 const redis = require('redis');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
 const path = require('path');
 
 /**
@@ -38,6 +38,7 @@ class VideoQueueManager {
         // Queue processing state
         this.isProcessing = false;
         this.currentJob = null;
+        this.currentProcess = null; // Track the current Python process
 
         // Redis queue keys
         this.keys = {
@@ -239,8 +240,25 @@ class VideoQueueManager {
             // Store the processing job state before updating
             const processingJobState = JSON.stringify(job);
 
-            // Check if we have a video URL or just Creatomate ID
-            if (result.videoUrl) {
+            // Check if we have a video URL, Creatomate ID, or paused after extraction
+            if (result.pausedAfterExtraction) {
+                // Process was paused after movie extraction - this is a successful completion
+                job.status = 'completed';
+                job.completedAt = new Date().toISOString();
+                job.progress = 100;
+                job.currentStep = 'Movie extraction completed - process paused for review';
+                job.pausedAfterExtraction = true;
+
+                // Extract movie information from stdout for UI display
+                const movieMatch = result.stdout.match(/📋 Found \d+ movies:([\s\S]*?)(?:\n\n|\n💡)/);
+                if (movieMatch && movieMatch[1]) {
+                    job.extractedMovies = movieMatch[1].trim();
+                }
+
+                // Remove from processing queue and add to completed
+                await this.client.lRem(this.keys.processing, 1, processingJobState);
+                await this.client.lPush(this.keys.completed, JSON.stringify(job));
+            } else if (result.videoUrl) {
                 // Video is fully complete
                 job.status = 'completed';
                 job.completedAt = new Date().toISOString();
@@ -354,6 +372,9 @@ class VideoQueueManager {
                 },
             });
 
+            // Store reference to current process for cancellation
+            this.currentProcess = pythonProcess;
+
             let stdout = '';
             let stderr = '';
 
@@ -361,6 +382,12 @@ class VideoQueueManager {
             pythonProcess.stdout.on('data', async (data) => {
                 const output = data.toString('utf8');
                 stdout += output;
+
+                // Check for movie extraction completion and log movie names
+                if (output.includes('📋 Movies extracted from database:')) {
+                    console.log('\n🎬 Movies successfully extracted - details will be shown in UI');
+                }
+
                 // Output exactly like CLI - no prefixes
                 process.stdout.write(output);
 
@@ -481,10 +508,37 @@ class VideoQueueManager {
 
             // Handle process completion
             pythonProcess.on('close', (code) => {
+                // Clear process reference
+                if (this.currentProcess === pythonProcess) {
+                    this.currentProcess = null;
+                }
                 console.log(`\n--- Python Script Completed ---`);
                 if (code !== 0) {
                     // Check for specific error messages to make them more user-friendly
                     const errorOutput = stdout + stderr;
+
+                    // Check for insufficient movies error (less than 3 movies found)
+                    if (errorOutput.includes('Insufficient movies found') || (errorOutput.includes('only') && errorOutput.includes('movie(s) available'))) {
+                        const movieCountMatch = errorOutput.match(/only (\d+) movie\(s\) available/);
+                        const movieCount = movieCountMatch ? movieCountMatch[1] : 'few';
+
+                        // Try to extract movie names from the output
+                        let movieNames = '';
+                        const movieSectionMatch = errorOutput.match(/🎬 Movies found with current filters:([\s\S]*?)(?:\n\n|\n   Please try)/);
+                        if (movieSectionMatch && movieSectionMatch[1]) {
+                            const movieLines = movieSectionMatch[1].trim().split('\n');
+                            const movies = movieLines
+                                .filter((line) => line.trim().match(/^\d+\./))
+                                .map((line) => line.trim().replace(/^\d+\.\s*/, ''))
+                                .join(', ');
+                            if (movies) {
+                                movieNames = ` Found movies: ${movies}.`;
+                            }
+                        }
+
+                        reject(new Error(`Not enough movies available - only ${movieCount} found with current filters.${movieNames} Please try different genre, platform, or content type to find more movies.`));
+                        return;
+                    }
 
                     if (errorOutput.includes('No movies found matching criteria') || errorOutput.includes('Database query failed')) {
                         reject(new Error('No movies found for the selected parameters (genre, platform, content type). Please try different filters to find available content.'));
@@ -550,6 +604,119 @@ class VideoQueueManager {
                 reject(new Error(`Failed to start Python process: ${error.message}`));
             });
         });
+    }
+
+    /**
+     * Remove a job from the processing queue
+     * @param {Object} job - The job to remove
+     */
+    async removeFromProcessingQueue(job) {
+        try {
+            // Get all items in processing queue
+            const processingItems = await this.client.lRange(this.keys.processing, 0, -1);
+
+            // Find and remove the job
+            for (let i = 0; i < processingItems.length; i++) {
+                const item = JSON.parse(processingItems[i]);
+                if (item.id === job.id) {
+                    // Remove this specific item from the list
+                    await this.client.lRem(this.keys.processing, 1, processingItems[i]);
+                    console.log(`🗑️ Removed job ${job.id} from processing queue`);
+                    break;
+                }
+            }
+        } catch (error) {
+            console.error(`❌ Failed to remove job ${job.id} from processing queue:`, error);
+        }
+    }
+
+    /**
+     * Cancel a specific job
+     * @param {string} jobId - The job ID to cancel
+     * @returns {Object} Updated job object
+     */
+    async cancelJob(jobId) {
+        try {
+            // Get the job
+            const job = await this.getJob(jobId);
+            if (!job) {
+                throw new Error('Job not found');
+            }
+
+            console.log(`🔍 Debug - currentJob: ${this.currentJob ? this.currentJob.id : 'null'}, requested jobId: ${jobId}, currentProcess: ${this.currentProcess ? this.currentProcess.pid : 'null'}`);
+
+            // If this is the currently processing job, kill the Python process
+            if (this.currentJob && this.currentJob.id === jobId && this.currentProcess) {
+                console.log(`🛑 Killing Python process for job ${jobId} (PID: ${this.currentProcess.pid})`);
+
+                try {
+                    // On Windows, use taskkill for more reliable process termination
+                    if (process.platform === 'win32') {
+                        console.log('🪟 Using Windows taskkill for process termination');
+
+                        // Kill the process tree (including child processes)
+                        exec(`taskkill /pid ${this.currentProcess.pid} /t /f`, (error, stdout, stderr) => {
+                            if (error) {
+                                console.error(`❌ Error killing process: ${error}`);
+                            } else {
+                                console.log(`✅ Process ${this.currentProcess.pid} killed successfully`);
+                            }
+                        });
+                    } else {
+                        // Unix-like systems: use SIGTERM first, then SIGKILL
+                        this.currentProcess.kill('SIGTERM');
+
+                        // Force kill after 5 seconds if still running
+                        setTimeout(() => {
+                            if (this.currentProcess && !this.currentProcess.killed) {
+                                console.log(`🔪 Force killing Python process for job ${jobId}`);
+                                this.currentProcess.kill('SIGKILL');
+                            }
+                        }, 5000);
+                    }
+                } catch (error) {
+                    console.error(`❌ Failed to kill process: ${error}`);
+                }
+
+                this.currentProcess = null;
+                this.currentJob = null;
+            } else {
+                console.log(`⚠️ Cannot kill process - either job is not currently processing or process reference is missing`);
+                if (!this.currentJob) {
+                    console.log(`   - No current job running`);
+                } else if (this.currentJob.id !== jobId) {
+                    console.log(`   - Current job ID (${this.currentJob.id}) doesn't match requested job ID (${jobId})`);
+                } else if (!this.currentProcess) {
+                    console.log(`   - No process reference available`);
+                }
+            }
+
+            // Update job status
+            job.status = 'cancelled';
+            job.progress = 0;
+            job.cancelledAt = new Date().toISOString();
+            job.currentStep = 'Job cancelled by user';
+            job.error = 'Process stopped by user request';
+
+            // Remove from processing queue if it's there
+            await this.removeFromProcessingQueue(job);
+
+            // Update job in storage
+            await this.updateJob(job);
+
+            // Move to failed queue (cancelled jobs go here for tracking)
+            await this.client.lPush(this.keys.failed, JSON.stringify(job));
+
+            console.log(`✅ Job ${jobId} cancelled successfully`);
+
+            // The processing loop will automatically continue with the next job
+            // No need to manually trigger processing since startProcessing() runs in a loop
+
+            return job;
+        } catch (error) {
+            console.error(`❌ Failed to cancel job ${jobId}:`, error);
+            throw error;
+        }
     }
 
     /**

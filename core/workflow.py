@@ -138,6 +138,35 @@ def run_full_workflow(num_movies: int = 3,
         if not raw_movies:
             raise Exception("Database extraction failed - no movies found")
         
+        # Log the extracted movies for user visibility
+        print(f"\n📋 Movies extracted from database:")
+        for i, movie in enumerate(raw_movies, 1):
+            movie_title = movie.get('title', 'Unknown Title')
+            movie_year = movie.get('year', 'Unknown Year')
+            imdb_score = movie.get('imdb', 'N/A')
+            print(f"   {i}. {movie_title} ({movie_year}) - IMDB: {imdb_score}")
+        
+        # Check if we have fewer than 3 movies and stop gracefully
+        if len(raw_movies) < 3:
+            error_message = f"Insufficient movies found - only {len(raw_movies)} movie(s) available with current filters"
+            print(f"\n❌ {error_message}")
+            print(f"   Filters used: Country={country}, Genre={genre}, Platform={platform}, Content Type={content_type}")
+            
+            # Show the movies that were found
+            print(f"\n🎬 Movies found with current filters:")
+            for i, movie in enumerate(raw_movies, 1):
+                movie_title = movie.get('title', 'Unknown Title')
+                movie_year = movie.get('year', 'Unknown Year')
+                print(f"   {i}. {movie_title} ({movie_year})")
+            
+            print(f"\n   Please try different filters to find more movies")
+            print(f"   Suggestions:")
+            print(f"     - Try a different genre")
+            print(f"     - Try a different platform") 
+            print(f"     - Try a different content type (Movies vs TV Shows)")
+            print(f"     - Try a different country")
+            raise Exception(error_message)
+        
         workflow_results['raw_movies'] = raw_movies
         workflow_results['steps_completed'].append('database_extraction')
         
@@ -152,7 +181,7 @@ def run_full_workflow(num_movies: int = 3,
             for i, movie in enumerate(raw_movies, 1):
                 title = movie.get('title', 'Unknown Title')
                 year = movie.get('year', 'Unknown Year')
-                imdb_score = movie.get('imdb_score', 'N/A')
+                imdb_score = movie.get('imdb', 'N/A')  # Use 'imdb' field to match the regular extraction
                 print(f"   {i}. {title} ({year}) - IMDB: {imdb_score}")
             
             print(f"\n💡 To continue with video generation, run without --pause-after-extraction flag")
