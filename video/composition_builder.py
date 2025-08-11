@@ -41,7 +41,7 @@ class HeyGenLast3sStrategy(PosterTimingStrategy):
                         clip_durations: Dict[str, float]) -> Dict[str, Dict[str, float]]:
         try:
             # Calculate cumulative times
-            intro_time = 1.0  # Fixed intro duration
+            intro_time = 1 
             
             # Movie 1
             heygen1_start = intro_time
@@ -62,16 +62,16 @@ class HeyGenLast3sStrategy(PosterTimingStrategy):
             
             return {
                 "poster1": {
-                    "time": max(heygen1_end - 3.0, heygen1_start + 0.5),
-                    "duration": min(3.0, max(0.5, heygen_durations["heygen1"] - 0.5))
+                    "time": heygen1_end - 4.0,  # Simple: last 4 seconds of HeyGen video
+                    "duration": 4.0  # Fixed 4-second duration as requested
                 },
                 "poster2": {
-                    "time": max(heygen2_end - 3.0, heygen2_start + 0.5),
-                    "duration": min(3.0, max(0.5, heygen_durations["heygen2"] - 0.5))
+                    "time": heygen2_end - 4.0,  # Simple: last 4 seconds of HeyGen video
+                    "duration": 4.0  # Fixed 4-second duration as requested
                 },
                 "poster3": {
-                    "time": max(heygen3_end - 3.0, heygen3_start + 0.5),
-                    "duration": min(3.0, max(0.5, heygen_durations["heygen3"] - 0.5))
+                    "time": heygen3_end - 4.0,  # Simple: last 4 seconds of HeyGen video
+                    "duration": 4.0  # Fixed 4-second duration as requested
                 }
             }
         except Exception as e:
@@ -103,15 +103,15 @@ class WithMovieClipsStrategy(PosterTimingStrategy):
             return {
                 "poster1": {
                     "time": clip1_start,
-                    "duration": clip_durations["clip1"]
+                    "duration": 4.0  # Fixed 4-second duration as requested
                 },
                 "poster2": {
                     "time": clip2_start,
-                    "duration": clip_durations["clip2"]
+                    "duration": 4.0  # Fixed 4-second duration as requested
                 },
                 "poster3": {
                     "time": clip3_start,
-                    "duration": clip_durations["clip3"]
+                    "duration": 4.0  # Fixed 4-second duration as requested
                 }
             }
         except Exception as e:
@@ -380,7 +380,11 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                                scroll_video_url: Optional[str]) -> Dict[str, Any]:
     """Build the complete Creatomate composition with all detailed elements."""
     
-    # Extract timing data for easy access
+    # ═══════════════════════════════════════════════════════════════
+    # TIMING VARIABLES FOR EASY MANAGEMENT
+    # ═══════════════════════════════════════════════════════════════
+    
+    # Extract poster timing data
     poster1_time = poster_timings["poster1"]["time"]
     poster1_duration = poster_timings["poster1"]["duration"]
     poster2_time = poster_timings["poster2"]["time"]
@@ -388,24 +392,51 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
     poster3_time = poster_timings["poster3"]["time"]
     poster3_duration = poster_timings["poster3"]["duration"]
     
+    # Timing offset variables for easy management
+    poster1_time_offset = -0.5      # No offset for first poster
+    poster2_time_offset = poster1_time_offset + -0.5   # Sync with HeyGen2 fade (0.5s)
+    poster3_time_offset = poster2_time_offset + -0.5   # Sync with HeyGen3 fade (0.5s)
+    
+    # Animation duration variables
+    intro_fade_duration = 0.5
+    poster_fade_duration = 1.0
+    heygen_fade_duration = 0.5
+    outro_fade_duration = 1.0
+    
+    # Element duration variables
+    intro_duration = 1
+    outro_duration = 3 - outro_fade_duration
+    scroll_video_start_time = 4
+    scroll_video_duration = 4
+    
+
+    # Audio duration variables
+    # To calculate the audio timing, we need to subtract the fade duration from the heygen duration
+    heygen1_audio_timing = -0.5
+    heygen2_audio_timing = heygen1_audio_timing + -0.5 # 0.5 heygen2 fade
+    heygen3_audio_timing = heygen2_audio_timing + -0.5 # heygen2_audio_timing + 0.5 heygen3 fade 
+
+    # Audio settings
+    audio_volume = "40%"
+    
     # Calculate total video length using ACTUAL durations (makes Creatomate easy to debug)
-    total_video_length = (1 +  # Intro
+    total_video_length = (intro_duration +  # Intro
                          heygen_durations["heygen1"] + 
                          clip_durations["clip1"] + 
                          heygen_durations["heygen2"] + 
                          clip_durations["clip2"] + 
                          heygen_durations["heygen3"] + 
                          clip_durations["clip3"] + 
-                         3)  # Outro
+                         outro_duration)  # Outro
         
-    # Branding duration = total - intro(1s) - outro(3s) - fade sa outro(1s) - fade sa heygen 2(0.5s) - fade sa heygen 3(0.5s)
-    branding_duration = total_video_length - 1 - 3 - 1 - 0.5 - 0.5 # -1 is duration of the fade outro, 0.5 for the 2nd and 3rd heygen video
+    # Branding duration = total - intro - outro - fade durations
+    branding_duration = total_video_length - intro_duration - outro_duration - outro_fade_duration - (heygen_fade_duration * 2)
         
     # LOG DETAILED TIMING FOR EASY CREATOMATE DEBUGGING
     logger.info("🎬 CREATOMATE COMPOSITION TIMING BREAKDOWN:")
-    logger.info(f"   📐 INTRO: 0.00s → 1.00s (1.00s duration)")
+    logger.info(f"   📐 INTRO: 0.00s → {intro_duration:.2f}s ({intro_duration:.2f}s duration)")
     
-    current_time = 1.0
+    current_time = float(intro_duration)
     logger.info(f"   🎤 HEYGEN1 (includes intro): {current_time:.2f}s → {current_time + heygen_durations['heygen1']:.2f}s ({heygen_durations['heygen1']:.2f}s duration)")
     current_time += heygen_durations["heygen1"]
     
@@ -424,13 +455,13 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
     logger.info(f"   🎬 CLIP3: {current_time:.2f}s → {current_time + clip_durations['clip3']:.2f}s ({clip_durations['clip3']:.2f}s duration)")
     current_time += clip_durations["clip3"]
     
-    logger.info(f"   📐 OUTRO: {current_time:.2f}s → {total_video_length:.2f}s (3.00s duration)")
+    logger.info(f"   📐 OUTRO: {current_time:.2f}s → {total_video_length:.2f}s ({outro_duration:.2f}s duration)")
     
     logger.info(f"📊 TOTAL VIDEO LENGTH: {total_video_length:.2f}s ({total_video_length/60:.1f} minutes)")
-    logger.info(f"🏷️ BRANDING: 1.00s → {1 + branding_duration:.2f}s ({branding_duration:.2f}s duration)")
+    logger.info(f"🏷️ BRANDING: {intro_duration:.2f}s → {intro_duration + branding_duration:.2f}s ({branding_duration:.2f}s duration)")
     
     # Show poster timing for easy debugging
-    logger.info("🖼️ POSTER TIMING:")
+    logger.info("🖼️ POSTER TIMING (Fixed 4.0s duration):")
     logger.info(f"   🖼️ POSTER1: {poster1_time:.2f}s → {poster1_time + poster1_duration:.2f}s ({poster1_duration:.2f}s duration)")
     logger.info(f"   🖼️ POSTER2: {poster2_time - 0.5:.2f}s → {poster2_time - 0.5 + poster2_duration:.2f}s ({poster2_duration:.2f}s duration)")
     logger.info(f"   🖼️ POSTER3: {poster3_time - 0.5:.2f}s → {poster3_time - 0.5 + poster3_duration:.2f}s ({poster3_duration:.2f}s duration)")
@@ -446,18 +477,18 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
             # MAIN TIMELINE (Track 1) - Sequential elements
             # ═══════════════════════════════════════════════════════════════
             
-            # 🎯 ELEMENT 1: INTRO IMAGE (1 second)
+            # 🎯 ELEMENT 1: INTRO IMAGE
             {
                 "type": "image",
                 "track": 1,
                 "time": 0,
-                "duration": 1,
+                "duration": intro_duration,
                 "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1753263646/streamGank_intro_cwefmt.jpg",
                 "fit": "cover",
                 "animations": [
                     {
                         "time": 0,
-                        "duration": 1,
+                        "duration": intro_fade_duration,
                         "easing": "quadratic-out",
                         "type": "fade"
                     }
@@ -470,7 +501,15 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                 "track": 1,
                 "time": "auto",
                 "source": heygen_video_urls["movie1"],
-                "fit": "cover"
+                "fit": "cover",
+                "animations": [
+                    {
+                        "time": 0,
+                        "duration": heygen_fade_duration,
+                        "transition": True,
+                        "type": "fade"
+                    }
+                ]
             },
             
             # 🎯 ELEMENT 3: MOVIE CLIP 1 (ACTUAL duration)
@@ -493,7 +532,7 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                 "animations": [
                     {
                         "time": 0,
-                        "duration": 0.5, # Fade in and out duration of heygen 3rd video
+                        "duration": heygen_fade_duration,
                         "transition": True,
                         "type": "fade"
                     }
@@ -520,7 +559,7 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                 "animations": [
                     {
                         "time": 0,
-                        "duration": 0.5, # Fade in and out duration of heygen 3rd video
+                        "duration": heygen_fade_duration,
                         "transition": True,
                         "type": "fade"
                     }
@@ -537,18 +576,18 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                 "fit": "cover"
             },
             
-            # 🎯 ELEMENT 8: OUTRO IMAGE (3 seconds)
+            # 🎯 ELEMENT 8: OUTRO IMAGE
             {
                 "type": "image",
                 "track": 1,
                 "time": "auto",
-                "duration": 3,
+                "duration": outro_duration,
                 "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752587571/streamgank_bg_heecu7.png",
                 "fit": "cover",
                 "animations": [
                     {
                         "time": 0,
-                        "duration": 1,
+                        "duration": outro_fade_duration,
                         "transition": True,
                         "type": "fade"
                     }
@@ -559,76 +598,55 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
             # OVERLAY ELEMENTS (Track 2) - Enhanced Posters with Perfect Timing
             # ═══════════════════════════════════════════════════════════════
             
-            # 🎯 POSTER 1 - Calculated timing with actual HeyGen duration
+            # 🎯 POSTER 1 - Fixed 4-second duration for optimal display
             {
                 "type": "image",
                 "track": 2,
-                "time": poster1_time,
+                "time": poster1_time + poster1_time_offset,
                 "duration": poster1_duration,
                 "source": movie_covers[0],
                 "fit": "contain",
                 "animations": [
                     {
                         "time": 0,
-                        "duration": 1,
+                        "duration": poster_fade_duration,
                         "easing": "quadratic-out",
-                        "type": "fade"
-                    },
-                    {
-                        "time": "end",
-                        "duration": 1,
-                        "easing": "quadratic-out",
-                        "reversed": True,
                         "type": "fade"
                     }
                 ]
             },
             
-            # 🎯 POSTER 2 - Calculated timing with actual HeyGen duration
+            # 🎯 POSTER 2 - Fixed 4-second duration for optimal display
             {
                 "type": "image",
                 "track": 2,  
-                "time": poster2_time - 0.5, # Dont remove this comment - 0.5 is the duration of the fade in and out of heygen 2nd video
+                "time": poster2_time + poster2_time_offset,  # Sync with HeyGen2 fade timing
                 "duration": poster2_duration,
                 "source": movie_covers[1],
                 "fit": "contain",
                 "animations": [
                     {
                         "time": 0,
-                        "duration": 1,
+                        "duration": poster_fade_duration,
                         "easing": "quadratic-out",
-                        "type": "fade"
-                    },
-                    {
-                        "time": "end",
-                        "duration": 1,
-                        "easing": "quadratic-out",
-                        "reversed": True,
                         "type": "fade"
                     }
                 ]
             },
             
-            # 🎯 POSTER 3 - Calculated timing with actual HeyGen duration
+            # 🎯 POSTER 3 - Fixed 4-second duration for optimal display
             {
                 "type": "image",
                 "track": 2,
-                "time": poster3_time - 0.5, # Dont remove this comment - 0.5 is the duration of the fade in and out of heygen 3rd video
+                "time": poster3_time + poster3_time_offset,  # Sync with HeyGen3 fade timing
                 "duration": poster3_duration,
                 "source": movie_covers[2],
                 "fit": "contain",
                 "animations": [
                     {
                         "time": 0,
-                        "duration": 1,
+                        "duration": poster_fade_duration,
                         "easing": "quadratic-out",
-                        "type": "fade"
-                    },
-                    {
-                        "time": "end",
-                        "duration": 1,
-                        "easing": "quadratic-out",
-                        "reversed": True,
                         "type": "fade"
                     }
                 ]
@@ -642,7 +660,7 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                 "name": "Composition-228",
                 "type": "composition",
                 "track": 3,
-                "time": 1,
+                "time": intro_duration,
                 "duration": branding_duration,
                 "elements": [
                     # STREAMGANK LOGO TEXT "Stream" - Green colored, persistent overlay
@@ -714,29 +732,29 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                         "type": "audio",
                         "track": 1,
                         "time": 0,
-                        "duration": 1 + heygen_durations["heygen1"],  # Intro (1s) + HeyGen1 duration
+                        "duration": intro_duration + heygen_durations["heygen1"] + heygen1_audio_timing,
                         "source": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3",
-                        "volume": "40%"
+                        "volume": audio_volume
                     },
                     # AUDIO 2 - Start with 2nd HeyGen video, duration matches HeyGen2
                     {
                         "name": "Audio-8X4",
                         "type": "audio",
                         "track": 1,
-                        "time": 1 + heygen_durations["heygen1"] + clip_durations["clip1"],  # Start of HeyGen2
-                        "duration": heygen_durations["heygen2"],  # Duration of HeyGen2
+                        "time": intro_duration + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen2_audio_timing,
+                        "duration": heygen_durations["heygen2"],
                         "source": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3",
-                        "volume": "40%"
+                        "volume": audio_volume
                     },
                     # AUDIO 3 - Start with 3rd HeyGen video, duration matches HeyGen3
                     {
                         "name": "Audio-49L",
                         "type": "audio",
                         "track": 1,
-                        "time": 1 + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"],  # Start of HeyGen3
-                        "duration": heygen_durations["heygen3"],  # Duration of HeyGen3
+                        "time": intro_duration + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + heygen3_audio_timing,
+                        "duration": heygen_durations["heygen3"],
                         "source": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3",
-                        "volume": "40%"
+                        "volume": audio_volume
                     }
                 ]
             }
@@ -749,8 +767,8 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
             "name": "ScrollVideo-Overlay",
             "type": "video",
             "track": 4,
-            "time": 4,   # Start at 4 seconds into video
-            "duration": 4,  # Play for 4 seconds
+            "time": scroll_video_start_time,
+            "duration": scroll_video_duration,
             "source": scroll_video_url,
             "fit": "cover",
             "width": "100%",
@@ -758,13 +776,13 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
             "animations": [
                 {
                     "time": 0,
-                    "duration": 1,
+                    "duration": poster_fade_duration,
                     "type": "fade",
                     "fade_in": True
                 },
                 {
                     "time": "end",
-                    "duration": 1,
+                    "duration": poster_fade_duration,
                     "easing": "quadratic-out",
                     "reversed": True,
                     "type": "fade"

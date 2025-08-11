@@ -833,7 +833,7 @@ def _create_single_video(script_text: str,
         else:
             payload = _build_custom_payload(script_text, key)
             url = f"{config['base_url']}/video/generate"
-        
+        print(payload)
         # Send request with retry logic
         for attempt in range(config.get('retry_attempts', 3)):
             try:
