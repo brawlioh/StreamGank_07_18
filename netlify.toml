@@ -1,0 +1,136 @@
+[build]
+  # Deploy the entire project root directory
+  publish = "."
+  # Command to run before build (if needed)
+  command = "echo 'Building StreamGank Video Generator - Full Project'"
+
+[build.environment]
+  NODE_VERSION = "18.17.0"
+
+# Serve GUI interface at root
+[[redirects]]
+  from = "/"
+  to = "/gui/index.html"
+  status = 200
+
+# Redirect all API calls to Netlify Functions
+[[redirects]]
+  from = "/api/generate"
+  to = "/.netlify/functions/generate"
+  status = 200
+
+[[redirects]]
+  from = "/api/platforms/*"
+  to = "/.netlify/functions/platforms"
+  status = 200
+
+[[redirects]]
+  from = "/api/genres/*"
+  to = "/.netlify/functions/genres"
+  status = 200
+
+[[redirects]]
+  from = "/api/status/*"
+  to = "/.netlify/functions/status"
+  status = 200
+
+[[redirects]]
+  from = "/api/validate-url"
+  to = "/.netlify/functions/validate-url"
+  status = 200
+
+[[redirects]]
+  from = "/api/queue/status"
+  to = "/.netlify/functions/queue-status"
+  status = 200
+
+[[redirects]]
+  from = "/api/queue/clear"
+  to = "/.netlify/functions/queue-clear"
+  status = 200
+
+[[redirects]]
+  from = "/api/job/*"
+  to = "/.netlify/functions/job"
+  status = 200
+
+# Fallback for any other API calls
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Serve GUI static assets
+[[redirects]]
+  from = "/css/*"
+  to = "/gui/css/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/js/*"
+  to = "/gui/js/:splat"
+  status = 200
+
+# GUI SPA fallback - redirect GUI routes to gui/index.html
+[[redirects]]
+  from = "/gui/*"
+  to = "/gui/index.html"
+  status = 200
+
+# Fallback for any unmatched routes to GUI
+[[redirects]]
+  from = "/*"
+  to = "/gui/index.html"
+  status = 200
+
+# Headers for security and CORS
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    
+# CORS headers for API endpoints
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Headers = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+
+# Cache static assets
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+    
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+
+[[headers]]
+  for = "/gui/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+    
+[[headers]]
+  for = "/gui/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+
+# Environment variables (you'll need to set these in Netlify dashboard)
+# Required environment variables:
+# - BACKEND_API_URL (URL of your Python backend API)
+# - REDIS_URL (if using external Redis for job queue)
+# - OPENAI_API_KEY (for AI script generation)
+# - GEMINI_API_KEY (fallback for AI script generation)  
+# - HEYGEN_API_KEY (for AI video generation)
+# - CREATOMATE_API_KEY (for video composition)
+# - CLOUDINARY_API_KEY (for media processing)
+# - CLOUDINARY_API_SECRET
+# - CLOUDINARY_CLOUD_NAME
+# - SUPABASE_URL (for database)
+# - SUPABASE_KEY (for database authentication)
