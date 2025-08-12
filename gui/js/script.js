@@ -23,12 +23,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const moviesCount = document.getElementById('movies-count');
     const videosCount = document.getElementById('videos-count');
     const groupId = document.getElementById('group-id');
-    const videoPlayer = document.querySelector('.video-player');
-    const finalVideo = document.getElementById('final-video');
+    const videoGallery = document.getElementById('video-gallery');
+    const videosContainer = document.getElementById('videos-container');
+    const videoCountBadge = document.getElementById('video-count-badge');
     const renderingStatus = document.getElementById('rendering-status');
-    const videoUrlLink = document.getElementById('video-url-link');
-    const copyUrlBtn = document.getElementById('copy-url-btn');
-    const videoUrlDisplay = document.getElementById('video-url-display');
     const checkStatusBtn = document.getElementById('check-status-btn');
     const creatomateIdDisplay = document.getElementById('creatomate-id-display');
     const loadVideoBtn = document.getElementById('load-video-btn');
@@ -40,6 +38,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // Track current job monitoring state
     let currentJobMonitoring = null;
     let isGenerationActive = false;
+
+    // Track completed videos
+    let completedVideos = [];
 
     // Video event handlers (defined once to prevent duplicates)
     function videoLoadStartHandler() {
@@ -189,11 +190,12 @@ document.addEventListener('DOMContentLoaded', function () {
         },
     };
 
-    // Platform value mapping for FR (display name -> URL parameter value)
+    // Platform value mapping (display name -> URL parameter value)
     const platformMapping = {
         Prime: 'amazon',
         'Apple TV+': 'apple',
         'Disney+': 'disney',
+        Hulu: 'hulu', // US only
         Max: 'max',
         Netflix: 'netflix',
         Free: 'free',
@@ -279,24 +281,21 @@ document.addEventListener('DOMContentLoaded', function () {
             // Add new options based on database data
             data.platforms.forEach((platformName) => {
                 const option = document.createElement('option');
-                // Convert platform name to value format (reverse of platformMapping)
-                const platformValue = getPlatformValue(platformName);
-                option.value = platformValue;
+                // Use display name as value, URL parameter will be generated in buildStreamGankUrl
+                option.value = platformName;
                 option.textContent = platformName;
                 platformSelect.appendChild(option);
             });
 
             // Try to restore previous selection if it exists in the new list
-            const availableValues = data.platforms.map((name) => getPlatformValue(name));
-            if (currentSelection && availableValues.includes(currentSelection)) {
+            if (currentSelection && data.platforms.includes(currentSelection)) {
                 platformSelect.value = currentSelection;
             } else {
                 // Set default selection (Netflix is usually available)
-                const netflixValue = getPlatformValue('Netflix');
-                if (availableValues.includes(netflixValue)) {
-                    platformSelect.value = netflixValue;
-                } else if (availableValues.length > 0) {
-                    platformSelect.value = availableValues[0];
+                if (data.platforms.includes('Netflix')) {
+                    platformSelect.value = 'Netflix';
+                } else if (data.platforms.length > 0) {
+                    platformSelect.value = data.platforms[0];
                 }
             }
 
@@ -316,7 +315,7 @@ document.addEventListener('DOMContentLoaded', function () {
             console.log('🔄 Falling back to hardcoded platform data');
             const fallbackPlatforms = {
                 FR: ['Prime', 'Apple TV+', 'Disney+', 'Max', 'Netflix', 'Free'],
-                US: ['Prime', 'Apple TV+', 'Disney+', 'Hulu', 'Max', 'Netflix'],
+                US: ['Prime', 'Apple TV+', 'Disney+', 'Hulu', 'Max', 'Netflix', 'Free'],
             };
 
             const platforms = fallbackPlatforms[selectedCountry] || fallbackPlatforms['US'];
@@ -324,23 +323,20 @@ document.addEventListener('DOMContentLoaded', function () {
             platformSelect.innerHTML = '';
             platforms.forEach((platformName) => {
                 const option = document.createElement('option');
-                const platformValue = getPlatformValue(platformName);
-                option.value = platformValue;
+                option.value = platformName;
                 option.textContent = platformName;
                 platformSelect.appendChild(option);
             });
 
             // Restore selection or default to netflix
-            const availableValues = platforms.map((name) => getPlatformValue(name));
-            if (currentSelection && availableValues.includes(currentSelection)) {
+            if (currentSelection && platforms.includes(currentSelection)) {
                 platformSelect.value = currentSelection;
             } else {
                 // Try to set Netflix, otherwise use first available
-                const netflixValue = getPlatformValue('Netflix');
-                if (availableValues.includes(netflixValue)) {
-                    platformSelect.value = netflixValue;
-                } else if (availableValues.length > 0) {
-                    platformSelect.value = availableValues[0];
+                if (platforms.includes('Netflix')) {
+                    platformSelect.value = 'Netflix';
+                } else if (platforms.length > 0) {
+                    platformSelect.value = platforms[0];
                 }
             }
 
@@ -358,14 +354,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Helper function to convert platform display name to value
     function getPlatformValue(platformName) {
-        // Reverse lookup in platformMapping
-        for (const [value, display] of Object.entries(platformMapping)) {
-            if (display === platformName) {
-                return value;
-            }
-        }
-        // If not found, create value from name
-        return platformName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        // Direct lookup in platformMapping (key is display name, value is URL param)
+        return platformMapping[platformName] || platformName.toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
     // Function to get HeyGen template for a genre
@@ -483,32 +473,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Handle form submission
     generateButton.addEventListener('click', startVideoGeneration);
 
-    // Handle copy URL button
-    copyUrlBtn.addEventListener('click', async function () {
-        const videoUrl = videoUrlLink.href;
-        if (videoUrl && videoUrl !== '#') {
-            try {
-                await navigator.clipboard.writeText(videoUrl);
-                copyUrlBtn.innerHTML = '<span>✅</span> Copied!';
-                setTimeout(() => {
-                    copyUrlBtn.innerHTML = '<span>📋</span> Copy URL';
-                }, 2000);
-            } catch (err) {
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = videoUrl;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-
-                copyUrlBtn.innerHTML = '<span>✅</span> Copied!';
-                setTimeout(() => {
-                    copyUrlBtn.innerHTML = '<span>📋</span> Copy URL';
-                }, 2000);
-            }
-        }
-    });
+    // Copy URL functionality is now handled individually for each video in the gallery
 
     // Function to update preview
     function updatePreview() {
@@ -524,10 +489,15 @@ document.addEventListener('DOMContentLoaded', function () {
         previewPlatform.textContent = platform.text;
         previewGenre.textContent = genre.text;
         previewTemplate.textContent = template ? template.text : 'Universal Default';
-        previewType.textContent = contentType.id === 'all' ? 'All' : contentType.id === 'movie' ? 'Movies' : 'TV Shows';
+
+        if (contentType) {
+            previewType.textContent = contentType.id === 'all' ? 'All' : contentType.id === 'movie' ? 'Movies' : 'TV Shows';
+        } else {
+            previewType.textContent = 'TV Shows'; // Default
+        }
 
         // Build and update URL - pass genre.value (French key) for correct mapping
-        const url = buildStreamGankUrl(country.value, genre.value, platform.text, contentType.value);
+        const url = buildStreamGankUrl(country.value, genre.value, platform.text, contentType ? contentType.value : 'Serie');
         previewUrl.textContent = url;
     }
 
@@ -543,12 +513,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (platform) {
-            // Use French platform mapping for URL parameter
-            const platformParam = platformMapping[platform] || platform.toLowerCase().replace('_', '');
+            // Use platform mapping for URL parameter
+            const platformParam = platformMapping[platform] || platform.toLowerCase().replace(/[^a-z0-9]/g, '');
             url += `&platforms=${platformParam}`;
         }
 
-        if (type && type !== 'All') {
+        if (type && type !== 'all' && type !== 'All') {
             // Use French content type mapping for URL parameter
             const typeParam = contentTypeMapping[type] || type;
             // URL encode to handle accents (e.g., "Série" -> "S%C3%A9rie")
@@ -631,7 +601,8 @@ document.addEventListener('DOMContentLoaded', function () {
         isGenerationActive = false;
         generateButton.disabled = false;
         generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
-        document.getElementById('stop-process-btn').style.display = 'none';
+        const stopBtn = document.getElementById('stop-process-btn');
+        if (stopBtn) stopBtn.style.display = 'none';
         progressContainer.classList.add('d-none');
         progressBar.style.width = '0%';
 
@@ -657,21 +628,23 @@ document.addEventListener('DOMContentLoaded', function () {
         // Disable generate button and show stop button
         generateButton.disabled = true;
         generateButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
-        document.getElementById('stop-process-btn').style.display = 'inline-block';
+        const stopBtn = document.getElementById('stop-process-btn');
+        if (stopBtn) stopBtn.style.display = 'inline-block';
 
         // Get selected options
         const country = countrySelect.value;
         const platform = platformSelect.value; // Send platform value as-is
         const genre = genreSelect.value;
         const template = templateSelect.value; // Get selected template ID
-        const contentType = document.querySelector('input[name="contentType"]:checked').value;
+        const contentTypeElement = document.querySelector('input[name="contentType"]:checked');
+        const contentType = contentTypeElement ? contentTypeElement.value : 'Serie';
         const pauseAfterExtraction = document.getElementById('pauseAfterExtraction').checked;
 
         // Build target URL for validation
         const country_obj = countrySelect.options[countrySelect.selectedIndex];
         const platform_obj = platformSelect.options[platformSelect.selectedIndex];
         const genre_obj = genreSelect.options[genreSelect.selectedIndex];
-        const contentType_obj = document.querySelector('input[name="contentType"]:checked');
+        const contentType_obj = document.querySelector('input[name="contentType"]:checked') || { value: 'Serie' };
 
         const targetUrl = buildStreamGankUrl(country_obj.value, genre_obj.text, platform_obj.text, contentType_obj.value);
 
@@ -762,7 +735,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Re-enable generate button and hide stop button
         generateButton.disabled = false;
         generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
-        document.getElementById('stop-process-btn').style.display = 'none';
+        const stopBtn = document.getElementById('stop-process-btn');
+        if (stopBtn) stopBtn.style.display = 'none';
 
         // Show results
         videoResults.classList.remove('d-none');
@@ -772,57 +746,37 @@ document.addEventListener('DOMContentLoaded', function () {
         videosCount.textContent = data && data.videosCount ? data.videosCount : '3';
         groupId.textContent = data && data.groupId ? data.groupId : generateTimestampId();
 
-        // Only show video player if explicitly requested AND video URL is available
+        // Handle video completion and gallery
         if (showVideo && data && data.videoUrl) {
             // Ensure progress bar is at 100% when showing video
             progressBar.style.width = '100%';
             progressBar.classList.add('bg-success'); // Make it green when complete
 
-            // Reset video ready message flag for new video
-            videoReadyMessageShown = false;
-
-            // Hide rendering status and show video
+            // Hide rendering status
             renderingStatus.classList.add('d-none');
-            videoPlayer.classList.remove('d-none');
 
-            // Test if video URL is accessible
-            addStatusMessage('info', '🔗', `Loading video from: ${data.videoUrl}`);
-            finalVideo.src = data.videoUrl;
+            // Add video to gallery
+            addVideoToGallery({
+                videoUrl: data.videoUrl,
+                creatomateId: data.creatomateId,
+                jobId: data.jobId || window.currentJobId || generateTimestampId(),
+                timestamp: new Date().toISOString(),
+            });
 
-            // Set up video URL link and display
-            videoUrlLink.href = data.videoUrl;
-            videoUrlDisplay.textContent = data.videoUrl;
-
-            // Remove any existing event listeners to prevent duplicates
-            finalVideo.removeEventListener('loadstart', videoLoadStartHandler);
-            finalVideo.removeEventListener('canplay', videoCanPlayHandler);
-            finalVideo.removeEventListener('error', videoErrorHandler);
-
-            // Add video load event listeners (only once per video)
-            finalVideo.addEventListener('loadstart', videoLoadStartHandler);
-            finalVideo.addEventListener('canplay', videoCanPlayHandler);
-            finalVideo.addEventListener('error', videoErrorHandler);
-
-            addStatusMessage('success', '🎉', 'Video rendering completed! You can now view and download your video.');
+            addStatusMessage('success', '🎉', 'Video rendering completed! Added to video gallery below.');
+            addStatusMessage('info', '📺', `Total videos generated: ${completedVideos.length}`);
         } else if (showVideo) {
             // Video was supposed to be ready but no URL available
             renderingStatus.classList.add('d-none');
-            videoUrlLink.href = '#';
-            videoUrlDisplay.textContent = 'Not available';
             addStatusMessage('warning', '⚠️', 'Video generation completed but final video URL not available yet. Check status manually.');
         } else if (data && data.creatomateId) {
             // Video is being processed - show rendering status
             renderingStatus.classList.remove('d-none');
-            videoPlayer.classList.add('d-none');
-            videoUrlLink.href = '#';
-            videoUrlDisplay.textContent = 'Processing...';
             creatomateIdDisplay.textContent = data.creatomateId;
             addStatusMessage('success', '✅', 'Video generation submitted successfully! Monitoring render progress...');
         } else {
             // No video processing
             renderingStatus.classList.add('d-none');
-            videoUrlLink.href = '#';
-            videoUrlDisplay.textContent = '-';
             addStatusMessage('success', '✅', 'Video generation completed!');
         }
     }
@@ -838,6 +792,116 @@ document.addEventListener('DOMContentLoaded', function () {
         const second = String(now.getSeconds()).padStart(2, '0');
 
         return `${year}${month}${day}_${hour}${minute}${second}`;
+    }
+
+    // Function to create a video item in the gallery
+    function createVideoItem(videoData) {
+        const videoItem = document.createElement('div');
+        videoItem.className = 'video-item';
+        videoItem.dataset.jobId = videoData.jobId || 'unknown';
+
+        // Get current form values for context
+        const country = countrySelect.options[countrySelect.selectedIndex]?.text || 'Unknown';
+        const platform = platformSelect.options[platformSelect.selectedIndex]?.text || 'Unknown';
+        const genre = genreSelect.options[genreSelect.selectedIndex]?.text || 'Unknown';
+        const contentType = document.querySelector('input[name="contentType"]:checked')?.id || 'unknown';
+        const contentTypeText = contentType === 'all' ? 'All' : contentType === 'movie' ? 'Movies' : 'TV Shows';
+
+        const timestamp = new Date().toLocaleString();
+
+        videoItem.innerHTML = `
+            <h4>
+                <span>🎬</span> 
+                Video ${completedVideos.length + 1}
+                <span class="job-badge badge bg-success">${videoData.jobId || 'N/A'}</span>
+                <span class="timestamp">${timestamp}</span>
+            </h4>
+            <div class="video-info">
+                <strong>${country}</strong> • ${platform} • ${genre} • ${contentTypeText}
+                ${videoData.creatomateId ? `• ID: ${videoData.creatomateId}` : ''}
+            </div>
+            <video controls preload="metadata">
+                <source src="${videoData.videoUrl}" type="video/mp4" />
+                Your browser does not support the video tag.
+            </video>
+            <div class="video-actions">
+                <a href="${videoData.videoUrl}" target="_blank" class="btn btn-outline-primary btn-sm">
+                    <span>🔗</span> Open Video
+                </a>
+                <a href="${videoData.videoUrl}" download="streamgank_video_${videoData.jobId || 'unknown'}.mp4" class="btn btn-outline-success btn-sm">
+                    <span>💾</span> Download
+                </a>
+                <button class="btn btn-outline-secondary btn-sm copy-video-url" data-url="${videoData.videoUrl}">
+                    <span>📋</span> Copy URL
+                </button>
+                <button class="btn btn-outline-danger btn-sm remove-video" data-job-id="${videoData.jobId}">
+                    <span>🗑️</span> Remove
+                </button>
+            </div>
+            <div class="video-url">
+                <strong>URL:</strong> ${videoData.videoUrl}
+            </div>
+        `;
+
+        // Add event listeners for the buttons
+        const copyBtn = videoItem.querySelector('.copy-video-url');
+        const removeBtn = videoItem.querySelector('.remove-video');
+
+        copyBtn.addEventListener('click', async function () {
+            try {
+                await navigator.clipboard.writeText(videoData.videoUrl);
+                copyBtn.innerHTML = '<span>✅</span> Copied!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<span>📋</span> Copy URL';
+                }, 2000);
+            } catch (err) {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = videoData.videoUrl;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+
+                copyBtn.innerHTML = '<span>✅</span> Copied!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<span>📋</span> Copy URL';
+                }, 2000);
+            }
+        });
+
+        removeBtn.addEventListener('click', function () {
+            if (confirm('Are you sure you want to remove this video from the gallery?')) {
+                videoItem.remove();
+                // Remove from completedVideos array
+                completedVideos = completedVideos.filter((v) => v.jobId !== videoData.jobId);
+                updateVideoCount();
+            }
+        });
+
+        return videoItem;
+    }
+
+    // Function to add video to gallery
+    function addVideoToGallery(videoData) {
+        // Add to completed videos array
+        completedVideos.push(videoData);
+
+        // Create and add video item
+        const videoItem = createVideoItem(videoData);
+        videosContainer.appendChild(videoItem);
+
+        // Show gallery and update count
+        videoGallery.classList.remove('d-none');
+        updateVideoCount();
+
+        // Scroll to the new video
+        videoItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // Function to update video count badge
+    function updateVideoCount() {
+        videoCountBadge.textContent = completedVideos.length;
     }
 
     // Function to call the generate API - now adds to Redis queue
@@ -946,6 +1010,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     const progress = Math.max(30, job.progress || 30);
                     progressBar.style.width = `${progress}%`;
 
+                    // Check if this is a new job starting (different job ID)
+                    if (lastStatus !== 'processing' || window.currentJobId !== job.id) {
+                        if (window.currentJobId && window.currentJobId !== job.id) {
+                            addStatusMessage('info', '📋', `Queue: Starting next job ${job.id}`);
+                            addStatusMessage('info', '🔄', `Processing job ${job.queuePosition || 'unknown'} in queue`);
+                        }
+                        window.currentJobId = job.id;
+                    }
+
                     // Show current step only if it changed
                     const stepMessage = job.currentStep || `Processing (${progress}% complete)`;
                     if (lastStep !== stepMessage) {
@@ -1022,7 +1095,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Reset generate button - user can start new jobs
                         generateButton.disabled = false;
                         generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
-                        document.getElementById('stop-process-btn').style.display = 'none';
+                        const stopBtn = document.getElementById('stop-process-btn');
+                        if (stopBtn) stopBtn.style.display = 'none';
                         isGenerationActive = false;
                         progressBar.style.width = '100%';
                         progressBar.classList.add('bg-success');
@@ -1067,6 +1141,12 @@ document.addEventListener('DOMContentLoaded', function () {
                             },
                             false
                         ); // Don't show video yet
+
+                        // Add detailed Creatomate status logs
+                        addStatusMessage('info', '🎬', 'Step 7: Final video rendering started');
+                        addStatusMessage('info', '🎞️', `Creatomate is now composing the final video...`);
+                        addStatusMessage('info', '⚙️', `Render ID: ${job.creatomateId}`);
+                        addStatusMessage('info', '⏳', 'This process typically takes 2-5 minutes depending on video complexity');
 
                         // Start Creatomate monitoring
                         setTimeout(() => {
@@ -1276,9 +1356,13 @@ document.addEventListener('DOMContentLoaded', function () {
             try {
                 attempts++;
 
-                // Only show attempt message every 5 attempts to reduce spam
-                if (attempts % 5 === 1 || attempts === 1) {
-                    addStatusMessage('info', '🔍', `Checking Creatomate status... (attempt ${attempts}/${maxAttempts})`);
+                // Show status check message every attempt (every 30 seconds)
+                addStatusMessage('info', '🔍', `Step 7: Checking render status... (${attempts}/${maxAttempts})`);
+
+                // Show time elapsed
+                const timeElapsed = Math.floor((attempts * 30) / 60); // Convert to minutes
+                if (timeElapsed > 0) {
+                    addStatusMessage('info', '⏱️', `Rendering time: ${timeElapsed} minute${timeElapsed > 1 ? 's' : ''}`);
                 }
 
                 const response = await fetch(`/api/status/${creatomateId}`);
@@ -1291,7 +1375,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Only show status update if it changed
                     if (lastCreatomateStatus !== status) {
-                        addStatusMessage('info', '📊', `Creatomate status: ${status}`);
+                        // Show detailed status messages based on Creatomate status
+                        if (status === 'planned' || status === 'queued') {
+                            addStatusMessage('info', '📋', `Step 7: Video queued for rendering (${status})`);
+                        } else if (status === 'processing' || status === 'rendering') {
+                            addStatusMessage('info', '🎬', `Step 7: Video is being rendered (${status})`);
+                            addStatusMessage('info', '⚙️', 'Compositing video layers, audio, and effects...');
+                        } else if (status === 'completed' || status === 'succeeded') {
+                            addStatusMessage('success', '✅', `Step 7: Video rendering completed successfully!`);
+                        } else if (status === 'failed' || status === 'error') {
+                            addStatusMessage('error', '❌', `Step 7: Video rendering failed (${status})`);
+                        } else {
+                            addStatusMessage('info', '📊', `Step 7: Creatomate status - ${status}`);
+                        }
                         lastCreatomateStatus = status;
                     }
 
@@ -1302,9 +1398,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Only show completion messages once
                         if (!creatomateMessages.has('completed')) {
-                            addStatusMessage('success', '🎉', 'Video rendering completed successfully!');
-                            addStatusMessage('success', '🔗', `Video URL: ${statusData.videoUrl}`);
-                            addStatusMessage('success', '📊', 'Progress: 100% - Video generation complete!');
+                            addStatusMessage('success', '🎉', 'Step 7: Video rendering completed successfully!');
+                            addStatusMessage('success', '🎬', 'Final video is ready for viewing and download!');
+                            addStatusMessage('info', '💾', 'Video has been added to the gallery below with download link');
+                            addStatusMessage('success', '📊', 'Progress: 100% - Complete workflow finished!');
                             creatomateMessages.add('completed');
                         }
 
@@ -1367,8 +1464,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                         progressBar.style.width = `${progressPercent}%`;
 
-                        // Schedule next check
-                        setTimeout(() => checkStatus(), 10000);
+                        // Schedule next check every 30 seconds
+                        setTimeout(() => checkStatus(), 30000);
                     } else {
                         // Max attempts reached
                         if (!creatomateMessages.has('timeout')) {
@@ -1386,10 +1483,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if (attempts < maxAttempts) {
                         if (!creatomateMessages.has('retrying-status')) {
-                            addStatusMessage('warning', '⚠️', 'Retrying status check in 10 seconds...');
+                            addStatusMessage('warning', '⚠️', 'Retrying status check in 30 seconds...');
                             creatomateMessages.add('retrying-status');
                         }
-                        setTimeout(() => checkStatus(), 10000);
+                        setTimeout(() => checkStatus(), 30000);
                     } else {
                         if (!creatomateMessages.has('max-attempts-status')) {
                             addStatusMessage('error', '❌', 'Unable to check video status after multiple attempts.');
@@ -1407,10 +1504,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 if (attempts < maxAttempts) {
                     if (!creatomateMessages.has('retrying-network')) {
-                        addStatusMessage('warning', '⚠️', 'Retrying in 15 seconds...');
+                        addStatusMessage('warning', '⚠️', 'Retrying in 30 seconds...');
                         creatomateMessages.add('retrying-network');
                     }
-                    setTimeout(() => checkStatus(), 15000);
+                    setTimeout(() => checkStatus(), 30000);
                 } else {
                     if (!creatomateMessages.has('network-persist')) {
                         addStatusMessage('error', '❌', 'Status monitoring failed after multiple attempts.');
@@ -1422,7 +1519,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Start checking status after 5 seconds (shorter delay)
         addStatusMessage('info', '🔄', `Starting status monitoring for video: ${creatomateId}`);
-        addStatusMessage('info', '⏳', 'Status monitoring will begin in 5 seconds...');
+        addStatusMessage('info', '⏳', 'Status will be checked every 30 seconds until completion...');
         setTimeout(() => checkStatus(), 5000);
     }
 
@@ -1507,19 +1604,26 @@ document.addEventListener('DOMContentLoaded', function () {
                     addStatusMessage('info', '🔄', `Manual status check: ${status}`);
 
                     if (status === 'completed' || status === 'succeeded') {
-                        addStatusMessage('success', '🎉', 'Video rendering completed! Loading video...');
+                        addStatusMessage('success', '🎉', 'Step 7: Video rendering completed! Loading video...');
+                        addStatusMessage('success', '💾', 'Video ready for download and viewing');
 
                         // Create final data object and finish generation
                         const finalData = {
                             videoUrl: statusData.videoUrl,
                             creatomateId: creatomateId,
+                            jobId: window.currentJobId || 'manual_check_' + Date.now(),
                         };
 
                         finishGeneration(finalData, true);
                     } else if (status === 'failed' || status === 'error') {
-                        addStatusMessage('error', '❌', 'Video rendering failed.');
+                        addStatusMessage('error', '❌', 'Step 7: Video rendering failed.');
+                    } else if (status === 'processing' || status === 'rendering') {
+                        addStatusMessage('info', '🎬', `Step 7: Video is being rendered (${status})`);
+                        addStatusMessage('info', '⚙️', 'Compositing video layers, audio, and effects...');
+                    } else if (status === 'planned' || status === 'queued') {
+                        addStatusMessage('info', '📋', `Step 7: Video queued for rendering (${status})`);
                     } else {
-                        addStatusMessage('info', '⏳', `Status: ${status} - Still processing...`);
+                        addStatusMessage('info', '⏳', `Step 7: Status - ${status} (Still processing...)`);
                     }
                 } else {
                     addStatusMessage('error', '❌', 'Failed to check status: ' + statusData.message);
@@ -1539,6 +1643,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const currentVideoData = {
             videoUrl: 'https://f002.backblazeb2.com/file/creatomate-c8xg3hsxdu/4a4588bd-d92a-46a1-924d-428d27710c19.mp4',
             creatomateId: '4a4588bd-d92a-46a1-924d-428d27710c19',
+            jobId: 'demo_video_' + Date.now(),
             moviesCount: 3,
             videosCount: 3,
             groupId: 'workflow_20250729_113801',

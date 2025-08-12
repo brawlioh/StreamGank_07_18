@@ -113,6 +113,9 @@ class VideoQueueManager {
      */
     async getQueueStatus() {
         try {
+            // Clean up orphaned processing jobs before getting status
+            await this.cleanupProcessingQueue();
+
             const [pending, processing, completed, failed] = await Promise.all([this.client.lLen(this.keys.pending), this.client.lLen(this.keys.processing), this.client.lLen(this.keys.completed), this.client.lLen(this.keys.failed)]);
 
             return {
@@ -195,6 +198,16 @@ class VideoQueueManager {
 
                 if (jobData && jobData.element) {
                     const job = JSON.parse(jobData.element);
+
+                    // Ensure only one job is processed at a time
+                    if (this.currentJob) {
+                        console.log(`⚠️ Job ${job.id} skipped - another job ${this.currentJob.id} is still processing`);
+                        // Put the job back at the front of the queue
+                        await this.client.lPush(this.keys.pending, jobData.element);
+                        await this.sleep(2000); // Wait before trying again
+                        continue;
+                    }
+
                     await this.processJob(job);
                 }
             } catch (error) {
@@ -215,6 +228,7 @@ class VideoQueueManager {
         // Job processing (UI queue management)
         console.log(`\n🔄 Starting job: ${job.id}`);
         console.log(`📋 Parameters:`, job.parameters);
+        console.log(`🔍 Current job before processing: ${this.currentJob ? this.currentJob.id : 'null'}`);
         console.log(`--- Python Script Output ---`);
 
         try {
@@ -224,6 +238,7 @@ class VideoQueueManager {
             job.progress = 10;
             job.currentStep = 'Starting video generation...';
             this.currentJob = job;
+            console.log(`✅ Set current job to: ${job.id}`);
 
             // Move to processing queue and update job store
             await this.client.lPush(this.keys.processing, JSON.stringify(job));
@@ -332,6 +347,7 @@ class VideoQueueManager {
             await this.updateJob(job);
         }
 
+        console.log(`🧹 Clearing current job: ${this.currentJob ? this.currentJob.id : 'already null'}`);
         this.currentJob = null;
     }
 
@@ -903,7 +919,33 @@ class VideoQueueManager {
                     if (jobDetails && (jobDetails.status === 'completed' || jobDetails.status === 'failed')) {
                         await this.client.lRem(this.keys.processing, 1, jobStr);
                         cleanedCount++;
-                        console.log(`🧹 Cleaned up orphaned processing job: ${job.id}`);
+                        console.log(`🧹 Cleaned up orphaned processing job: ${job.id} (status: ${jobDetails.status})`);
+                    }
+                    // Also check for jobs stuck in processing for more than 30 minutes
+                    else if (jobDetails && jobDetails.status === 'processing' && jobDetails.startedAt) {
+                        const startTime = new Date(jobDetails.startedAt);
+                        const now = new Date();
+                        const timeDiff = now - startTime;
+                        const thirtyMinutes = 30 * 60 * 1000; // 30 minutes in milliseconds
+
+                        if (timeDiff > thirtyMinutes) {
+                            // Mark as failed and remove from processing queue
+                            jobDetails.status = 'failed';
+                            jobDetails.error = 'Job timed out after 30 minutes';
+                            jobDetails.failedAt = new Date().toISOString();
+
+                            await this.client.lRem(this.keys.processing, 1, jobStr);
+                            await this.client.lPush(this.keys.failed, JSON.stringify(jobDetails));
+                            await this.updateJob(jobDetails);
+                            cleanedCount++;
+                            console.log(`🧹 Cleaned up timed out processing job: ${job.id} (running for ${Math.round(timeDiff / 60000)} minutes)`);
+                        }
+                    }
+                    // Remove jobs that don't exist in job store
+                    else if (!jobDetails) {
+                        await this.client.lRem(this.keys.processing, 1, jobStr);
+                        cleanedCount++;
+                        console.log(`🧹 Removed processing job with no details: ${job.id}`);
                     }
                 } catch (parseError) {
                     // Remove invalid JSON entries

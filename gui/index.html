@@ -138,7 +138,7 @@
                             </div>
                             <div class="url-preview">
                                 <span class="label">Target URL:</span>
-                                <span class="value url-value" id="preview-url">https://streamgank.com/?country=FR&genres=Horreur&platforms=netflix&type=Serie</span>
+                                <span class="value url-value" id="preview-url">https://streamgank.com/?country=FR&genres=Horreur&platforms=netflix</span>
                             </div>
                         </div>
                     </div>
@@ -219,20 +219,10 @@
                                 </div>
                             </div>
 
-                            <div class="video-player mt-4 d-none">
-                                <h3>Final Video</h3>
-                                <div class="video-container">
-                                    <video id="final-video" controls class="w-100">
-                                        <source src="" type="video/mp4" />
-                                        Your browser does not support the video tag.
-                                    </video>
-                                </div>
-                                <div class="video-actions mt-3">
-                                    <div class="d-flex gap-2 align-items-center flex-wrap">
-                                        <a id="video-url-link" href="#" target="_blank" class="btn btn-outline-primary btn-sm"> <span>🔗</span> Open Video URL </a>
-                                        <button id="copy-url-btn" class="btn btn-outline-secondary btn-sm"><span>📋</span> Copy URL</button>
-                                        <small class="text-muted"> Direct link: <span id="video-url-display" class="text-break">-</span> </small>
-                                    </div>
+                            <div class="video-gallery mt-4 d-none" id="video-gallery">
+                                <h3>Generated Videos <span id="video-count-badge" class="badge bg-primary">0</span></h3>
+                                <div id="videos-container" class="videos-container">
+                                    <!-- Video items will be dynamically added here -->
                                 </div>
                             </div>
 

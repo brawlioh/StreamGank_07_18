@@ -1,0 +1,34 @@
+{
+  "data": {
+    "enhanced_posters": {
+      "Arcane": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754994339/streamgank/posters/enhanced_arcane_1.jpg",
+      "Better Call Saul": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754994342/streamgank/posters/enhanced_better_call_saul_2.jpg",
+      "Dans leur regard": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754994344/streamgank/posters/enhanced_dans_leur_regard_3.jpg"
+    },
+    "dynamic_clips": {
+      "Arcane": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754994367/movie_clips/movie_clips/arcane_3872_10s.mp4",
+      "Better Call Saul": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754994397/movie_clips/movie_clips/better_call_saul_23029_10s.mp4",
+      "Dans leur regard": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754994428/movie_clips/movie_clips/dans_leur_regard_14998_10s.mp4"
+    },
+    "parameters": {
+      "country": "FR",
+      "genre": "Drame",
+      "platform": "Netflix",
+      "content_type": "Série",
+      "num_movies": 3
+    },
+    "poster_count": 3,
+    "clip_count": 3,
+    "generation_timestamp": 1754994437.6168728
+  },
+  "metadata": {
+    "data_type": "assets",
+    "parameters": {
+      "country": "FR",
+      "genre": "Drame",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1754994437.61697,
+    "saved_datetime": "2025-08-12 18:27:17"
+  }
+}
