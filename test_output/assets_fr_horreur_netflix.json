@@ -6,9 +6,9 @@
       "Love, Death & Robots": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754731417/streamgank/posters/enhanced_love_death__robots_3.jpg"
     },
     "dynamic_clips": {
-      "Stranger Things": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754990214/movie_clips/movie_clips/stranger_things_23090_10s.mp4",
-      "The Haunting of Hill House": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754990243/movie_clips/movie_clips/the_haunting_of_hill_house_14919_10s.mp4",
-      "Love, Death & Robots": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754990265/movie_clips/movie_clips/love_death_robots_15005_10s.mp4"
+      "Stranger Things": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755071146/movie_clips/movie_clips/stranger_things_23090_10s.mp4",
+      "The Haunting of Hill House": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755071172/movie_clips/movie_clips/the_haunting_of_hill_house_14919_10s.mp4",
+      "Love, Death & Robots": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755071199/movie_clips/movie_clips/love_death_robots_15005_10s.mp4"
     },
     "parameters": {
       "country": "FR",
@@ -19,7 +19,7 @@
     },
     "poster_count": 3,
     "clip_count": 3,
-    "generation_timestamp": 1754990276.3093114
+    "generation_timestamp": 1755071209.391284
   },
   "metadata": {
     "data_type": "assets",
@@ -28,7 +28,7 @@
       "genre": "Horreur",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1754990276.3093867,
-    "saved_datetime": "2025-08-12 17:17:56"
+    "saved_timestamp": 1755071209.3913786,
+    "saved_datetime": "2025-08-13 15:46:49"
   }
 }
