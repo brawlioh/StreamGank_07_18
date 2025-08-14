@@ -47,3 +47,5 @@ voices_list.json
 *.swo
 
 temp_*
+scroll_frames_*
+test_output
