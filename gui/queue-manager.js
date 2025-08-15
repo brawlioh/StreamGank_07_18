@@ -1,6 +1,7 @@
 const redis = require('redis');
 const { spawn, exec } = require('child_process');
 const path = require('path');
+const { promisify } = require('util');
 
 /**
  * Redis-based Video Queue Manager
@@ -8,18 +9,14 @@ const path = require('path');
  */
 class VideoQueueManager {
     constructor() {
-        // Redis client configuration - Redis Cloud
-        // Try without TLS first (some Redis Cloud instances don't require it)
+        // Redis client configuration - Redis Cloud (v3 API)
         this.client = redis.createClient({
-            socket: {
-                host: 'redis-13734.c292.ap-southeast-1-1.ec2.redns.redis-cloud.com',
-                port: 13734,
-                // Remove TLS for now - will add back if needed
-            },
+            host: 'redis-13734.c292.ap-southeast-1-1.ec2.redns.redis-cloud.com',
+            port: 13734,
             password: '6zhDOqJpo5Z6EYsTfBoZF1d5oPVo7X67',
-            retryDelayOnFailover: 100,
-            enableReadyCheck: false,
-            maxRetriesPerRequest: null,
+            retry_delay_on_failover: 100,
+            enable_ready_check: false,
+            max_attempts: null,
         });
 
         // Event handlers for Redis connection
@@ -48,19 +45,27 @@ class VideoQueueManager {
             failed: 'streamgank:queue:failed',
             jobs: 'streamgank:jobs',
         };
+
+        // Promisify Redis v3 methods for async/await usage
+        this.lpushAsync = promisify(this.client.lpush).bind(this.client);
+        this.hsetAsync = promisify(this.client.hset).bind(this.client);
+        this.llenAsync = promisify(this.client.llen).bind(this.client);
+        this.hgetallAsync = promisify(this.client.hgetall).bind(this.client);
+        this.hgetAsync = promisify(this.client.hget).bind(this.client);
+        this.brpopAsync = promisify(this.client.brpop).bind(this.client);
+        this.lremAsync = promisify(this.client.lrem).bind(this.client);
+        this.expireAsync = promisify(this.client.expire).bind(this.client);
+        this.delAsync = promisify(this.client.del).bind(this.client);
+        this.lrangeAsync = promisify(this.client.lrange).bind(this.client);
+        this.quitAsync = promisify(this.client.quit).bind(this.client);
     }
 
     /**
-     * Connect to Redis server
+     * Connect to Redis server (Redis v3 connects automatically)
      */
     async connect() {
-        try {
-            await this.client.connect();
-            console.log('🔗 Redis connection established');
-        } catch (error) {
-            console.error('❌ Failed to connect to Redis:', error);
-            throw error;
-        }
+        // Redis v3 connects automatically when first command is issued
+        console.log('🔗 Redis client ready (v3 auto-connects)');
     }
 
     /**
@@ -87,10 +92,10 @@ class VideoQueueManager {
 
         try {
             // Add to pending queue (FIFO - First In, First Out)
-            await this.client.lPush(this.keys.pending, JSON.stringify(job));
+            await this.lpushAsync(this.keys.pending, JSON.stringify(job));
 
             // Store job details in hash for quick lookup
-            await this.client.hSet(this.keys.jobs, job.id, JSON.stringify(job));
+            await this.hsetAsync(this.keys.jobs, job.id, JSON.stringify(job));
 
             console.log(`📋 Added job to queue: ${job.id}`);
             console.log(`📊 Queue parameters:`, parameters);
@@ -116,7 +121,7 @@ class VideoQueueManager {
             // Clean up orphaned processing jobs before getting status
             await this.cleanupProcessingQueue();
 
-            const [pending, processing, completed, failed] = await Promise.all([this.client.lLen(this.keys.pending), this.client.lLen(this.keys.processing), this.client.lLen(this.keys.completed), this.client.lLen(this.keys.failed)]);
+            const [pending, processing, completed, failed] = await Promise.all([this.llenAsync(this.keys.pending), this.llenAsync(this.keys.processing), this.llenAsync(this.keys.completed), this.llenAsync(this.keys.failed)]);
 
             return {
                 pending,
@@ -137,7 +142,7 @@ class VideoQueueManager {
      */
     async getAllJobs() {
         try {
-            const allJobs = await this.client.hGetAll(this.keys.jobs);
+            const allJobs = await this.hgetallAsync(this.keys.jobs);
             const jobs = {};
 
             for (const [jobId, jobData] of Object.entries(allJobs)) {
@@ -158,7 +163,7 @@ class VideoQueueManager {
      */
     async getJob(jobId) {
         try {
-            const jobData = await this.client.hGet(this.keys.jobs, jobId);
+            const jobData = await this.hgetAsync(this.keys.jobs, jobId);
             return jobData ? JSON.parse(jobData) : null;
         } catch (error) {
             console.error(`❌ Failed to get job ${jobId}:`, error);
@@ -172,7 +177,7 @@ class VideoQueueManager {
      */
     async updateJob(job) {
         try {
-            await this.client.hSet(this.keys.jobs, job.id, JSON.stringify(job));
+            await this.hsetAsync(this.keys.jobs, job.id, JSON.stringify(job));
         } catch (error) {
             console.error(`❌ Failed to update job ${job.id}:`, error);
         }
@@ -194,16 +199,16 @@ class VideoQueueManager {
         while (this.isProcessing) {
             try {
                 // Blocking pop from pending queue (waits up to 5 seconds)
-                const jobData = await this.client.brPop(this.keys.pending, 5);
+                const jobData = await this.brpopAsync(this.keys.pending, 5);
 
-                if (jobData && jobData.element) {
-                    const job = JSON.parse(jobData.element);
+                if (jobData && jobData[1]) {
+                    const job = JSON.parse(jobData[1]);
 
                     // Ensure only one job is processed at a time
                     if (this.currentJob) {
                         console.log(`⚠️ Job ${job.id} skipped - another job ${this.currentJob.id} is still processing`);
                         // Put the job back at the front of the queue
-                        await this.client.lPush(this.keys.pending, jobData.element);
+                        await this.lpushAsync(this.keys.pending, jobData[1]);
                         await this.sleep(2000); // Wait before trying again
                         continue;
                     }
@@ -241,7 +246,7 @@ class VideoQueueManager {
             console.log(`✅ Set current job to: ${job.id}`);
 
             // Move to processing queue and update job store
-            await this.client.lPush(this.keys.processing, JSON.stringify(job));
+            await this.lpushAsync(this.keys.processing, JSON.stringify(job));
             await this.updateJob(job);
 
             // Job queued for processing
@@ -271,8 +276,8 @@ class VideoQueueManager {
                 }
 
                 // Remove from processing queue and add to completed
-                await this.client.lRem(this.keys.processing, 1, processingJobState);
-                await this.client.lPush(this.keys.completed, JSON.stringify(job));
+                await this.lremAsync(this.keys.processing, 1, processingJobState);
+                await this.lpushAsync(this.keys.completed, JSON.stringify(job));
             } else if (result.videoUrl) {
                 // Video is fully complete
                 job.status = 'completed';
@@ -283,8 +288,8 @@ class VideoQueueManager {
                 job.currentStep = 'Video generation completed!';
 
                 // Remove from processing queue and add to completed
-                await this.client.lRem(this.keys.processing, 1, processingJobState);
-                await this.client.lPush(this.keys.completed, JSON.stringify(job));
+                await this.lremAsync(this.keys.processing, 1, processingJobState);
+                await this.lpushAsync(this.keys.completed, JSON.stringify(job));
             } else if (result.creatomateId) {
                 // Python script done but video still rendering
                 job.status = 'completed'; // Mark as completed for Python script
@@ -294,8 +299,8 @@ class VideoQueueManager {
                 job.currentStep = 'Python script completed, video rendering in progress...';
 
                 // Remove from processing queue and add to completed (but video not ready)
-                await this.client.lRem(this.keys.processing, 1, processingJobState);
-                await this.client.lPush(this.keys.completed, JSON.stringify(job));
+                await this.lremAsync(this.keys.processing, 1, processingJobState);
+                await this.lpushAsync(this.keys.completed, JSON.stringify(job));
             } else {
                 // No video URL or Creatomate ID - something went wrong
                 job.status = 'completed';
@@ -304,14 +309,14 @@ class VideoQueueManager {
                 job.error = 'No video URL or Creatomate ID returned';
 
                 // Remove from processing queue and add to completed
-                await this.client.lRem(this.keys.processing, 1, processingJobState);
-                await this.client.lPush(this.keys.completed, JSON.stringify(job));
+                await this.lremAsync(this.keys.processing, 1, processingJobState);
+                await this.lpushAsync(this.keys.completed, JSON.stringify(job));
             }
 
             await this.updateJob(job);
 
             // Set TTL for completed jobs (24 hours)
-            await this.client.expire(`${this.keys.jobs}:${job.id}`, 86400);
+            await this.expireAsync(`${this.keys.jobs}:${job.id}`, 86400);
 
             console.log(`\n--- Job Completed ---`);
             console.log(`✅ ${job.id} completed successfully`);
@@ -336,14 +341,14 @@ class VideoQueueManager {
                 console.log(`🔄 Retrying job: ${job.id} (attempt ${job.retryCount + 1}/${job.maxRetries})`);
                 job.status = 'pending';
                 job.currentStep = 'Queued for retry...';
-                await this.client.lPush(this.keys.pending, JSON.stringify(job));
+                await this.lpushAsync(this.keys.pending, JSON.stringify(job));
             } else {
                 console.log(`💀 Job permanently failed: ${job.id} (max retries exceeded)`);
-                await this.client.lPush(this.keys.failed, JSON.stringify(job));
+                await this.lpushAsync(this.keys.failed, JSON.stringify(job));
             }
 
             // Remove from processing queue using the original processing state
-            await this.client.lRem(this.keys.processing, 1, processingJobState);
+            await this.lremAsync(this.keys.processing, 1, processingJobState);
             await this.updateJob(job);
         }
 
@@ -362,7 +367,9 @@ class VideoQueueManager {
             const { country, platform, genre, contentType, template, pauseAfterExtraction } = parameters;
 
             // Construct Python command (Using main.py modular system as requested)
-            const scriptPath = path.join(__dirname, '../main.py');
+            // Check if running in Docker or locally
+            const isDocker = process.env.PYTHON_BACKEND_PATH === '/app';
+            const scriptPath = isDocker ? 'main.py' : path.join(__dirname, '../main.py');
             const args = [scriptPath, '--country', country, '--platform', platform, '--genre', genre, '--content-type', contentType];
 
             // Add template parameter if provided and not 'auto'
@@ -379,8 +386,9 @@ class VideoQueueManager {
             console.log('🚀 Executing exact CLI command:', 'python', args.join(' '));
 
             // Spawn Python process
+            const workingDir = isDocker ? '/app' : path.join(__dirname, '..');
             const pythonProcess = spawn('python', args, {
-                cwd: path.join(__dirname, '..'),
+                cwd: workingDir,
                 env: {
                     ...process.env,
                     PYTHONIOENCODING: 'utf-8',
@@ -774,14 +782,14 @@ class VideoQueueManager {
     async removeFromProcessingQueue(job) {
         try {
             // Get all items in processing queue
-            const processingItems = await this.client.lRange(this.keys.processing, 0, -1);
+            const processingItems = await this.lrangeAsync(this.keys.processing, 0, -1);
 
             // Find and remove the job
             for (let i = 0; i < processingItems.length; i++) {
                 const item = JSON.parse(processingItems[i]);
                 if (item.id === job.id) {
                     // Remove this specific item from the list
-                    await this.client.lRem(this.keys.processing, 1, processingItems[i]);
+                    await this.lremAsync(this.keys.processing, 1, processingItems[i]);
                     console.log(`🗑️ Removed job ${job.id} from processing queue`);
                     break;
                 }
@@ -868,7 +876,7 @@ class VideoQueueManager {
             await this.updateJob(job);
 
             // Move to failed queue (cancelled jobs go here for tracking)
-            await this.client.lPush(this.keys.failed, JSON.stringify(job));
+            await this.lpushAsync(this.keys.failed, JSON.stringify(job));
 
             console.log(`✅ Job ${jobId} cancelled successfully`);
 
@@ -895,7 +903,7 @@ class VideoQueueManager {
      */
     async clearAllQueues() {
         try {
-            await Promise.all([this.client.del(this.keys.pending), this.client.del(this.keys.processing), this.client.del(this.keys.completed), this.client.del(this.keys.failed), this.client.del(this.keys.jobs)]);
+            await Promise.all([this.delAsync(this.keys.pending), this.delAsync(this.keys.processing), this.delAsync(this.keys.completed), this.delAsync(this.keys.failed), this.delAsync(this.keys.jobs)]);
             console.log('🗑️ All queues cleared');
         } catch (error) {
             console.error('❌ Failed to clear queues:', error);
@@ -907,7 +915,7 @@ class VideoQueueManager {
      */
     async cleanupProcessingQueue() {
         try {
-            const processingJobs = await this.client.lRange(this.keys.processing, 0, -1);
+            const processingJobs = await this.lrangeAsync(this.keys.processing, 0, -1);
             let cleanedCount = 0;
 
             for (const jobStr of processingJobs) {
@@ -917,7 +925,7 @@ class VideoQueueManager {
 
                     // If job is completed or failed in job store but still in processing queue, remove it
                     if (jobDetails && (jobDetails.status === 'completed' || jobDetails.status === 'failed')) {
-                        await this.client.lRem(this.keys.processing, 1, jobStr);
+                        await this.lremAsync(this.keys.processing, 1, jobStr);
                         cleanedCount++;
                         console.log(`🧹 Cleaned up orphaned processing job: ${job.id} (status: ${jobDetails.status})`);
                     }
@@ -934,8 +942,8 @@ class VideoQueueManager {
                             jobDetails.error = 'Job timed out after 30 minutes';
                             jobDetails.failedAt = new Date().toISOString();
 
-                            await this.client.lRem(this.keys.processing, 1, jobStr);
-                            await this.client.lPush(this.keys.failed, JSON.stringify(jobDetails));
+                            await this.lremAsync(this.keys.processing, 1, jobStr);
+                            await this.lpushAsync(this.keys.failed, JSON.stringify(jobDetails));
                             await this.updateJob(jobDetails);
                             cleanedCount++;
                             console.log(`🧹 Cleaned up timed out processing job: ${job.id} (running for ${Math.round(timeDiff / 60000)} minutes)`);
@@ -943,13 +951,13 @@ class VideoQueueManager {
                     }
                     // Remove jobs that don't exist in job store
                     else if (!jobDetails) {
-                        await this.client.lRem(this.keys.processing, 1, jobStr);
+                        await this.lremAsync(this.keys.processing, 1, jobStr);
                         cleanedCount++;
                         console.log(`🧹 Removed processing job with no details: ${job.id}`);
                     }
                 } catch (parseError) {
                     // Remove invalid JSON entries
-                    await this.client.lRem(this.keys.processing, 1, jobStr);
+                    await this.lremAsync(this.keys.processing, 1, jobStr);
                     cleanedCount++;
                     console.log(`🧹 Removed invalid processing queue entry`);
                 }
@@ -1007,7 +1015,7 @@ class VideoQueueManager {
     async close() {
         try {
             this.stopProcessing();
-            await this.client.quit();
+            await this.quitAsync();
             console.log('🔌 Redis connection closed');
         } catch (error) {
             console.error('❌ Error closing Redis connection:', error);

@@ -146,8 +146,8 @@ def run_full_workflow(num_movies: int = 3,
             imdb_score = movie.get('imdb', 'N/A')
             print(f"   {i}. {movie_title} ({movie_year}) - IMDB: {imdb_score}")
         
-        # Check if we have fewer than 3 movies and stop gracefully
-        if len(raw_movies) < 3:
+        # Check if we have fewer than requested movies and stop gracefully
+        if len(raw_movies) < num_movies:
             error_message = f"Insufficient movies found - only {len(raw_movies)} movie(s) available with current filters"
             print(f"\n❌ {error_message}")
             print(f"   Filters used: Country={country}, Genre={genre}, Platform={platform}, Content Type={content_type}")

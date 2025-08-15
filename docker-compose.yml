@@ -1,0 +1,87 @@
+services:
+    # Python Backend Service
+    streamgank-backend:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: streamgank-backend
+        restart: unless-stopped
+        # No local dependencies - uses external Redis Cloud
+        env_file:
+            - .env
+        environment:
+            - PYTHONPATH=/app
+            - PYTHONUNBUFFERED=1
+            - APP_ENV=docker
+        volumes:
+            # Mount volumes for persistent data
+            - ./assets:/app/assets
+            - ./videos:/app/videos
+            - ./screenshots:/app/screenshots
+            - ./clips:/app/clips
+            - ./covers:/app/covers
+            - ./cloudinary:/app/cloudinary
+            - ./creatomate:/app/creatomate
+            - ./heygen:/app/heygen
+            - ./scroll_frames:/app/scroll_frames
+            - ./trailers:/app/trailers
+            - ./temp_videos:/app/temp_videos
+            - ./responses:/app/responses
+            - ./test_output:/app/test_output
+            - ./scripts:/app/scripts
+            # Mount .env file if it exists
+            - ./.env:/app/.env:ro
+        networks:
+            - streamgank-network
+        # Keep container running for CLI access and enable logging
+        tty: true
+        stdin_open: true
+        logging:
+            driver: 'json-file'
+            options:
+                max-size: '10m'
+                max-file: '3'
+
+    # Node.js GUI Server
+    streamgank-gui:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: streamgank-gui
+        restart: unless-stopped
+        ports:
+            - '3000:3000'
+        depends_on:
+            streamgank-backend:
+                condition: service_started
+        env_file:
+            - .env
+        environment:
+            - NODE_ENV=production
+            - PORT=3000
+            - PYTHON_BACKEND_PATH=/app
+        command: ['node', 'gui/server.js']
+        volumes:
+            # Mount volumes for persistent data access
+            - ./assets:/app/assets
+            - ./videos:/app/videos
+            - ./screenshots:/app/screenshots
+            - ./clips:/app/clips
+            - ./covers:/app/covers
+            - ./cloudinary:/app/cloudinary
+            - ./creatomate:/app/creatomate
+            - ./heygen:/app/heygen
+            - ./scroll_frames:/app/scroll_frames
+            - ./trailers:/app/trailers
+            - ./temp_videos:/app/temp_videos
+            - ./responses:/app/responses
+            - ./test_output:/app/test_output
+            - ./scripts:/app/scripts
+            # Mount .env file if it exists
+            - ./.env:/app/.env:ro
+        networks:
+            - streamgank-network
+
+networks:
+    streamgank-network:
+        driver: bridge

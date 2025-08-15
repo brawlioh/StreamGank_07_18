@@ -25,6 +25,15 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Health check endpoint for Docker
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        service: 'streamgank-gui',
+    });
+});
+
 // Platform mapping to match frontend values to Python script expectations
 const platformMapping = {
     amazon: 'Prime',

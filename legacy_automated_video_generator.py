@@ -1676,7 +1676,10 @@ def generate_scroll_video(country, genre, platform, content_type, smooth=True, s
     logger.info(f"🖥️ Generating StreamGank ULTRA 60 FPS MICRO-SCROLL video (DISTANCE: {scroll_distance}x)...")
     
     # Create scroll video with unique filename + auto-cleanup (FIXED 4 seconds at 60 FPS)
-    video_path = generate_scroll_video(
+    # Import the modular function to avoid recursion
+    from video.scroll_generator import generate_scroll_video as modular_generate_scroll_video
+    
+    video_path = modular_generate_scroll_video(
         country=country,
         genre=genre,
         platform=platform,

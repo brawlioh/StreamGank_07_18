@@ -67,7 +67,7 @@ API_SETTINGS = {
         'template_endpoint': '/template/{}/generate',
         'video_endpoint': '/video/generate', 
         'status_endpoint': '/video_status/{video_id}',
-        'default_template_id': '7fb75067718944ac8f02e661c2c61522',
+        'default_template_id': 'cc6718c5363e42b282a123f99b94b335',
         'poll_interval': 15,  # Status check interval in seconds
         'max_poll_attempts': 40,  # Maximum status checks (10 minutes)
         'timeout': 60  # Request timeout in seconds
