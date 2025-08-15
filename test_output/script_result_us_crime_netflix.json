@@ -1,0 +1,98 @@
+{
+  "data": {
+    "combined_script": "Brace yourselves for StreamGanks 3 most jaw-dropping crime flicks on Netflix that are causing a global frenzy!\n\nBrace yourselves for StreamGanks 3 most jaw-dropping crime flicks on Netflix that are causing a global frenzy! Get ready for the mob war thats setting Netflix ablaze - The Gentlemen, a 2020 crime thriller thats impossible to resist!\n\nGet ready for the chilling journey of a lifetime as The Irishman redefines the Crime genre on Netflix!\n\nGet ready for the chilling plot twist that turns this crime saga, The Hateful Eight, into an unforgettable bloodbath.",
+    "script_file_path": "videos/combined_script.txt",
+    "individual_scripts": {
+      "movie1": {
+        "text": "Brace yourselves for StreamGanks 3 most jaw-dropping crime flicks on Netflix that are causing a global frenzy! Get ready for the mob war thats setting Netflix ablaze - The Gentlemen, a 2020 crime thriller thats impossible to resist!",
+        "path": "videos/script_movie1.txt"
+      },
+      "movie2": {
+        "text": "Get ready for the chilling journey of a lifetime as The Irishman redefines the Crime genre on Netflix!",
+        "path": "videos/script_movie2.txt"
+      },
+      "movie3": {
+        "text": "Get ready for the chilling plot twist that turns this crime saga, The Hateful Eight, into an unforgettable bloodbath.",
+        "path": "videos/script_movie3.txt"
+      }
+    },
+    "raw_movies": [
+      {
+        "id": 7231,
+        "title": "The Gentlemen",
+        "year": 2020,
+        "imdb": "8.0/10 (166,619 votes)",
+        "imdb_score": 8.0,
+        "imdb_votes": 166619,
+        "runtime": "113 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/166839313/s332/the-gentlemen.avif",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1742896066/movie-posters/6e1881d899931114a3f378af92b423d8.avif",
+        "trailer_url": "https://www.youtube.com/watch?v=2B0RpUGss2c",
+        "streaming_url": "https://www.netflix.com/title/81178299",
+        "genres": [
+          "Crime"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 14479,
+        "title": "The Irishman",
+        "year": 2019,
+        "imdb": "7.8/10 (457,808 votes)",
+        "imdb_score": 7.8,
+        "imdb_votes": 457808,
+        "runtime": "209 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/159326038/s332/the-irishman.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743362283/movie-posters/edc8a0ed5d3cc3ddbca8809d792e678b.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=WHXxVmeGQUc",
+        "streaming_url": "https://www.netflix.com/title/80175798",
+        "genres": [
+          "Crime"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 22524,
+        "title": "The Hateful Eight",
+        "year": 2015,
+        "imdb": "7.8/10 (671,161 votes)",
+        "imdb_score": 7.8,
+        "imdb_votes": 671161,
+        "runtime": "188 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/248818101/s332/the-hateful-eight.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743966281/movie-posters/647d4f047376fa598e48e4aab00f7ba7.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=nIOmotayDMY",
+        "streaming_url": "https://www.netflix.com/title/80064515",
+        "genres": [
+          "Crime"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      }
+    ],
+    "parameters": {
+      "country": "US",
+      "genre": "Crime",
+      "platform": "Netflix",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "script_count": 3,
+    "generation_timestamp": 1755090530.981573
+  },
+  "metadata": {
+    "data_type": "script_result",
+    "parameters": {
+      "country": "US",
+      "genre": "Crime",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1755090530.9817011,
+    "saved_datetime": "2025-08-13 21:08:50"
+  }
+}

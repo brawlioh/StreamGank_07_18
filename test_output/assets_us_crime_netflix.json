@@ -1,0 +1,34 @@
+{
+  "data": {
+    "enhanced_posters": {
+      "The Gentlemen": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755090535/streamgank/posters/enhanced_the_gentlemen_1.png",
+      "The Irishman": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755090552/streamgank/posters/enhanced_the_irishman_2.jpg",
+      "The Hateful Eight": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755090567/streamgank/posters/enhanced_the_hateful_eight_3.jpg"
+    },
+    "dynamic_clips": {
+      "The Gentlemen": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755090612/movie_clips/movie_clips/the_gentlemen_7231_10s.mp4",
+      "The Irishman": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755090637/movie_clips/movie_clips/the_irishman_14479_10s.mp4",
+      "The Hateful Eight": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755090660/movie_clips/movie_clips/the_hateful_eight_22524_10s.mp4"
+    },
+    "parameters": {
+      "country": "US",
+      "genre": "Crime",
+      "platform": "Netflix",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "poster_count": 3,
+    "clip_count": 3,
+    "generation_timestamp": 1755090667.253837
+  },
+  "metadata": {
+    "data_type": "assets",
+    "parameters": {
+      "country": "US",
+      "genre": "Crime",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1755090667.253925,
+    "saved_datetime": "2025-08-13 21:11:07"
+  }
+}

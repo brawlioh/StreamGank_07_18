@@ -1,0 +1,34 @@
+{
+  "data": {
+    "enhanced_posters": {
+      "Joker": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755089884/streamgank/posters/enhanced_joker_1.jpg",
+      "The Martian": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755089887/streamgank/posters/enhanced_the_martian_2.jpg",
+      "The Batman": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755089888/streamgank/posters/enhanced_the_batman_3.png"
+    },
+    "dynamic_clips": {
+      "Joker": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755089912/movie_clips/movie_clips/joker_14463_10s.mp4",
+      "The Martian": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755089938/movie_clips/movie_clips/the_martian_22518_10s.mp4",
+      "The Batman": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755089962/movie_clips/movie_clips/the_batman_7278_10s.mp4"
+    },
+    "parameters": {
+      "country": "US",
+      "genre": "Drama",
+      "platform": "Max",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "poster_count": 3,
+    "clip_count": 3,
+    "generation_timestamp": 1755089967.9901938
+  },
+  "metadata": {
+    "data_type": "assets",
+    "parameters": {
+      "country": "US",
+      "genre": "Drama",
+      "platform": "Max"
+    },
+    "saved_timestamp": 1755089967.99031,
+    "saved_datetime": "2025-08-13 20:59:27"
+  }
+}

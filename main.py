@@ -6,8 +6,8 @@ Main Entry Point
 MODULAR SYSTEM - NO LEGACY DEPENDENCIES
 
 Usage:
-    python main.py --country US --platform Netflix --genre Horror --content-type Film --heygen-template-id ed21a309a5c84b0d873fde68642adea3
-    python main.py --country FR --platform Netflix --genre Horreur --content-type Film --heygen-template-id ed21a309a5c84b0d873fde68642adea3
+    python main.py --country US --platform Netflix --genre Horror --content-type Film --heygen-template-id 138e73db86d440d1b8079c1bb30979fb
+    python main.py --country FR --platform Netflix --genre Horreur --content-type Film --heygen-template-id 138e73db86d440d1b8079c1bb30979fb
 
     python main.py --check-env
     python main.py --check-creatomate <render_id>

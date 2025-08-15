@@ -181,8 +181,14 @@ document.addEventListener('DOMContentLoaded', function () {
             description: 'High-energy template for action and adventure content',
             genres: ['Action', 'Action & Adventure', 'Action & Aventure'],
         },
+        lovely: {
+            id: 'a0ea1bf3a7da4030ae21eaf4a175cc0d',
+            name: 'Lovely',
+            description: 'Elegant template for romantic and heartwarming content',
+            genres: ['Romance', 'Drama', 'Family'],
+        },
         default: {
-            id: 'cc6718c5363e42b282a123f99b94b335',
+            id: '138e73db86d440d1b8079c1bb30979fb',
             name: 'Universal Default',
             description: 'General-purpose template for all other content types',
             genres: ['*'], // Wildcard for all other genres

@@ -1,0 +1,98 @@
+{
+  "data": {
+    "combined_script": "Brace yourselves, romance fanatics! Unveiling StreamGanks top 3 heart-melting Netflix movies that are setting the internet on fire!\n\nBrace yourselves, romance fanatics! Unveiling StreamGanks top 3 heart-melting Netflix movies that are setting the internet on fire! Get ready for Marriage Story, the movie that redefines love and heartbreak in ways you wont see coming!\n\nGet ready for Sing Street, the 2016 Netflix romance that reinvented love with rock and roll!\n\nGet ready for the heart-wrenching journey of love and fame that makes A Star Is Born the most unforgettable romance on Netflix.",
+    "script_file_path": "videos/combined_script.txt",
+    "individual_scripts": {
+      "movie1": {
+        "text": "Brace yourselves, romance fanatics! Unveiling StreamGanks top 3 heart-melting Netflix movies that are setting the internet on fire! Get ready for Marriage Story, the movie that redefines love and heartbreak in ways you wont see coming!",
+        "path": "videos/script_movie1.txt"
+      },
+      "movie2": {
+        "text": "Get ready for Sing Street, the 2016 Netflix romance that reinvented love with rock and roll!",
+        "path": "videos/script_movie2.txt"
+      },
+      "movie3": {
+        "text": "Get ready for the heart-wrenching journey of love and fame that makes A Star Is Born the most unforgettable romance on Netflix.",
+        "path": "videos/script_movie3.txt"
+      }
+    },
+    "raw_movies": [
+      {
+        "id": 14475,
+        "title": "Marriage Story",
+        "year": 2019,
+        "imdb": "7.9/10 (363,330 votes)",
+        "imdb_score": 7.9,
+        "imdb_votes": 363330,
+        "runtime": "137 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/293042555/s332/marriage-story.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743362279/movie-posters/b493f1c7c2fcae9542c36e56fee62539.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=BHi-a1n8t7M",
+        "streaming_url": "https://www.netflix.com/title/80223779",
+        "genres": [
+          "Romance"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 22586,
+        "title": "Sing Street",
+        "year": 2016,
+        "imdb": "7.9/10 (105,412 votes)",
+        "imdb_score": 7.9,
+        "imdb_votes": 105412,
+        "runtime": "105 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/106449611/s332/sing-street.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743966355/movie-posters/ceab11e9b3f0461bcfeb16a9ee4442d6.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=vXMMCKH2NUM",
+        "streaming_url": "https://www.netflix.com/title/80096631",
+        "genres": [
+          "Romance"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 34458,
+        "title": "A Star Is Born",
+        "year": 2018,
+        "imdb": "7.6/10 (439,018 votes)",
+        "imdb_score": 7.6,
+        "imdb_votes": 439018,
+        "runtime": "136 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/139006430/s332/a-star-is-born-2018.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752011113/movie-posters/e4784f57152b43942e11743807ad0fdb.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=nSbzyEJ8X9E",
+        "streaming_url": "https://www.netflix.com/title/80221908",
+        "genres": [
+          "Romance"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      }
+    ],
+    "parameters": {
+      "country": "US",
+      "genre": "Romance",
+      "platform": "Netflix",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "script_count": 3,
+    "generation_timestamp": 1755168747.5150762
+  },
+  "metadata": {
+    "data_type": "script_result",
+    "parameters": {
+      "country": "US",
+      "genre": "Romance",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1755168747.515137,
+    "saved_datetime": "2025-08-14 18:52:27"
+  }
+}

@@ -363,9 +363,6 @@ def _simulate_movie_data(num_movies=3):
 # HEYGEN VIDEO PROCESSING
 # =============================================================================
 
-# =============================================================================
-# HEYGEN VIDEO PROCESSING
-# =============================================================================
 
 def create_heygen_video(script_data, use_template=True, template_id=None):
     """

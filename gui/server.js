@@ -46,17 +46,6 @@ const contentTypeMapping = {
 // Helper function to execute Python script with async/await
 async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeoutMs = 30 * 60 * 1000) {
     return new Promise((resolve, reject) => {
-        // Executing command (same as CLI)
-
-        const pythonProcess = spawn('python', args, {
-            cwd: cwd,
-            env: {
-                ...process.env,
-                PYTHONIOENCODING: 'utf-8',
-                PYTHONUNBUFFERED: '1',
-            },
-        });
-
         let stdout = '';
         let stderr = '';
         let isResolved = false;
@@ -65,7 +54,7 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
         const timeout = setTimeout(() => {
             if (!isResolved) {
                 isResolved = true;
-                pythonProcess.kill('SIGTERM');
+                console.log('Python script execution timed out');
                 reject({
                     code: -2,
                     error: 'Python script execution timeout',
@@ -75,7 +64,18 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
             }
         }, timeoutMs);
 
-        // Handle stdout data
+        // Try python3 directly instead of python
+        console.log('Executing with python3 command:', args.join(' '));
+        const pythonProcess = spawn('python3', args, {
+            cwd: cwd,
+            env: {
+                ...process.env,
+                PYTHONIOENCODING: 'utf-8',
+                PYTHONUNBUFFERED: '1',
+            },
+        });
+
+        // Handle stdout data with encoding fallbacks
         pythonProcess.stdout.on('data', (data) => {
             try {
                 const output = data.toString('utf8');
@@ -90,7 +90,7 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
             }
         });
 
-        // Handle stderr data
+        // Handle stderr data with encoding fallbacks
         pythonProcess.stderr.on('data', (data) => {
             try {
                 const output = data.toString('utf8');
@@ -128,12 +128,12 @@ async function executePythonScript(args, cwd = path.join(__dirname, '..'), timeo
             }
         });
 
-        // Handle process errors
+        // Handle process errors (e.g., command not found)
         pythonProcess.on('error', (error) => {
             if (!isResolved) {
                 isResolved = true;
                 clearTimeout(timeout);
-                console.error('Failed to start Python process:', error);
+                console.error('Failed to start Python process with python3:', error);
                 reject({
                     code: -1,
                     error: error.message,

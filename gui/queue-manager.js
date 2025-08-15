@@ -360,10 +360,10 @@ class VideoQueueManager {
             }
 
             // Executing exact CLI command as requested
-            console.log('🚀 Executing exact CLI command:', 'python', args.join(' '));
+            console.log('🚀 Executing exact CLI command:', 'python3', args.join(' '));
 
             // Spawn Python process
-            const pythonProcess = spawn('python', args, {
+            const pythonProcess = spawn('python3', args, {
                 cwd: path.join(__dirname, '..'),
                 env: {
                     ...process.env,

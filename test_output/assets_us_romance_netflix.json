@@ -1,0 +1,34 @@
+{
+  "data": {
+    "enhanced_posters": {
+      "Marriage Story": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755160269/streamgank/posters/enhanced_marriage_story_1.jpg",
+      "Sing Street": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755160272/streamgank/posters/enhanced_sing_street_2.jpg",
+      "A Star Is Born": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755160275/streamgank/posters/enhanced_a_star_is_born_3.jpg"
+    },
+    "dynamic_clips": {
+      "Marriage Story": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755168784/movie_clips/movie_clips/marriage_story_14475_10s.mp4",
+      "Sing Street": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755168807/movie_clips/movie_clips/sing_street_22586_10s.mp4",
+      "A Star Is Born": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755168832/movie_clips/movie_clips/a_star_is_born_34458_10s.mp4"
+    },
+    "parameters": {
+      "country": "US",
+      "genre": "Romance",
+      "platform": "Netflix",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "poster_count": 3,
+    "clip_count": 3,
+    "generation_timestamp": 1755168840.920537
+  },
+  "metadata": {
+    "data_type": "assets",
+    "parameters": {
+      "country": "US",
+      "genre": "Romance",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1755168840.920619,
+    "saved_datetime": "2025-08-14 18:54:00"
+  }
+}

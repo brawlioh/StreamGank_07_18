@@ -1,0 +1,98 @@
+{
+  "data": {
+    "combined_script": "Buckle up! StreamGanks got 3 mind-bending Drama flicks on Max that are causing a viral sensation!\n\nBuckle up! StreamGanks got 3 mind-bending Drama flicks on Max that are causing a viral sensation! Get ready for the darkest descent into madness youve ever witnessed, Joker 2019 on Max will leave you breathless!\n\nGet ready for the heart-stopping drama of a mans lone fight for survival on Mars in the blockbuster: The Martian!\n\nGet ready for 2022s most electrifying drama - The Batman, where darkness unveils secrets that will leave you questioning everything!",
+    "script_file_path": "videos/combined_script.txt",
+    "individual_scripts": {
+      "movie1": {
+        "text": "Buckle up! StreamGanks got 3 mind-bending Drama flicks on Max that are causing a viral sensation! Get ready for the darkest descent into madness youve ever witnessed, Joker 2019 on Max will leave you breathless!",
+        "path": "videos/script_movie1.txt"
+      },
+      "movie2": {
+        "text": "Get ready for the heart-stopping drama of a mans lone fight for survival on Mars in the blockbuster: The Martian!",
+        "path": "videos/script_movie2.txt"
+      },
+      "movie3": {
+        "text": "Get ready for 2022s most electrifying drama - The Batman, where darkness unveils secrets that will leave you questioning everything!",
+        "path": "videos/script_movie3.txt"
+      }
+    },
+    "raw_movies": [
+      {
+        "id": 14463,
+        "title": "Joker",
+        "year": 2019,
+        "imdb": "8.3/10 (1,630,768 votes)",
+        "imdb_score": 8.3,
+        "imdb_votes": 1630768,
+        "runtime": "122 min",
+        "platform": "Max",
+        "poster_url": "https://images.justwatch.com/poster/123221980/s332/joker-2019.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743362267/movie-posters/99ce7532943f0eec687a29ec336f4f30.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=t433PEQGErc",
+        "streaming_url": "https://max.prf.hn/click/camref:1100l526wE/destination:https://play.max.com/show/e37195fe-c232-4ba0-bb9e-c4004279b6fa",
+        "genres": [
+          "Drama"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 22518,
+        "title": "The Martian",
+        "year": 2015,
+        "imdb": "8.0/10 (976,618 votes)",
+        "imdb_score": 8.0,
+        "imdb_votes": 976618,
+        "runtime": "142 min",
+        "platform": "Max",
+        "poster_url": "https://images.justwatch.com/poster/315638406/s332/the-martian.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743966275/movie-posters/a2432d17b282870e375675169d1b22b5.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=ej3ioOneTy8",
+        "streaming_url": "https://max.prf.hn/click/camref:1100l526wE/destination:https://play.max.com/show/31cb4b84-951a-4daf-8925-746fcdcddcb8",
+        "genres": [
+          "Drama"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 7278,
+        "title": "The Batman",
+        "year": 2022,
+        "imdb": "7.8/10 (887,508 votes)",
+        "imdb_score": 7.8,
+        "imdb_votes": 887508,
+        "runtime": "177 min",
+        "platform": "Max",
+        "poster_url": "https://images.justwatch.com/poster/253599997/s332/the-batman.avif",
+        "cloudinary_poster_url": "https://images.justwatch.com/poster/253599997/s332/the-batman.avif",
+        "trailer_url": "https://www.youtube.com/watch?v=mqqft2x_Aa4",
+        "streaming_url": "https://max.prf.hn/click/camref:1100l526wE/destination:https://play.max.com/show/dfa50804-e6f6-4fa2-a732-693dbc50527b",
+        "genres": [
+          "Drama"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      }
+    ],
+    "parameters": {
+      "country": "US",
+      "genre": "Drama",
+      "platform": "Max",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "script_count": 3,
+    "generation_timestamp": 1755089881.5909839
+  },
+  "metadata": {
+    "data_type": "script_result",
+    "parameters": {
+      "country": "US",
+      "genre": "Drama",
+      "platform": "Max"
+    },
+    "saved_timestamp": 1755089881.591064,
+    "saved_datetime": "2025-08-13 20:58:01"
+  }
+}
