@@ -23,11 +23,11 @@ services:
         env_file:
             - .env
         environment:
-            - PYTHONPATH=/app
-            - PYTHONUNBUFFERED=1
-            - APP_ENV=${APP_ENV:-local}
-            - NODE_ENV=production
-            - PORT=3000
+            - PYTHONPATH=${PYTHONPATH}
+            - PYTHONUNBUFFERED=${PYTHONUNBUFFERED}
+            - APP_ENV=${APP_ENV}
+            - NODE_ENV=${NODE_ENV}
+            - PORT=${PORT}
             # VM performance optimizations
             - MALLOC_ARENA_MAX=2
             - PYTHONDONTWRITEBYTECODE=1
@@ -105,19 +105,19 @@ volumes:
         driver_opts:
             type: none
             o: bind
-            device: ${PWD}/assets
+            device: ${STREAMGANK_DATA_PATH}/assets
     streamgank_videos:
         driver: local
         driver_opts:
             type: none
             o: bind
-            device: ${PWD}/videos
+            device: ${STREAMGANK_DATA_PATH}/videos
     streamgank_outputs:
         driver: local
         driver_opts:
             type: none
             o: bind
-            device: ${PWD}/outputs
+            device: ${STREAMGANK_DATA_PATH}/outputs
     streamgank_temp:
         driver: local
         driver_opts:
@@ -126,6 +126,10 @@ volumes:
             o: size=2g,uid=1000,gid=1000 # Temporary files in RAM for speed
     redis_data:
         driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${STREAMGANK_DATA_PATH}/redis
 
 # VM-optimized network configuration
 networks:

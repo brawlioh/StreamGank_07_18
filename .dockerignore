@@ -80,6 +80,9 @@ voices_list.json
 *.log
 logs/
 
+# Data volumes (mounted separately)
+docker_volumes/
+
 # Test outputs
 test_output/
 temp_*

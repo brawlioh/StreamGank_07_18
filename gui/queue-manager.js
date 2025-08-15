@@ -9,15 +9,19 @@ const { promisify } = require("util");
  */
 class VideoQueueManager {
     constructor() {
-        // Redis client configuration - Redis Cloud (v3 API)
-        this.client = redis.createClient({
-            host: "redis-13734.c292.ap-southeast-1-1.ec2.redns.redis-cloud.com",
-            port: 13734,
-            password: "6zhDOqJpo5Z6EYsTfBoZF1d5oPVo7X67",
+        // Redis client configuration with database selection
+        const redisConfig = {
+            host: process.env.REDIS_HOST,
+            port: parseInt(process.env.REDIS_PORT),
+            password: process.env.REDIS_PASSWORD,
+            db: parseInt(process.env.REDIS_DB), // Database selection (0-15)
             retry_delay_on_failover: 100,
             enable_ready_check: false,
             max_attempts: null,
-        });
+        };
+
+        console.log(`🔗 Connecting to Redis database ${redisConfig.db} on ${redisConfig.host}:${redisConfig.port}`);
+        this.client = redis.createClient(redisConfig);
 
         // Event handlers for Redis connection
         this.client.on("error", (err) => {
@@ -37,14 +41,19 @@ class VideoQueueManager {
         this.currentJob = null;
         this.currentProcess = null; // Track the current Python process
 
-        // Redis queue keys - Updated to streamgankvideos namespace
+        // Redis queue keys with database-aware namespace
+        const dbNumber = redisConfig.db;
+        const namespace = `streamgankvideos:db${dbNumber}`;
         this.keys = {
-            pending: "streamgankvideos:queue:pending",
-            processing: "streamgankvideos:queue:processing",
-            completed: "streamgankvideos:queue:completed",
-            failed: "streamgankvideos:queue:failed",
-            jobs: "streamgankvideos:jobs",
+            pending: `${namespace}:queue:pending`,
+            processing: `${namespace}:queue:processing`,
+            completed: `${namespace}:queue:completed`,
+            failed: `${namespace}:queue:failed`,
+            jobs: `${namespace}:jobs`,
         };
+
+        console.log(`📋 Using Redis namespace: ${namespace}`);
+        console.log(`🔑 Queue keys: ${Object.keys(this.keys).join(", ")}`);
 
         // Promisify Redis v3 methods for async/await usage
         this.lpushAsync = promisify(this.client.lpush).bind(this.client);

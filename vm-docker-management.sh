@@ -56,13 +56,92 @@ check_vm_resources() {
     print_vm_status "CPU cores: $cpu_cores"
 }
 
+# Validate required environment variables
+validate_env() {
+    print_status "Validating environment configuration..."
+    
+    # Check if .env file exists
+    if [ ! -f .env ]; then
+        print_error "❌ FATAL: .env file not found!"
+        print_error "📝 Create .env file from docker.env.example:"
+        print_error "   cp docker.env.example .env"
+        print_error "   # Then edit .env with your configuration"
+        exit 1
+    fi
+    
+    # Load environment variables
+    source .env 2>/dev/null || {
+        print_error "❌ FATAL: Failed to load .env file!"
+        print_error "📝 Check .env file syntax and permissions"
+        exit 1
+    }
+    
+    # Define required environment variables
+    REQUIRED_VARS=(
+        "APP_ENV:Application environment (local/prod)"
+        "NODE_ENV:Node.js environment" 
+        "PORT:Application port"
+        "PYTHONPATH:Python path"
+        "PYTHONUNBUFFERED:Python output buffering"
+        "STREAMGANK_DATA_PATH:Data storage path"
+        "REDIS_HOST:Redis server hostname"
+        "REDIS_PORT:Redis server port"
+        "REDIS_PASSWORD:Redis authentication password"
+        "REDIS_DB:Redis database number (0-15)"
+    )
+    
+    # Validate each required variable
+    missing_vars=()
+    for var_info in "${REQUIRED_VARS[@]}"; do
+        var_name=$(echo "$var_info" | cut -d: -f1)
+        var_desc=$(echo "$var_info" | cut -d: -f2-)
+        
+        # Get variable value using indirect expansion
+        var_value="${!var_name}"
+        
+        if [ -z "$var_value" ]; then
+            missing_vars+=("$var_name ($var_desc)")
+        fi
+    done
+    
+    # Report missing variables and exit if any found
+    if [ ${#missing_vars[@]} -gt 0 ]; then
+        print_error "❌ FATAL: Missing required environment variables in .env:"
+        for var in "${missing_vars[@]}"; do
+            print_error "   - $var"
+        done
+        print_error ""
+        print_error "📝 Update your .env file with all required variables"
+        print_error "📋 See docker.env.example for reference"
+        exit 1
+    fi
+    
+    print_success "✅ All required environment variables are set"
+}
+
 # VM-optimized setup
 setup_vm_optimized() {
     print_status "Setting up VM-optimized environment..."
     
+    # Validate environment first
+    validate_env
+    
+    # Load environment variables (already validated)
+    source .env
+    DATA_PATH="$STREAMGANK_DATA_PATH"
+    
+    print_status "Creating data directories at: $DATA_PATH"
+    
     # Create required directories
-    mkdir -p assets videos outputs temp redis_data
-    mkdir -p docker_volumes/logs docker_volumes/redis
+    mkdir -p assets videos outputs temp redis_data  # Legacy directories (still needed)
+    mkdir -p "$DATA_PATH"/{assets,videos,outputs,redis,logs}  # New organized structure
+    
+    print_success "Created directory structure:"
+    print_success "  📁 $DATA_PATH/assets/     - Generated assets"
+    print_success "  📁 $DATA_PATH/videos/     - Output videos"  
+    print_success "  📁 $DATA_PATH/outputs/    - Processed outputs"
+    print_success "  📁 $DATA_PATH/redis/      - Redis data"
+    print_success "  📁 $DATA_PATH/logs/       - Application logs"
     
     # Set up environment file
     if [ ! -f .env ]; then
@@ -102,13 +181,13 @@ build_vm_optimized() {
 
 # Force rebuild without cache (use when dependencies change)
 vm_rebuild() {
-    print_info "Setting up VM-optimized environment..."
-    setup_vm_env
+    print_status "Setting up VM-optimized environment..."
+    setup_vm_optimized
     print_success "VM environment setup complete!"
     
-    print_info "Force rebuilding VM-optimized Docker images (no cache)..."
-    print_info "This will re-download all dependencies - use when requirements.txt or package.json change"
-    print_info "Checking VM resources..."
+    print_status "Force rebuilding VM-optimized Docker images (no cache)..."
+    print_status "This will re-download all dependencies - use when requirements.txt or package.json change"
+    print_status "Checking VM resources..."
     
     print_vm_status "Available disk space: $(df -h . | awk 'NR==2 {print $4}')"
     print_vm_status "CPU cores: $(nproc)"
@@ -143,20 +222,7 @@ start_vm_production() {
     print_status "GUI available at: http://localhost:3000"
 }
 
-# Start development mode
-start_vm_development() {
-    print_status "Starting StreamGank in VM-optimized development mode..."
-    check_vm_resources
-    
-    docker-compose -f docker-compose.vm-optimized.yml -f docker-compose.vm-dev.yml up -d
-    
-    # Wait and show status
-    sleep 10
-    show_vm_status
-    
-    print_success "StreamGank is running in VM development mode!"
-    print_status "GUI available at: http://localhost:3000"
-}
+
 
 # Show detailed VM and container status
 show_vm_status() {
@@ -239,7 +305,7 @@ show_vm_help() {
     echo "  vm-build      - Build with VM resource limits (uses cache)"
     echo "  vm-rebuild    - Force rebuild without cache (when dependencies change)"
     echo "  vm-start      - Start in VM-optimized production mode"
-    echo "  vm-dev        - Start in VM-optimized development mode"
+  
     echo "  vm-status     - Show detailed VM and container status"
     echo "  vm-monitor    - Real-time VM performance monitoring"
     echo "  vm-cleanup    - VM-optimized cleanup with space reclamation"
@@ -253,7 +319,7 @@ show_vm_help() {
     echo "Examples:"
     echo "  $0 vm-setup   # Initialize VM environment"
     echo "  $0 vm-start   # Start production mode"
-    echo "  $0 vm-dev     # Start development mode"
+  
     echo "  $0 vm-monitor # Monitor performance"
     echo ""
 }
@@ -304,10 +370,7 @@ case "${1:-help}" in
         setup_vm_optimized
         start_vm_production
         ;;
-    vm-dev)
-        setup_vm_optimized
-        start_vm_development
-        ;;
+
     vm-status)
         show_vm_status
         ;;
