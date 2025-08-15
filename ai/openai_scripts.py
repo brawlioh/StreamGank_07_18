@@ -28,13 +28,8 @@ from ai.script_manager import validate_script_content, process_script_text
 
 logger = logging.getLogger(__name__)
 
-# Import Gemini fallback client
-try:
-    from ai.gemini_client import GeminiClient
-    GEMINI_FALLBACK_AVAILABLE = True
-except ImportError:
-    GEMINI_FALLBACK_AVAILABLE = False
-    logger.warning("⚠️ Gemini fallback not available. Install with: pip install google-generativeai")
+# Gemini fallback removed - using OpenAI + Template fallback only
+GEMINI_FALLBACK_AVAILABLE = False
 
 # =============================================================================
 # OPENAI CLIENT MANAGEMENT
@@ -1038,43 +1033,8 @@ def generate_script_with_fallback(script_type: str, **kwargs) -> Optional[str]:
             logger.error("❌ OpenAI failed with non-recoverable error")
             return None
     
-    # Fallback to Gemini if available
-    if GEMINI_FALLBACK_AVAILABLE:
-        try:
-            logger.info("🟢 Falling back to Gemini generation...")
-            gemini_client = GeminiClient()
-            
-            if gemini_client.is_available():
-                gemini_result = None
-                
-                if script_type == 'intro':
-                    gemini_result = gemini_client.generate_intro_script(**kwargs)
-                elif script_type == 'hook':
-                    gemini_result = gemini_client.generate_movie_hook(**kwargs)
-                
-                if gemini_result:
-                    logger.info("✅ Gemini fallback successful!")
-                    return gemini_result
-                    
-            else:
-                # Get detailed configuration status
-                status = gemini_client.get_configuration_status()
-                logger.warning(f"⚠️ Gemini unavailable: {status['initialization_error']}")
-                
-                # Log configuration steps for user
-                if not status['dependencies_installed']:
-                    logger.info("💡 To enable Gemini fallback: pip install google-generativeai")
-                elif not status['api_key_configured']:
-                    logger.info("💡 To enable Gemini fallback: Add GEMINI_API_KEY to your .env file")
-                    logger.info("💡 Get API key from: https://makersuite.google.com/app/apikey")
-                
-        except Exception as e:
-            logger.error(f"❌ Gemini fallback failed: {e}")
-    else:
-        logger.warning("⚠️ Gemini fallback not available")
-    
     # Final fallback to template-based generation
-    logger.info("🔧 Using template-based fallback...")
+    logger.info("🔧 OpenAI failed, using template-based fallback...")
     try:
         if script_type == 'intro':
             return _generate_intro_fallback(**kwargs)

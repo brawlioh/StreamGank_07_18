@@ -1,46 +1,59 @@
-# StreamGank Video Generator - Unified Container
+# StreamGank - Optimized Unified Container
+# Single container with Python + Node.js optimized for size and performance
 FROM mcr.microsoft.com/playwright/python:v1.54.0-jammy
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONPATH=/app
+ENV NODE_ENV=production
+ENV PORT=3000
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies (cached layer - rarely changes)
+# Install system dependencies and Node.js in one layer (optimized)
 RUN apt-get update && apt-get install -y \
+    # Essential tools
+    curl wget \
     # FFmpeg for video processing
     ffmpeg \
-    # Basic utilities
-    curl \
-    wget \
-    # Node.js for GUI service
-    nodejs \
-    npm \
-    && rm -rf /var/lib/apt/lists/*
+    # Add Node.js 20 LTS
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    # Clean up to reduce image size
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && apt-get autoremove -y
 
-# Copy and install Python dependencies (cached layer - changes less frequently)
+# Copy and install Python dependencies (cached layer)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip cache purge
 
-# Install Playwright browsers (cached layer - rarely changes)
-RUN playwright install chromium
+# Install Playwright browsers (cached layer)
+RUN playwright install chromium \
+    && playwright install-deps
 
-# Copy and install Node.js dependencies (cached layer - changes less frequently)
+# Copy and install Node.js dependencies (cached layer)
 COPY gui/package*.json ./gui/
-RUN cd gui && npm install --only=production
+RUN cd gui && npm install --only=production \
+    && npm cache clean --force
 
-# Create necessary directories (cached layer - rarely changes)
-RUN mkdir -p assets videos screenshots clips covers cloudinary creatomate heygen scroll_frames trailers temp_videos responses test_output scripts gui/logs
+# Create necessary directories
+RUN mkdir -p assets videos screenshots clips covers \
+    cloudinary creatomate heygen scroll_frames trailers \
+    temp_videos responses test_output scripts gui/logs
 
-# Copy application code (this layer changes most frequently, so it's last)
+# Copy application code (this layer changes most frequently)
 COPY . .
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)" || exit 1
+# Health check for unified container
+HEALTHCHECK --interval=45s --timeout=15s --start-period=10s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)" && curl -f http://localhost:3000/health || exit 1
 
-# Default command - can be overridden in docker-compose
-CMD ["tail", "-f", "/dev/null"]
+# Expose GUI port
+EXPOSE 3000
+
+# Start both services (GUI server which can spawn Python processes)
+CMD ["node", "gui/server.js"]

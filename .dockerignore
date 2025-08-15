@@ -85,7 +85,16 @@ test_output/
 temp_*
 scroll_frames_*
 
+# Scripts and cache (frequently changing files)
+scripts/video_script_*.txt
+dynamic_clips_result.json
+
 # Docker files (don't include in build context)
 docker-compose.yml
 docker-compose.*.yml
-Dockerfile*
+# Keep main Dockerfile but exclude variants
+Dockerfile.backend
+Dockerfile.gui
+Dockerfile.unified
+Dockerfile.*
+!Dockerfile
