@@ -46,7 +46,7 @@ HEYGEN_TEMPLATES = {
     
     # Default Template
     'default': {
-        'id': '7fb75067718944ac8f02e661c2c61522',
+        'id': 'cc6718c5363e42b282a123f99b94b335',
         'name': 'Default Template',
         'description': 'General-purpose template for all other content types',
         'genres': ['*']  # Wildcard for all other genres
@@ -78,7 +78,7 @@ def get_heygen_template_id(genre: str = None) -> str:
         '15d9eadcb46a45dbbca1834aa0a23ede'
         
         >>> get_heygen_template_id('Drama')   # Uses default
-        '7fb75067718944ac8f02e661c2c61522'
+        'cc6718c5363e42b282a123f99b94b335'
     """
     logger.info(f"🎭 Selecting HeyGen template for genre: {genre}")
     

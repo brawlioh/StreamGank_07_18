@@ -89,6 +89,11 @@ def create_heygen_video(script_data: Any,
     try:
         logger.info(f"🎬 Creating HeyGen videos")
         
+        # Check if we're in local mode - use hardcoded URLs instead of API
+        if os.getenv('APP_ENV') == 'local':
+            logger.info("🏠 LOCAL MODE: Using hardcoded HeyGen URLs instead of API calls")
+            return _get_local_heygen_videos(script_data)
+        
         # Validate API configuration
         headers = _get_heygen_headers()
         if not headers:
@@ -438,6 +443,11 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
         STRICT MODE - Returns None if any video fails. No fallbacks allowed.
     """
     logger.info(f"🔗 Getting HeyGen video URLs for {len(heygen_video_ids)} videos - STRICT MODE")
+    
+    # Check if we're in local mode - return hardcoded URLs directly
+    if os.getenv('APP_ENV') == 'local':
+        logger.info("🏠 LOCAL MODE: Returning hardcoded HeyGen URLs for Creatomate")
+        return _get_local_heygen_urls_for_creatomate(heygen_video_ids)
     
     video_urls = {}
     
@@ -814,6 +824,96 @@ def get_video_urls(video_ids: Dict[str, str],
         return None
 
 # =============================================================================
+# LOCAL MODE FUNCTIONS
+# =============================================================================
+
+def _get_local_heygen_videos(script_data: Any) -> Dict[str, str]:
+    """
+    Return hardcoded HeyGen video URLs for local development mode.
+    
+    This avoids making API calls and using credits during development.
+    
+    Args:
+        script_data: Dictionary containing scripts or single script string
+        
+    Returns:
+        Dict[str, str]: Dictionary mapping script keys to hardcoded video IDs
+    """
+    try:
+        # Hardcoded HeyGen video URLs for local mode
+        local_heygen_urls = [
+            "https://files2.heygen.ai/aws_pacific/avatar_tmp/fc001c501c65419385a406d9281db788/c4d15b0053364c2f9a676341a40bafae.mp4?Expires=1755527003&Signature=pFusBVqK-V0FOn90Mh9MlsKwk5Szq6kmi9akRezOOCb3odcZf8hbNp-r7DtyucVT8XdKMcYmGEr9isrbu3AKBkE1VtovLNXuTNNtSK9CP6ZtjVVj8TIDz0lz3j~Svpo7vgTiFzIulf3ja5H6YRZKrnEYUbVIxmo3BKWdvvaSjfftQmcbblOBI2QjYQZXVZOdsF2UpxLxzbrgifZlTiT373pRS9eVqYJiCzeJJEyrdJp5tpfzIc4o8WcOyuW4zVJ-QS0U4YXcSZpC1t~OLzSbgCg1rCrRKcv0aaha5g-K~-VFyjUhPjJydyA7aRc8MGIaGn2hKIyHCt06-eMk8qEI5w__&Key-Pair-Id=K38HBHX5LX3X2H",
+            "https://files2.heygen.ai/aws_pacific/avatar_tmp/fc001c501c65419385a406d9281db788/09db94f0a5d64ecd9aa1c80dc5a41f5c.mp4?Expires=1755527004&Signature=lnNmK8EY~wvlvngCfdcE-4zNZB3yZhMOlt5UnH~x2ds0y6S2b-vF0097lKqDbYHKLYCbXWyFQpxkWf76NSnulH7BjGVlQaXlz3ltr73gp~FKic0Xz1oPBFvH1QJVP7wsCnin7Obm1l9D6z8wsaxnF33yDZHvVCDKOPS3QmXEez8xkncaaXRhe6x1hHXyMTTEfXkVPdUuUIwFXqMyzOGfxLlVL97wm-aWMiMUkrNsExFpUkQmkKPhXQgcIMIKoPJ5FE6Z3WkvsHUaiGiAGBLc4smQTtBS3W259gmFrAaiViizjHTMVsHKDrOdhE2abhOOOq5xXWSadv6t5IY30I0aOg__&Key-Pair-Id=K38HBHX5LX3X2H",
+            "https://files2.heygen.ai/aws_pacific/avatar_tmp/fc001c501c65419385a406d9281db788/09cef1834e7d44f2a143cbfe144f54ca.mp4?Expires=1755527008&Signature=G2dEk8ymdsZwuWu7c8iXh~kAPb7Nove6wk6k2YsxJUA5riV~pUXVrT1OB-Miqi7dQF7nI3wrKYSPG~FpMlbng0PmVmP6vtn-Vbk7MSD4K2H~b5BiZ2E03uP8RHoAhe9cMa8vbJCjuZbaXhLtO-26Ab2XmyQXRXVZD8ctvpIsl1fFX5PTbYXKk~IgixoSEj-uRdpxG-B5kCI324n7V~7iCwxnPY-k1CfUSTWn5n83jqy1Wfk~Dmi~2FJgoSEf-~Z4GxIXLyL7FEPw7CwmJ6KSqHzLJPao-JfHNK5tu6~O~wex5N6nb4EZjrxBzs96WG~AHscTiOmgpd7M9-Pj5cReWg__&Key-Pair-Id=K38HBHX5LX3X2H"
+        ]
+        
+        # Handle different input formats
+        if isinstance(script_data, str):
+            script_data = {
+                "single_video": {
+                    "text": script_data,
+                    "path": "direct_input"
+                }
+            }
+        
+        videos = {}
+        
+        # Assign URLs to scripts (cycling through available URLs)
+        for i, (key, script_info) in enumerate(script_data.items()):
+            url_index = i % len(local_heygen_urls)
+            
+            # Generate a fake video ID for compatibility
+            fake_video_id = f"local_heygen_{i+1}_{key}"
+            videos[key] = fake_video_id
+            
+            logger.info(f"🏠 Local video assigned for {key}: {fake_video_id}")
+            logger.info(f"   📹 URL: {local_heygen_urls[url_index][:60]}...")
+        
+        logger.info(f"✅ LOCAL MODE: {len(videos)} hardcoded HeyGen videos assigned")
+        return videos
+        
+    except Exception as e:
+        logger.error(f"❌ Error in local HeyGen mode: {str(e)}")
+        return None
+
+
+def _get_local_heygen_urls_for_creatomate(heygen_video_ids: dict) -> dict:
+    """
+    Return hardcoded HeyGen video URLs for Creatomate in local development mode.
+    
+    Args:
+        heygen_video_ids: Dictionary of HeyGen video IDs (fake IDs from local mode)
+        
+    Returns:
+        Dictionary with actual video URLs ready for Creatomate
+    """
+    try:
+        # Hardcoded HeyGen video URLs for local mode
+        local_heygen_urls = [
+            "https://files2.heygen.ai/aws_pacific/avatar_tmp/fc001c501c65419385a406d9281db788/c4d15b0053364c2f9a676341a40bafae.mp4?Expires=1755527003&Signature=pFusBVqK-V0FOn90Mh9MlsKwk5Szq6kmi9akRezOOCb3odcZf8hbNp-r7DtyucVT8XdKMcYmGEr9isrbu3AKBkE1VtovLNXuTNNtSK9CP6ZtjVVj8TIDz0lz3j~Svpo7vgTiFzIulf3ja5H6YRZKrnEYUbVIxmo3BKWdvvaSjfftQmcbblOBI2QjYQZXVZOdsF2UpxLxzbrgifZlTiT373pRS9eVqYJiCzeJJEyrdJp5tpfzIc4o8WcOyuW4zVJ-QS0U4YXcSZpC1t~OLzSbgCg1rCrRKcv0aaha5g-K~-VFyjUhPjJydyA7aRc8MGIaGn2hKIyHCt06-eMk8qEI5w__&Key-Pair-Id=K38HBHX5LX3X2H",
+            "https://files2.heygen.ai/aws_pacific/avatar_tmp/fc001c501c65419385a406d9281db788/09db94f0a5d64ecd9aa1c80dc5a41f5c.mp4?Expires=1755527004&Signature=lnNmK8EY~wvlvngCfdcE-4zNZB3yZhMOlt5UnH~x2ds0y6S2b-vF0097lKqDbYHKLYCbXWyFQpxkWf76NSnulH7BjGVlQaXlz3ltr73gp~FKic0Xz1oPBFvH1QJVP7wsCnin7Obm1l9D6z8wsaxnF33yDZHvVCDKOPS3QmXEez8xkncaaXRhe6x1hHXyMTTEfXkVPdUuUIwFXqMyzOGfxLlVL97wm-aWMiMUkrNsExFpUkQmkKPhXQgcIMIKoPJ5FE6Z3WkvsHUaiGiAGBLc4smQTtBS3W259gmFrAaiViizjHTMVsHKDrOdhE2abhOOOq5xXWSadv6t5IY30I0aOg__&Key-Pair-Id=K38HBHX5LX3X2H",
+            "https://files2.heygen.ai/aws_pacific/avatar_tmp/fc001c501c65419385a406d9281db788/09cef1834e7d44f2a143cbfe144f54ca.mp4?Expires=1755527008&Signature=G2dEk8ymdsZwuWu7c8iXh~kAPb7Nove6wk6k2YsxJUA5riV~pUXVrT1OB-Miqi7dQF7nI3wrKYSPG~FpMlbng0PmVmP6vtn-Vbk7MSD4K2H~b5BiZ2E03uP8RHoAhe9cMa8vbJCjuZbaXhLtO-26Ab2XmyQXRXVZD8ctvpIsl1fFX5PTbYXKk~IgixoSEj-uRdpxG-B5kCI324n7V~7iCwxnPY-k1CfUSTWn5n83jqy1Wfk~Dmi~2FJgoSEf-~Z4GxIXLyL7FEPw7CwmJ6KSqHzLJPao-JfHNK5tu6~O~wex5N6nb4EZjrxBzs96WG~AHscTiOmgpd7M9-Pj5cReWg__&Key-Pair-Id=K38HBHX5LX3X2H"
+        ]
+        
+        video_urls = {}
+        
+        # Map fake video IDs to actual URLs
+        for i, (key, video_id) in enumerate(heygen_video_ids.items()):
+            url_index = i % len(local_heygen_urls)
+            video_url = local_heygen_urls[url_index]
+            video_urls[key] = video_url
+            
+            logger.info(f"🏠 Local URL mapped for {key}: {video_url[:60]}...")
+        
+        logger.info(f"✅ LOCAL MODE: {len(video_urls)} hardcoded URLs ready for Creatomate")
+        return video_urls
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting local HeyGen URLs for Creatomate: {str(e)}")
+        return None
+
+
+# =============================================================================
 # PRIVATE HELPER FUNCTIONS
 # =============================================================================
 
@@ -833,7 +933,7 @@ def _create_single_video(script_text: str,
         else:
             payload = _build_custom_payload(script_text, key)
             url = f"{config['base_url']}/video/generate"
-        print(payload)
+        # print(payload)
         # Send request with retry logic
         for attempt in range(config.get('retry_attempts', 3)):
             try:

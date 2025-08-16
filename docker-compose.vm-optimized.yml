@@ -1,0 +1,144 @@
+# StreamGank - VM-Optimized Docker Compose Configuration
+# Optimized for Virtual Machine environments with resource management and performance tuning
+
+services:
+    # StreamGank Unified Service - VM Optimized (Python + Node.js)
+    streamgank-app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: streamgank-app
+        restart: unless-stopped
+        ports:
+            - "3000:3000"
+        # VM-optimized resource limits for unified container
+        deploy:
+            resources:
+                limits:
+                    memory: 3G
+                    cpus: "1.5"
+                reservations:
+                    memory: 512M
+                    cpus: "0.25"
+        env_file:
+            - .env
+        environment:
+            - PYTHONPATH=${PYTHONPATH}
+            - PYTHONUNBUFFERED=${PYTHONUNBUFFERED}
+            - APP_ENV=${APP_ENV}
+            - NODE_ENV=${NODE_ENV}
+            - PORT=${PORT}
+            # VM performance optimizations
+            - MALLOC_ARENA_MAX=2
+            - PYTHONDONTWRITEBYTECODE=1
+            - NODE_OPTIONS=--max-old-space-size=500
+        volumes:
+            # Use named volumes for better VM performance
+            - streamgank_assets:/app/assets
+            - streamgank_videos:/app/videos
+            - streamgank_outputs:/app/outputs
+            # Combined output directories for better performance
+            - streamgank_temp:/app/temp_videos
+            - streamgank_temp:/app/screenshots
+            - streamgank_temp:/app/clips
+            - streamgank_temp:/app/covers
+            - streamgank_temp:/app/scroll_frames
+            - streamgank_temp:/app/trailers
+            # Configuration and logs (bind mounts - less frequently accessed)
+            - ./scripts:/app/scripts:cached
+            - ./test_output:/app/test_output:cached
+            - ./.env:/app/.env:ro
+        networks:
+            - streamgank-network
+        # VM-optimized settings
+        tty: true
+        stdin_open: true
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "50m" # Increased for VM debugging
+                max-file: "5"
+                compress: "true" # Save disk space in VM
+        # Unified health check (Python + GUI)
+        healthcheck:
+            test: ["CMD", "python", "-c", "import sys; sys.exit(0)", "&&", "curl", "-f", "http://localhost:3000/health", "||", "exit", "1"]
+            interval: 45s # Less frequent in VM
+            timeout: 15s
+            retries: 3
+            start_period: 15s
+
+    # Redis - Local Instance for VM (better than external for dev/testing)
+    redis:
+        image: redis:7.2-alpine
+        container_name: streamgankvideos-redis
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 256M
+                    cpus: "0.25"
+                reservations:
+                    memory: 64M
+                    cpus: "0.05"
+        # VM-optimized Redis configuration
+        command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --save 300 1 --tcp-keepalive 60
+        volumes:
+            - redis_data:/data
+        networks:
+            - streamgank-network
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "10m"
+                max-file: "2"
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 30s
+            timeout: 5s
+            retries: 3
+            start_period: 5s
+
+# Named volumes for better VM performance and management
+volumes:
+    streamgank_assets:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${STREAMGANK_DATA_PATH}/assets
+    streamgank_videos:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${STREAMGANK_DATA_PATH}/videos
+    streamgank_outputs:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${STREAMGANK_DATA_PATH}/outputs
+    streamgank_temp:
+        driver: local
+        driver_opts:
+            type: tmpfs
+            device: tmpfs
+            o: size=2g,uid=1000,gid=1000 # Temporary files in RAM for speed
+    redis_data:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${STREAMGANK_DATA_PATH}/redis
+
+# VM-optimized network configuration
+networks:
+    streamgank-network:
+        driver: bridge
+        driver_opts:
+            com.docker.network.bridge.enable_icc: "true"
+            com.docker.network.bridge.enable_ip_masquerade: "true"
+            com.docker.network.driver.mtu: 1500
+        ipam:
+            config:
+                - subnet: 172.20.0.0/16

@@ -34,32 +34,7 @@ API_SETTINGS = {
         'retry_attempts': 3
     },
     
-    # Gemini Configuration (Fallback for OpenAI)
-    'gemini': {
-        'model': 'gemini-1.5-flash',
-        'temperature': 0.8,  # Creative but consistent
-        'max_output_tokens': 100,  # For script generation
-        'timeout': 30,  # Request timeout in seconds
-        'retry_attempts': 3,
-        'safety_settings': [
-            {
-                'category': 'HARM_CATEGORY_HARASSMENT',
-                'threshold': 'BLOCK_ONLY_HIGH'
-            },
-            {
-                'category': 'HARM_CATEGORY_HATE_SPEECH', 
-                'threshold': 'BLOCK_ONLY_HIGH'
-            },
-            {
-                'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-                'threshold': 'BLOCK_ONLY_HIGH'
-            },
-            {
-                'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                'threshold': 'BLOCK_ONLY_HIGH'  # Relaxed for horror movie content
-            }
-        ]
-    },
+    # Gemini configuration removed - using OpenAI + Template fallback only
     
     # HeyGen Configuration
     'heygen': {
@@ -67,7 +42,7 @@ API_SETTINGS = {
         'template_endpoint': '/template/{}/generate',
         'video_endpoint': '/video/generate', 
         'status_endpoint': '/video_status/{video_id}',
-        'default_template_id': '7fb75067718944ac8f02e661c2c61522',
+        'default_template_id': 'cc6718c5363e42b282a123f99b94b335',
         'poll_interval': 15,  # Status check interval in seconds
         'max_poll_attempts': 40,  # Maximum status checks (10 minutes)
         'timeout': 60  # Request timeout in seconds
@@ -223,7 +198,7 @@ OPTIONAL_ENV_VARS = {
     'SUPABASE_URL': 'Supabase database URL',
     'SUPABASE_KEY': 'Supabase API key',
     'DATABASE_URL': 'Direct database connection URL',
-    'GEMINI_API_KEY': 'Google Gemini API key (fallback for OpenAI script generation)'
+
 }
 
 # =============================================================================

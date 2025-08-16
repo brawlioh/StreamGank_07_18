@@ -1,25 +1,25 @@
 {
   "data": {
     "enhanced_posters": {
-      "Ça": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754896419/streamgank/posters/enhanced_%C3%A7a_1.jpg",
-      "La Plateforme": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754490368/streamgank/posters/enhanced_la_plateforme_2.jpg",
-      "Us": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754490372/streamgank/posters/enhanced_us_3.jpg"
+      "Stranger Things": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754731413/streamgank/posters/enhanced_stranger_things_1.jpg",
+      "The Haunting of Hill House": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754731415/streamgank/posters/enhanced_the_haunting_of_hill_house_2.jpg",
+      "Love, Death & Robots": "https://res.cloudinary.com/dodod8s0v/image/upload/v1754731417/streamgank/posters/enhanced_love_death__robots_3.jpg"
     },
     "dynamic_clips": {
-      "Ça": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754896445/movie_clips/movie_clips/a_23191_10s.mp4",
-      "La Plateforme": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754896472/movie_clips/movie_clips/la_plateforme_15045_10s.mp4",
-      "Us": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754896497/movie_clips/movie_clips/us_15049_10s.mp4"
+      "Stranger Things": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754990214/movie_clips/movie_clips/stranger_things_23090_10s.mp4",
+      "The Haunting of Hill House": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754990243/movie_clips/movie_clips/the_haunting_of_hill_house_14919_10s.mp4",
+      "Love, Death & Robots": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754990265/movie_clips/movie_clips/love_death_robots_15005_10s.mp4"
     },
     "parameters": {
       "country": "FR",
       "genre": "Horreur",
       "platform": "Netflix",
-      "content_type": "Film",
+      "content_type": "Série",
       "num_movies": 3
     },
     "poster_count": 3,
     "clip_count": 3,
-    "generation_timestamp": 1754896503.203652
+    "generation_timestamp": 1754990276.3093114
   },
   "metadata": {
     "data_type": "assets",
@@ -28,7 +28,7 @@
       "genre": "Horreur",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1754896503.2037325,
-    "saved_datetime": "2025-08-11 15:15:03"
+    "saved_timestamp": 1754990276.3093867,
+    "saved_datetime": "2025-08-12 17:17:56"
   }
 }

@@ -1,0 +1,103 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+md/
+README.md
+
+# Environment files (will be mounted separately)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+
+# Node.js (for main Dockerfile)
+gui/node_modules/
+gui/package-lock.json
+gui/npm-debug.log*
+gui/yarn-debug.log*
+gui/yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large media files and outputs (will be mounted as volumes)
+assets/
+videos/
+screenshots/
+clips/
+covers/
+cloudinary/
+creatomate/
+heygen/
+scroll_frames/
+trailers/
+temp_videos/
+responses/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wav
+*.mp3
+
+# Large JSON files
+avatars_list.json
+voices_list.json
+
+# Logs
+*.log
+logs/
+
+# Data volumes (mounted separately)
+docker_volumes/
+
+# Test outputs
+test_output/
+temp_*
+scroll_frames_*
+
+# Scripts and cache (frequently changing files)
+scripts/video_script_*.txt
+dynamic_clips_result.json
+
+# Docker files (don't include in build context)
+docker-compose.yml
+docker-compose.*.yml
+# Keep main Dockerfile but exclude variants
+Dockerfile.backend
+Dockerfile.gui
+Dockerfile.unified
+Dockerfile.*
+!Dockerfile

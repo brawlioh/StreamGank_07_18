@@ -25,6 +25,15 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Health check endpoint for Docker
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        service: 'streamgank-gui',
+    });
+});
+
 // Platform mapping to match frontend values to Python script expectations
 const platformMapping = {
     amazon: 'Prime',
@@ -365,6 +374,24 @@ app.post('/api/queue/clear', async (req, res) => {
     }
 });
 
+// API endpoint to clean up stuck processing jobs
+app.post('/api/queue/cleanup', async (req, res) => {
+    try {
+        await queueManager.cleanupProcessingQueue();
+        res.json({
+            success: true,
+            message: 'Processing queue cleaned up successfully',
+        });
+    } catch (error) {
+        console.error('❌ Failed to cleanup processing queue:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to cleanup processing queue',
+            error: error.message,
+        });
+    }
+});
+
 // API endpoint to update job with video URL after Creatomate completion
 app.post('/api/job/:jobId/complete', async (req, res) => {
     try {
@@ -442,7 +469,7 @@ app.get('/api/platforms/:country', async (req, res) => {
         // Use the exact platform data provided by the user
         const availablePlatforms = {
             FR: ['Prime', 'Apple TV+', 'Disney+', 'Max', 'Netflix', 'Free'],
-            US: ['Prime', 'Apple TV+', 'Disney+', 'Hulu', 'Max', 'Netflix'],
+            US: ['Prime', 'Apple TV+', 'Disney+', 'Hulu', 'Max', 'Netflix', 'Free'],
         };
 
         const platforms = availablePlatforms[country] || availablePlatforms['US']; // Default to US if country not found
