@@ -949,14 +949,18 @@ document.addEventListener("DOMContentLoaded", function () {
                 addStatusMessage("info", "📊", `Queue position: ${data.queuePosition}`);
                 addStatusMessage("info", "📈", `Queue stats - Pending: ${data.queueStatus.pending}, Processing: ${data.queueStatus.processing}`);
 
-                // Store job ID for monitoring
+                // Store job ID for reference
                 window.currentJobId = data.jobId;
 
                 // Set progress bar to 20% (queued)
                 progressBar.style.width = "20%";
 
-                // Start monitoring job status
-                startJobMonitoring(data.jobId);
+                // NO individual job monitoring on dashboard - only refresh queue status
+                // Individual job monitoring only happens on dedicated job detail pages
+                console.log(`📋 Job ${data.jobId} added to queue - view details at /job/${data.jobId}`);
+
+                // Refresh queue status to show new job in Process Management
+                setTimeout(refreshQueueStatus, 1000);
             } else {
                 throw new Error(data.message || "Unknown error occurred");
             }
@@ -971,22 +975,33 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // Function to monitor Redis job status
+    // REMOVED: Individual job monitoring function - only available on job detail pages
     async function startJobMonitoring(jobId) {
+        console.log(`📋 Individual job monitoring disabled on dashboard - view details at /job/${jobId}`);
+        return; // No monitoring on dashboard
+    }
+
+    // Function to monitor Creatomate status (legacy - may not be needed with Redis queue)
+    async function monitorCreatomateStatus(creatomateId, initialData) {
         let attempts = 0;
-        const maxAttempts = 180; // Monitor for up to 30 minutes (10 second intervals)
-        let lastStatus = null;
-        let lastStep = null;
-        let shownMessages = new Set(); // Track shown messages to avoid duplicates
+        const maxAttempts = 60; // Monitor for up to 10 minutes (10 second intervals)
+        let lastCreatomateStatus = null;
+        let creatomateMessages = new Set(); // Track shown messages to avoid duplicates
 
-        addStatusMessage("info", "👀", "Starting job monitoring...");
-
-        const monitorJob = async () => {
+        async function checkStatus() {
             try {
                 attempts++;
 
-                // Get job status from Redis
-                const response = await fetch(`/api/job/${jobId}`);
+                // Show status check message every attempt (every 30 seconds)
+                addStatusMessage("info", "🔍", `Step 7: Checking render status... (${attempts}/${maxAttempts})`);
+
+                // Show time elapsed
+                const timeElapsed = Math.floor((attempts * 30) / 60); // Convert to minutes
+                if (timeElapsed > 0) {
+                    addStatusMessage("info", "⏱️", `Rendering time: ${timeElapsed} minute${timeElapsed > 1 ? "s" : ""}`);
+                }
+
+                const response = await fetch(`/api/status/${creatomateId}`);
                 const result = await response.json();
 
                 if (!result.success) {
@@ -1339,7 +1354,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
                 }
             }
-        };
+        }
 
         // Start monitoring after 5 seconds
         currentJobMonitoring = setTimeout(monitorJob, 5000);
@@ -1562,6 +1577,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Function to add a status message
     function addStatusMessage(type, icon, message) {
+        // Skip individual job progress messages on dashboard - only show on job detail page
+        const isJobProgressMessage =
+            message.includes("Job ID:") ||
+            message.includes("Queue position:") ||
+            message.includes("Starting job monitoring") ||
+            message.includes("Starting video generation") ||
+            message.includes("Step ") ||
+            message.includes("completed:") ||
+            message.includes("Queue stats") ||
+            message.includes("Processing job") ||
+            message.includes("Queue: Starting next job");
+
+        // Don't show individual job progress on dashboard - use Process Management table instead
+        // But allow these messages to be logged for job detail pages
+        if (isJobProgressMessage) {
+            console.log(`📊 Job progress (for job detail page): ${message}`);
+            return;
+        }
+
         const messageElement = document.createElement("div");
         messageElement.className = `status-message ${type}`;
 
@@ -1697,6 +1731,32 @@ document.addEventListener("DOMContentLoaded", function () {
     // Refresh queue button event listener
     document.getElementById("refresh-queue-btn").addEventListener("click", refreshQueueStatus);
 
+    // Smart refresh management to prevent overlapping API calls
+    let refreshInProgress = false;
+    let lastRefreshTime = 0;
+    const REFRESH_INTERVAL = 10000; // Set to 10 seconds as requested
+
+    async function smartRefreshQueueStatus() {
+        const now = Date.now();
+
+        // Prevent overlapping requests
+        if (refreshInProgress || now - lastRefreshTime < 8000) {
+            return;
+        }
+
+        refreshInProgress = true;
+        lastRefreshTime = now;
+
+        try {
+            await refreshQueueStatus();
+        } finally {
+            refreshInProgress = false;
+        }
+    }
+
+    // Use smart refresh with longer intervals
+    setInterval(smartRefreshQueueStatus, REFRESH_INTERVAL);
+
     // Clear queue button event listener
     document.getElementById("clear-queue-btn").addEventListener("click", async function () {
         if (confirm("Are you sure you want to clear all queues? This will remove all pending, processing, completed, and failed jobs.")) {
@@ -1716,7 +1776,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Function to refresh queue status
+    // Function to refresh queue status with multi-worker support
     async function refreshQueueStatus() {
         try {
             const response = await fetch("/api/queue/status");
@@ -1724,10 +1784,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (result.success) {
                 const stats = result.stats;
+
+                // Update basic queue stats
                 document.getElementById("queue-pending").textContent = stats.pending || 0;
                 document.getElementById("queue-processing").textContent = stats.processing || 0;
                 document.getElementById("queue-completed").textContent = stats.completed || 0;
                 document.getElementById("queue-failed").textContent = stats.failed || 0;
+
+                // Update worker pool information
+                document.getElementById("queue-active-workers").textContent = stats.activeWorkers || 0;
+                document.getElementById("queue-available-workers").textContent = stats.availableWorkers || stats.maxWorkers || 3;
+                document.getElementById("queue-max-workers").textContent = stats.maxWorkers || 3;
+                document.getElementById("queue-concurrent-enabled").textContent = stats.concurrentProcessing ? "Yes" : "No";
+                document.getElementById("queue-concurrent-enabled").className = `badge ${stats.concurrentProcessing ? "bg-info" : "bg-secondary"}`;
+
+                // Update professional process management interface (basic stats only - no individual job fetching)
+                updateProcessManagement(stats);
 
                 console.log("📊 Queue stats updated:", stats);
             } else {
@@ -1737,4 +1809,440 @@ document.addEventListener("DOMContentLoaded", function () {
             console.error("❌ Error getting queue status:", error);
         }
     }
+
+    // Professional Process Management System
+    let processData = new Map(); // Store all process information
+    let filteredProcesses = []; // Currently filtered processes
+    let activeProcessMonitoring = new Map(); // Track active process monitoring
+
+    // Main function to update process management interface
+    function updateProcessManagement(stats) {
+        const processContainer = document.getElementById("process-management-container");
+        const processTableBody = document.getElementById("process-table-body");
+        const emptyState = document.getElementById("empty-process-state");
+
+        // Get active jobs and all jobs for comprehensive display
+        const activeJobIds = stats.activeJobs || [];
+        const hasActiveJobs = activeJobIds.length > 0;
+
+        // Always show process container with job list
+        processContainer.style.display = "block";
+
+        if (hasActiveJobs) {
+            // Show basic active job entries in table (without detailed API calls)
+            emptyState.style.display = "none";
+
+            // Create basic job entries for active jobs (no detailed fetching)
+            activeJobIds.forEach((jobId) => {
+                if (!processData.has(jobId)) {
+                    // Create basic process entry with minimal data from stats only
+                    processData.set(jobId, {
+                        id: jobId,
+                        status: "processing", // Default for active jobs
+                        progress: 50, // Estimated progress for active jobs
+                        startedAt: new Date().toISOString(),
+                        parameters: { country: "Processing...", platform: "Active", genre: "Job" },
+                        currentStep: "Processing in background...",
+                        workerId: "Active",
+                    });
+                }
+            });
+
+            // Remove jobs that are no longer active
+            for (let [jobId] of processData.entries()) {
+                if (!activeJobIds.includes(jobId) && processData.get(jobId)?.status === "processing") {
+                    // Only remove if it was a basic processing entry (not completed/failed jobs)
+                    if (processData.get(jobId)?.currentStep === "Processing in background...") {
+                        processData.delete(jobId);
+                    }
+                }
+            }
+
+            updateProcessTable();
+        } else {
+            // Show Process Management table with recent jobs when no active jobs
+            if (processData.size > 0) {
+                emptyState.style.display = "none";
+                updateProcessTable();
+            } else {
+                // Show empty state only when no jobs at all
+                emptyState.style.display = "block";
+
+                // Add job ID input section to empty state for manual access
+                const emptyStateDiv = document.getElementById("empty-process-state");
+                if (emptyStateDiv && !emptyStateDiv.querySelector(".job-id-input")) {
+                    const jobAccessHTML = `
+                        <div class="job-id-input" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                            <h6 style="color: var(--text-light); margin-bottom: 1rem;">Access Individual Job Page</h6>
+                            <div style="display: flex; gap: 0.5rem; align-items: center; justify-content: center;">
+                                <input 
+                                    type="text" 
+                                    id="manual-job-id" 
+                                    placeholder="Enter Job ID (e.g., job_1755341793_diondawkv)" 
+                                    onkeypress="if(event.key === 'Enter') openJobPage()"
+                                    style="background: var(--dark-bg); border: 1px solid var(--border-color); color: var(--text-light); padding: 0.5rem; border-radius: 4px; width: 300px; font-size: 0.875rem;"
+                                />
+                                <button 
+                                    onclick="openJobPage()" 
+                                    style="background: var(--primary-color); color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.875rem;"
+                                >
+                                    👁️ View
+                                </button>
+                            </div>
+                            <div id="recent-jobs-list" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                                Recent Job IDs: Loading...
+                            </div>
+                        </div>
+                    `;
+                    emptyStateDiv.innerHTML += jobAccessHTML;
+                }
+            }
+        }
+    }
+
+    // Function to start monitoring individual process (DISABLED for dashboard - only used on individual job pages)
+    function startProcessMonitoring(jobId) {
+        console.log(`🔍 Process monitoring disabled for dashboard - view individual job page for details: /job/${jobId}`);
+        // Individual job monitoring is now only done on dedicated job detail pages
+        // Dashboard only shows basic Process Management table without API calls
+    }
+
+    // Function to update the process table
+    function updateProcessTable() {
+        const processTableBody = document.getElementById("process-table-body");
+        const emptyState = document.getElementById("empty-process-state");
+
+        console.log(`📊 updateProcessTable called - processData has ${processData.size} jobs`);
+        processData.forEach((job, jobId) => {
+            console.log(`  - ${jobId.slice(-12)}: ${job.status} (${job.parameters?.country})`);
+        });
+
+        // Apply current filters
+        applyProcessFilters();
+
+        console.log(`📊 After filtering: ${filteredProcesses.length} jobs to display`);
+        filteredProcesses.forEach((process, index) => {
+            console.log(`  ${index + 1}. ${process.id.slice(-12)}: ${process.status}`);
+        });
+
+        if (filteredProcesses.length === 0) {
+            console.log("📊 No filtered processes to display - showing empty state");
+            processTableBody.innerHTML = "";
+            emptyState.style.display = "block";
+            return;
+        }
+
+        emptyState.style.display = "none";
+
+        // Generate table rows
+        const rows = filteredProcesses.map((process) => createProcessRow(process)).join("");
+        processTableBody.innerHTML = rows;
+
+        console.log(`📊 Process table updated with ${filteredProcesses.length} rows`);
+
+        // Add click event listeners for navigation
+        processTableBody.querySelectorAll("tr[data-job-id]").forEach((row) => {
+            row.addEventListener("click", (e) => {
+                // Don't trigger row click if clicking on action buttons
+                if (e.target.closest(".process-actions-cell")) return;
+
+                const jobId = row.dataset.jobId;
+                window.open(`/job/${jobId}?id=${jobId}`, "_blank");
+            });
+        });
+    }
+
+    // Function to create a process table row
+    function createProcessRow(process) {
+        const jobId = process.id;
+        const shortId = jobId.slice(-8);
+        const workerId = process.workerId ? process.workerId.slice(-5) : "-";
+        const progress = process.progress || 0;
+        const status = process.status || "pending";
+
+        // Format parameters for display
+        const params = process.parameters || {};
+        const paramDisplay = `
+             <div class="process-params">
+                 <div class="param-row">
+                     <span class="param-flag">CN</span>
+                     <span class="param-value">${params.country || "-"}</span>
+                 </div>
+                 <div class="param-row">
+                     <span class="param-flag">PL</span>
+                     <span class="param-value">${params.platform || "-"}</span>
+                 </div>
+                 <div class="param-row">
+                     <span class="param-flag">GN</span>
+                     <span class="param-value">${(params.genre || "-").slice(0, 15)}${params.genre && params.genre.length > 15 ? "..." : ""}</span>
+                 </div>
+             </div>
+         `;
+
+        // Format start time and duration
+        const startTime = process.startedAt ? new Date(process.startedAt).toLocaleTimeString() : "-";
+        const duration = process.startedAt ? formatDuration(Date.now() - new Date(process.startedAt).getTime()) : "-";
+
+        // Determine if process is active for styling
+        const isActive = ["pending", "processing"].includes(status);
+        const rowClass = isActive ? "clickable" : "";
+
+        return `
+             <tr data-job-id="${jobId}" class="${rowClass}">
+                 <td>
+                     <span class="process-status-badge ${status}">
+                         ${status === "processing" ? "🔄" : status === "completed" ? "✅" : status === "failed" ? "❌" : "⏳"}
+                         ${status}
+                     </span>
+                 </td>
+                 <td>
+                     <code class="process-id" title="${jobId}">${shortId}</code>
+                 </td>
+                 <td>
+                     <span class="worker-id">${workerId}</span>
+                 </td>
+                 <td>
+                     <div class="table-progress-container">
+                         <div class="table-progress-bar" style="width: ${progress}%"></div>
+                         <div class="progress-text-small">${progress}%</div>
+                     </div>
+                 </td>
+                 <td>${paramDisplay}</td>
+                 <td>
+                     <span class="time-display">${startTime}</span>
+                 </td>
+                 <td>
+                     <span class="duration-display">${duration}</span>
+                 </td>
+                 <td>
+                     <div class="process-actions-cell">
+                         <a href="/job/${jobId}?id=${jobId}" target="_blank" class="process-action-btn view">
+                             👁️ View
+                         </a>
+                         ${isActive ? `<button onclick="cancelProcessFromTable('${jobId}')" class="process-action-btn cancel">❌ Cancel</button>` : ""}
+                     </div>
+                 </td>
+             </tr>
+         `;
+    }
+
+    // Function to apply filters to process list
+    function applyProcessFilters() {
+        const statusFilter = document.getElementById("status-filter")?.value || "all";
+        const searchTerm = document.getElementById("search-processes")?.value.toLowerCase() || "";
+
+        filteredProcesses = Array.from(processData.values()).filter((process) => {
+            // Status filter
+            if (statusFilter !== "all" && process.status !== statusFilter) {
+                return false;
+            }
+
+            // Search filter
+            if (searchTerm) {
+                const searchableText = [process.id, process.workerId, process.parameters?.country, process.parameters?.platform, process.parameters?.genre, process.parameters?.contentType, process.currentStep].filter(Boolean).join(" ").toLowerCase();
+
+                if (!searchableText.includes(searchTerm)) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
+        // Sort by status priority and start time
+        filteredProcesses.sort((a, b) => {
+            const statusPriority = { processing: 0, pending: 1, failed: 2, completed: 3 };
+            const priorityA = statusPriority[a.status] || 999;
+            const priorityB = statusPriority[b.status] || 999;
+
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB;
+            }
+
+            // Sort by start time (newest first)
+            const timeA = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+            const timeB = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+            return timeB - timeA;
+        });
+    }
+
+    // Utility function to format duration
+    function formatDuration(ms) {
+        if (ms < 1000) return "0s";
+
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+
+        if (hours > 0) {
+            return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${seconds % 60}s`;
+        } else {
+            return `${seconds}s`;
+        }
+    }
+
+    // Function to open job page from manual input
+    window.openJobPage = function () {
+        const jobIdInput = document.getElementById("manual-job-id");
+        const jobId = jobIdInput?.value.trim();
+
+        if (!jobId) {
+            alert("Please enter a Job ID");
+            return;
+        }
+
+        // Clean job ID (remove any extra spaces or prefixes)
+        const cleanJobId = jobId.replace(/^job_/, "job_");
+
+        // Open job detail page
+        const jobUrl = `/job/${cleanJobId}?id=${cleanJobId}`;
+        window.open(jobUrl, "_blank");
+
+        // Clear input after opening
+        jobIdInput.value = "";
+    };
+
+    // Function to cancel process from table
+    window.cancelProcessFromTable = async function (jobId) {
+        if (confirm(`Are you sure you want to cancel process ${jobId.slice(-8)}?`)) {
+            try {
+                const response = await fetch(`/api/job/${jobId}/cancel`, { method: "POST" });
+                const result = await response.json();
+
+                if (result.success) {
+                    console.log(`Process ${jobId} cancelled successfully`);
+                    // Update will happen automatically through monitoring
+                } else {
+                    console.error(`Cancel failed: ${result.message}`);
+                }
+            } catch (error) {
+                console.error(`Cancel error: ${error.message}`);
+            }
+        }
+    };
+
+    // Initialize process management event listeners
+    function initializeProcessManagement() {
+        // Filter change events
+        const statusFilter = document.getElementById("status-filter");
+        const searchInput = document.getElementById("search-processes");
+        const refreshButton = document.getElementById("refresh-processes");
+        const clearCompletedButton = document.getElementById("clear-completed");
+
+        if (statusFilter) {
+            // Ensure status filter is set to "all" to show completed and failed processes
+            statusFilter.value = "all";
+            statusFilter.addEventListener("change", updateProcessTable);
+            console.log(`📊 Status filter set to: ${statusFilter.value}`);
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener("input", updateProcessTable);
+        }
+
+        if (refreshButton) {
+            refreshButton.addEventListener("click", () => {
+                refreshQueueStatus();
+                console.log("🔄 Process list refreshed");
+            });
+        }
+
+        if (clearCompletedButton) {
+            clearCompletedButton.addEventListener("click", () => {
+                // Remove completed and failed processes from display
+                for (let [jobId, process] of processData.entries()) {
+                    if (process.status === "completed" || process.status === "failed") {
+                        processData.delete(jobId);
+
+                        // Stop monitoring if still active
+                        if (activeProcessMonitoring.has(jobId)) {
+                            clearInterval(activeProcessMonitoring.get(jobId).intervalId);
+                            activeProcessMonitoring.delete(jobId);
+                        }
+                    }
+                }
+                updateProcessTable();
+                console.log("🗑️ Completed processes cleared");
+            });
+        }
+    }
+
+    // Initialize recent jobs data for Process Management table
+    async function initializeRecentJobs() {
+        try {
+            const response = await fetch("/api/queue/jobs");
+            const result = await response.json();
+
+            if (result.success && result.jobs) {
+                // Convert jobs object to array and get recent jobs (last 10)
+                const jobsArray = Object.values(result.jobs);
+                const recentJobs = jobsArray.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10); // Show last 10 jobs
+
+                // Populate processData with recent jobs (including completed and failed)
+                recentJobs.forEach((job) => {
+                    processData.set(job.id, job);
+                    console.log(`📋 Added job to processData: ${job.id.slice(-12)} | Status: ${job.status} | Country: ${job.parameters?.country}`);
+                });
+
+                // Update the recent jobs list in empty state
+                const recentJobsList = document.getElementById("recent-jobs-list");
+                if (recentJobsList && recentJobs.length > 0) {
+                    const jobLinks = recentJobs
+                        .slice(0, 5)
+                        .map((job) => {
+                            const shortId = job.id.slice(-12);
+                            const statusIcon = job.status === "completed" ? "✅" : job.status === "failed" ? "❌" : job.status === "processing" ? "🔄" : "⏳";
+                            return `<span 
+                            style="cursor: pointer; color: var(--primary-color); text-decoration: underline; margin-right: 1rem;" 
+                            onclick="window.open('/job/${job.id}?id=${job.id}', '_blank')"
+                            title="${job.status} - ${job.parameters?.country || "Unknown"} ${job.parameters?.platform || ""}"
+                        >${statusIcon} ${shortId}</span>`;
+                        })
+                        .join("");
+
+                    recentJobsList.innerHTML = `Recent Jobs (clickable): ${jobLinks}`;
+                }
+
+                // Update the process table to show recent jobs
+                updateProcessTable();
+
+                // Force show the process management container since we have jobs
+                const processContainer = document.getElementById("process-management-container");
+                if (processContainer && recentJobs.length > 0) {
+                    processContainer.style.display = "block";
+                    const emptyState = document.getElementById("empty-process-state");
+                    if (emptyState) {
+                        emptyState.style.display = "none";
+                    }
+                }
+
+                console.log(`📊 Loaded ${recentJobs.length} recent jobs for Process Management`);
+            }
+        } catch (error) {
+            console.error("❌ Failed to load recent jobs:", error);
+            const recentJobsList = document.getElementById("recent-jobs-list");
+            if (recentJobsList) {
+                recentJobsList.innerHTML = "Recent Job IDs: Failed to load - use manual input above";
+            }
+        }
+    }
+
+    // Initialize everything when DOM is loaded
+    document.addEventListener("DOMContentLoaded", function () {
+        initializeProcessManagement();
+
+        // Always show Process Management container on page load
+        setTimeout(() => {
+            const processContainer = document.getElementById("process-management-container");
+            if (processContainer) {
+                processContainer.style.display = "block";
+                console.log("📋 Process Management container forced to show");
+            }
+        }, 100);
+
+        initializeRecentJobs(); // Load recent jobs to populate table
+        console.log("🎯 Professional Process Management Interface initialized");
+    });
 });

@@ -151,11 +151,68 @@
                                 <button id="clear-logs-btn" class="btn btn-outline-secondary btn-sm"><span>🗑️</span> Clear Logs</button>
                             </div>
                         </div>
+                        <!-- Professional Process Management Interface -->
+                        <div id="process-management-container" class="mb-4" style="display: none">
+                            <div class="process-header">
+                                <h5>⚙️ Process Management</h5>
+                                <div class="process-controls">
+                                    <div class="process-filters">
+                                        <select id="status-filter" class="form-select form-select-sm">
+                                            <option value="all">All Status</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="processing">Processing</option>
+                                            <option value="completed">Completed</option>
+                                            <option value="failed">Failed</option>
+                                        </select>
+                                        <input type="text" id="search-processes" class="form-control form-control-sm" placeholder="🔍 Search processes..." />
+                                    </div>
+                                    <div class="process-actions">
+                                        <button id="refresh-processes" class="btn btn-outline-primary btn-sm">🔄 Refresh</button>
+                                        <button id="clear-completed" class="btn btn-outline-secondary btn-sm">🗑️ Clear Completed</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Process List Table -->
+                            <div class="process-table-container">
+                                <table class="table process-table" id="process-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Status</th>
+                                            <th>Job ID</th>
+                                            <th>Worker</th>
+                                            <th>Progress</th>
+                                            <th>Country/Platform/Genre</th>
+                                            <th>Started</th>
+                                            <th>Duration</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="process-table-body">
+                                        <!-- Process rows will be inserted here -->
+                                    </tbody>
+                                </table>
+
+                                <!-- Empty State -->
+                                <div id="empty-process-state" class="empty-state" style="display: none">
+                                    <div class="empty-icon">📋</div>
+                                    <h6>No Active Processes</h6>
+                                    <p>Submit a video generation job to see processes here</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Global Status Messages (General system messages only) -->
                         <div class="status-messages" id="status-messages">
                             <div class="status-message waiting">
                                 <span class="status-icon">⏳</span>
                                 <span class="status-text">Ready to generate video. Click the Generate button to start.</span>
                             </div>
+                        </div>
+
+                        <!-- Notice: Individual job progress is displayed in Process Management table below -->
+                        <div class="alert alert-info" style="margin-top: 1rem; padding: 0.75rem; font-size: 0.875rem">
+                            <strong>ℹ️ Process Tracking:</strong> Individual job progress and logs are displayed in the Process Management table below. Click "👁️ View" on any job to see detailed logs and status.
                         </div>
 
                         <!-- Redis Queue Status Dashboard -->
@@ -191,7 +248,33 @@
                                             </div>
                                         </div>
                                     </div>
+
+                                    <!-- Multi-Worker Information -->
                                     <hr />
+                                    <h6 class="mb-3">👥 Worker Pool Status</h6>
+                                    <div class="row mb-3">
+                                        <div class="col-4">
+                                            <div class="text-center">
+                                                <h6 class="text-primary">🏃 Active Workers</h6>
+                                                <span id="queue-active-workers" class="badge bg-primary">0</span>
+                                                <span class="text-muted">/</span>
+                                                <span id="queue-max-workers" class="text-muted">3</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-center">
+                                                <h6 class="text-success">💤 Available</h6>
+                                                <span id="queue-available-workers" class="badge bg-success">3</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="text-center">
+                                                <h6 class="text-info">⚙️ Concurrent</h6>
+                                                <span id="queue-concurrent-enabled" class="badge bg-info">Yes</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div class="d-flex justify-content-between">
                                         <button id="refresh-queue-btn" class="btn btn-outline-primary btn-sm">🔄 Refresh</button>
                                         <button id="clear-queue-btn" class="btn btn-outline-danger btn-sm">🗑️ Clear Queue</button>

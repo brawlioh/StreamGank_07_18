@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Job Details - StreamGank Video Generator</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="/css/style.css" />
+        <style>
+            .job-detail-container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 2rem;
+            }
+
+            .job-header {
+                background: var(--dark-panel);
+                border: 1px solid var(--border-color);
+                border-radius: 12px;
+                padding: 2rem;
+                margin-bottom: 2rem;
+            }
+
+            .job-title {
+                color: var(--text-light);
+                font-size: 2rem;
+                font-weight: 600;
+                margin-bottom: 1rem;
+            }
+
+            .job-meta {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .meta-item {
+                background: rgba(255, 255, 255, 0.05);
+                padding: 1rem;
+                border-radius: 8px;
+            }
+
+            .meta-label {
+                color: var(--text-secondary);
+                font-size: 0.8rem;
+                text-transform: uppercase;
+                margin-bottom: 0.5rem;
+            }
+
+            .meta-value {
+                color: var(--text-light);
+                font-weight: 600;
+                font-size: 1.1rem;
+            }
+
+            .progress-section {
+                background: var(--dark-panel);
+                border: 1px solid var(--border-color);
+                border-radius: 12px;
+                padding: 2rem;
+                margin-bottom: 2rem;
+            }
+
+            .progress-bar-large {
+                height: 24px;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 12px;
+                overflow: hidden;
+                margin-bottom: 1rem;
+            }
+
+            .progress-fill {
+                height: 100%;
+                background: linear-gradient(90deg, var(--accent-color), #00ff88);
+                transition: width 0.5s ease;
+                border-radius: 12px;
+                position: relative;
+            }
+
+            .progress-text {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: white;
+                font-weight: 600;
+                font-size: 0.9rem;
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            }
+
+            .logs-section {
+                background: var(--dark-panel);
+                border: 1px solid var(--border-color);
+                border-radius: 12px;
+                padding: 2rem;
+            }
+
+            .logs-container {
+                background: #0d1117;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                padding: 1.5rem;
+                height: 600px;
+                overflow-y: auto;
+                font-family: "Courier New", monospace;
+                font-size: 0.9rem;
+                line-height: 1.4;
+            }
+
+            .log-entry {
+                margin-bottom: 0.5rem;
+                padding: 0.25rem 0;
+                word-wrap: break-word;
+            }
+
+            .log-entry.info {
+                color: #70a1ff;
+            }
+
+            .log-entry.success {
+                color: #00ff88;
+            }
+
+            .log-entry.warning {
+                color: #ffa502;
+            }
+
+            .log-entry.error {
+                color: #ff4757;
+            }
+
+            .log-entry.step {
+                color: #5f27cd;
+                font-weight: 600;
+            }
+
+            .log-timestamp {
+                color: var(--text-secondary);
+                font-size: 0.8rem;
+                margin-right: 0.5rem;
+            }
+
+            .status-badge {
+                font-size: 1rem;
+                padding: 0.5rem 1rem;
+                border-radius: 20px;
+                font-weight: 600;
+            }
+
+            .status-pending {
+                background: #ffa502;
+                color: white;
+            }
+
+            .status-processing {
+                background: var(--accent-color);
+                color: white;
+                animation: pulse 2s infinite;
+            }
+
+            .status-completed {
+                background: #00ff88;
+                color: white;
+            }
+
+            .status-failed {
+                background: #ff4757;
+                color: white;
+            }
+
+            .action-buttons {
+                display: flex;
+                gap: 1rem;
+                margin-top: 1.5rem;
+            }
+
+            .btn-back {
+                background: var(--dark-bg);
+                border: 1px solid var(--border-color);
+                color: var(--text-light);
+                padding: 0.75rem 1.5rem;
+                border-radius: 8px;
+                text-decoration: none;
+                transition: all 0.3s ease;
+            }
+
+            .btn-back:hover {
+                background: var(--border-color);
+                color: var(--text-light);
+                text-decoration: none;
+            }
+
+            .btn-cancel {
+                background: #ff4757;
+                border: 1px solid #ff4757;
+                color: white;
+                padding: 0.75rem 1.5rem;
+                border-radius: 8px;
+                transition: all 0.3s ease;
+            }
+
+            .btn-cancel:hover {
+                background: #ff3838;
+                border-color: #ff3838;
+            }
+
+            .refresh-indicator {
+                color: var(--text-secondary);
+                font-size: 0.8rem;
+                margin-left: auto;
+            }
+
+            .parameters-section {
+                background: var(--dark-panel);
+                border: 1px solid var(--border-color);
+                border-radius: 12px;
+                padding: 2rem;
+                margin-bottom: 2rem;
+            }
+
+            .parameter-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 1rem;
+            }
+
+            @keyframes pulse {
+                0% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.7;
+                }
+                100% {
+                    opacity: 1;
+                }
+            }
+
+            @media (max-width: 768px) {
+                .job-detail-container {
+                    padding: 1rem;
+                }
+
+                .job-meta {
+                    grid-template-columns: 1fr;
+                }
+
+                .logs-container {
+                    height: 400px;
+                    font-size: 0.8rem;
+                }
+
+                .action-buttons {
+                    flex-direction: column;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="job-detail-container">
+            <!-- Job Header -->
+            <div class="job-header">
+                <h1 class="job-title" id="job-title">Loading Job Details...</h1>
+
+                <div class="job-meta" id="job-meta">
+                    <div class="meta-item">
+                        <div class="meta-label">Status</div>
+                        <div class="meta-value">
+                            <span class="status-badge" id="job-status">Loading...</span>
+                        </div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Worker ID</div>
+                        <div class="meta-value" id="job-worker">-</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Started</div>
+                        <div class="meta-value" id="job-started">-</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Duration</div>
+                        <div class="meta-value" id="job-duration">-</div>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <a href="/" class="btn-back">← Back to Dashboard</a>
+                    <button class="btn-cancel" id="cancel-job" style="display: none">❌ Cancel Job</button>
+                    <div class="refresh-indicator" id="refresh-status">🔄 Live updates every 10 seconds</div>
+                </div>
+            </div>
+
+            <!-- Job Parameters -->
+            <div class="parameters-section">
+                <h3 style="color: var(--text-light); margin-bottom: 1.5rem">📋 Job Parameters</h3>
+                <div class="parameter-grid" id="job-parameters">
+                    <!-- Parameters will be populated here -->
+                </div>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="progress-section">
+                <h3 style="color: var(--text-light); margin-bottom: 1.5rem">📊 Progress</h3>
+                <div class="progress-bar-large">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%">
+                        <div class="progress-text" id="progress-text">0%</div>
+                    </div>
+                </div>
+                <div style="color: var(--text-secondary)" id="current-step">Initializing...</div>
+            </div>
+
+            <!-- Logs Section -->
+            <div class="logs-section">
+                <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 1.5rem">
+                    <h3 style="color: var(--text-light); margin: 0">📝 Real-Time Logs</h3>
+                    <button class="btn" style="background: var(--dark-bg); border: 1px solid var(--border-color); color: var(--text-light); padding: 0.5rem 1rem; border-radius: 6px" onclick="clearLogs()">🗑️ Clear</button>
+                </div>
+                <div class="logs-container" id="logs-container">
+                    <div class="log-entry info">
+                        <span class="log-timestamp">--:--:--</span>
+                        Loading job logs...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Get job ID from URL parameters
+            // Declare variables first
+            let refreshInterval;
+            let logCount = 0;
+            let updateInProgress = false;
+            let lastUpdateTime = 0;
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const jobId = urlParams.get("id");
+
+            if (!jobId) {
+                document.getElementById("job-title").textContent = "Invalid Job ID";
+                document.getElementById("logs-container").innerHTML = '<div class="log-entry error">No job ID provided in URL</div>';
+            } else {
+                startJobDetailMonitoring(jobId);
+            }
+
+            function startJobDetailMonitoring(jobId) {
+                document.getElementById("job-title").textContent = `Job ${jobId.slice(-8)}`;
+
+                const smartUpdateJob = async () => {
+                    const now = Date.now();
+
+                    // Prevent overlapping requests
+                    if (updateInProgress || now - lastUpdateTime < 8000) {
+                        console.log("⏭️ Skipping update - request in progress or too recent");
+                        return;
+                    }
+
+                    updateInProgress = true;
+                    lastUpdateTime = now;
+
+                    try {
+                        // Fetch job details
+                        const response = await fetch(`/api/job/${jobId}`);
+                        const result = await response.json();
+
+                        if (result.success && result.job) {
+                            window.currentJobData = result.job; // Store for log optimization
+                            updateJobDetails(result.job);
+                        } else {
+                            console.error("Job not found or error occurred");
+                        }
+
+                        // Fetch job logs
+                        await updateJobLogs(jobId);
+                    } catch (error) {
+                        console.error(`Connection error: ${error.message}`);
+                    } finally {
+                        updateInProgress = false;
+                    }
+                };
+
+                // Update immediately and then every 10 seconds (reduced frequency)
+                smartUpdateJob();
+                refreshInterval = setInterval(smartUpdateJob, 10000);
+            }
+
+            async function updateJobLogs(jobId) {
+                try {
+                    // Only fetch logs if job is still active or recently completed
+                    const currentJob = window.currentJobData;
+                    if (currentJob && currentJob.status === "completed" && logCount > 0) {
+                        // Skip log fetching for completed jobs that already have logs
+                        return;
+                    }
+
+                    const response = await fetch(`/api/job/${jobId}/logs`);
+                    const result = await response.json();
+
+                    if (result.success && result.logs) {
+                        displayLogs(result.logs);
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch logs:", error);
+                }
+            }
+
+            function displayLogs(logs) {
+                const container = document.getElementById("logs-container");
+
+                // Clear existing logs if this is a fresh load
+                if (logCount === 0) {
+                    container.innerHTML = "";
+                }
+
+                logs.forEach((logEntry) => {
+                    const existingLog = container.querySelector(`[data-timestamp="${logEntry.timestamp}"]`);
+                    if (!existingLog) {
+                        const logDiv = document.createElement("div");
+                        logDiv.className = `log-entry ${logEntry.type}`;
+                        logDiv.setAttribute("data-timestamp", logEntry.timestamp);
+
+                        const timestamp = new Date(logEntry.timestamp).toLocaleTimeString();
+                        logDiv.innerHTML = `
+                        <span class="log-timestamp">${timestamp}</span>
+                        ${logEntry.message}
+                    `;
+
+                        container.appendChild(logDiv);
+                        logCount++;
+
+                        // Keep only last 100 log entries
+                        if (logCount > 100) {
+                            const firstLog = container.firstChild;
+                            if (firstLog) {
+                                container.removeChild(firstLog);
+                                logCount--;
+                            }
+                        }
+                    }
+                });
+
+                // Auto-scroll to bottom
+                container.scrollTop = container.scrollHeight;
+            }
+
+            function updateJobDetails(job) {
+                // Update status badge
+                const statusElement = document.getElementById("job-status");
+                statusElement.textContent = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+                statusElement.className = `status-badge status-${job.status}`;
+
+                // Update worker ID
+                document.getElementById("job-worker").textContent = job.workerId || "-";
+
+                // Update started time
+                if (job.startedAt) {
+                    const startTime = new Date(job.startedAt);
+                    document.getElementById("job-started").textContent = startTime.toLocaleString();
+
+                    // Calculate duration
+                    const duration = Date.now() - startTime.getTime();
+                    const minutes = Math.floor(duration / 60000);
+                    const seconds = Math.floor((duration % 60000) / 1000);
+                    document.getElementById("job-duration").textContent = `${minutes}m ${seconds}s`;
+                }
+
+                // Update progress
+                const progress = job.progress || 0;
+                document.getElementById("progress-fill").style.width = `${progress}%`;
+                document.getElementById("progress-text").textContent = `${progress}%`;
+                document.getElementById("current-step").textContent = job.currentStep || "Processing...";
+
+                // Update parameters
+                updateJobParameters(job.parameters);
+
+                // Show/hide cancel button
+                const cancelBtn = document.getElementById("cancel-job");
+                if (job.status === "processing" || job.status === "pending") {
+                    cancelBtn.style.display = "block";
+                    cancelBtn.onclick = () => cancelJob(job.id);
+                } else {
+                    cancelBtn.style.display = "none";
+                }
+
+                // Add step updates to logs
+                if (job.currentStep && job.currentStep !== window.lastStep) {
+                    addLogEntry(job.currentStep, "step");
+                    window.lastStep = job.currentStep;
+                }
+
+                // Stop monitoring if job is complete
+                if ((job.status === "completed" || job.status === "failed") && refreshInterval) {
+                    setTimeout(() => {
+                        clearInterval(refreshInterval);
+                        document.getElementById("refresh-status").textContent = "✅ Job completed - monitoring stopped";
+                    }, 5000);
+                }
+            }
+
+            function updateJobParameters(parameters) {
+                const container = document.getElementById("job-parameters");
+                if (!parameters) return;
+
+                container.innerHTML = Object.entries(parameters)
+                    .map(
+                        ([key, value]) => `
+                <div class="meta-item">
+                    <div class="meta-label">${key.charAt(0).toUpperCase() + key.slice(1)}</div>
+                    <div class="meta-value">${value}</div>
+                </div>
+            `
+                    )
+                    .join("");
+            }
+
+            function clearLogs() {
+                document.getElementById("logs-container").innerHTML = "";
+                logCount = 0;
+
+                // Add a simple cleared message
+                const container = document.getElementById("logs-container");
+                const logDiv = document.createElement("div");
+                logDiv.className = "log-entry info";
+                const timestamp = new Date().toLocaleTimeString();
+                logDiv.innerHTML = `
+                <span class="log-timestamp">${timestamp}</span>
+                Logs cleared (will refill on next update)
+            `;
+                container.appendChild(logDiv);
+                logCount = 1;
+            }
+
+            function addLogEntry(message, type = "info") {
+                const container = document.getElementById("logs-container");
+                const logDiv = document.createElement("div");
+                logDiv.className = `log-entry ${type}`;
+
+                const timestamp = new Date().toLocaleTimeString();
+                logDiv.innerHTML = `
+                    <span class="log-timestamp">${timestamp}</span>
+                    ${message}
+                `;
+
+                container.appendChild(logDiv);
+                logCount++;
+
+                // Keep only last 100 log entries
+                if (logCount > 100) {
+                    const firstLog = container.firstChild;
+                    if (firstLog) {
+                        container.removeChild(firstLog);
+                        logCount--;
+                    }
+                }
+
+                // Auto-scroll to bottom
+                container.scrollTop = container.scrollHeight;
+            }
+
+            async function cancelJob(jobId) {
+                if (confirm(`Are you sure you want to cancel job ${jobId}?`)) {
+                    try {
+                        console.log(`Attempting to cancel job ${jobId}...`);
+                        const response = await fetch(`/api/job/${jobId}/cancel`, { method: "POST" });
+                        const result = await response.json();
+
+                        if (result.success) {
+                            console.log("Job cancellation request sent successfully");
+                        } else {
+                            console.error(`Cancel failed: ${result.message}`);
+                        }
+                    } catch (error) {
+                        console.error(`Cancel error: ${error.message}`);
+                    }
+                }
+            }
+
+            // Cleanup on page unload
+            window.addEventListener("beforeunload", () => {
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                }
+            });
+        </script>
+    </body>
+</html>
