@@ -28,6 +28,9 @@ services:
             - APP_ENV=${APP_ENV}
             - NODE_ENV=${NODE_ENV}
             - PORT=${PORT}
+            # Multi-worker queue configuration
+            - MAX_WORKERS=${MAX_WORKERS:-3}
+            - ENABLE_CONCURRENT_PROCESSING=${ENABLE_CONCURRENT_PROCESSING:-true}
             # VM performance optimizations
             - MALLOC_ARENA_MAX=2
             - PYTHONDONTWRITEBYTECODE=1

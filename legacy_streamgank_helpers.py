@@ -279,12 +279,29 @@ def download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers"
             logger.error(f"Invalid YouTube URL: {trailer_url}")
             return None
         
-        # Configure yt-dlp options for best quality video
+        # Enhanced yt-dlp configuration for cloud servers (anti-bot detection)
         ydl_opts = {
             'format': 'best[height<=720][ext=mp4]/best[ext=mp4]/best',  # Prefer 720p MP4
             'outtmpl': os.path.join(output_dir, f'{video_id}_trailer.%(ext)s'),
             'quiet': True,  # Reduce verbose output
             'no_warnings': True,
+            # Anti-bot detection headers and options
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Accept-Encoding': 'gzip,deflate',
+                'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            },
+            # Additional anti-detection options
+            'extractor_retries': 3,  # Retry on temporary failures
+            'retries': 3,            # Retry downloads
+            'sleep_interval': 2,     # Wait between requests
+            'max_sleep_interval': 5, # Max wait time
+            # Bypass age restrictions
+            'age_limit': None,
         }
         
         logger.info(f"🎬 Downloading YouTube trailer: {trailer_url}")

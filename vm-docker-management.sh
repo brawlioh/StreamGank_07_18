@@ -237,8 +237,8 @@ show_vm_status() {
     
     # Check health status
     print_vm_status "Health Status:"
-    docker-compose -f docker-compose.vm-optimized.yml exec streamgank-backend python -c "print('Backend: OK')" 2>/dev/null && echo "✓ Backend healthy" || echo "✗ Backend unhealthy"
-    docker-compose -f docker-compose.vm-optimized.yml exec streamgank-gui curl -sf http://localhost:3000/health >/dev/null 2>&1 && echo "✓ GUI healthy" || echo "✗ GUI unhealthy"
+    docker-compose -f docker-compose.vm-optimized.yml exec streamgank-app python -c "print('Backend: OK')" 2>/dev/null && echo "✓ Backend healthy" || echo "✗ Backend unhealthy"
+    docker-compose -f docker-compose.vm-optimized.yml exec streamgank-app curl -sf http://localhost:3000/health >/dev/null 2>&1 && echo "✓ GUI healthy" || echo "✗ GUI unhealthy"
     docker-compose -f docker-compose.vm-optimized.yml exec redis redis-cli ping >/dev/null 2>&1 && echo "✓ Redis healthy" || echo "✗ Redis unhealthy"
 }
 
@@ -344,7 +344,7 @@ run_vm_cli() {
     fi
     
     print_status "Running CLI command in VM container..."
-    docker-compose -f docker-compose.vm-optimized.yml exec streamgank-backend python "$@"
+    docker-compose -f docker-compose.vm-optimized.yml exec streamgank-app python "$@"
 }
 
 # Stop services (VM compatible)

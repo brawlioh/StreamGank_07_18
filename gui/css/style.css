@@ -12,7 +12,7 @@
 body {
     background-color: var(--dark-bg);
     color: var(--text-light);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
 }
 
 .streamgank-header {
@@ -498,7 +498,7 @@ body {
 }
 
 #queue-dashboard .card-header::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: 0;
@@ -636,4 +636,610 @@ body {
 
 .videos-container::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary);
+}
+
+/* Multi-Worker Job Cards */
+#multi-job-container {
+    background-color: var(--dark-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+#multi-job-container h5 {
+    color: var(--text-light);
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.job-card {
+    background-color: var(--dark-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.job-card:hover {
+    border-color: var(--accent-color);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.job-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.job-card-title {
+    color: var(--text-light);
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin: 0;
+    flex: 1;
+}
+
+.job-card-worker {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+}
+
+.job-card-status {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.job-card-progress {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.job-card-progress-bar {
+    background: linear-gradient(90deg, var(--accent-color), #00ff88);
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 6px;
+}
+
+.job-card-logs {
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.75rem;
+    max-height: 150px;
+    overflow-y: auto;
+    font-family: "Courier New", monospace;
+    font-size: 0.8rem;
+    line-height: 1.3;
+}
+
+.job-card-log-entry {
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+    word-wrap: break-word;
+}
+
+.job-card-log-entry.success {
+    color: #00ff88;
+}
+
+.job-card-log-entry.error {
+    color: #ff4757;
+}
+
+.job-card-log-entry.warning {
+    color: #ffa502;
+}
+
+.job-card-log-entry.info {
+    color: #70a1ff;
+}
+
+.job-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.job-card-actions button {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.job-card-actions button:hover {
+    background-color: var(--border-color);
+    color: var(--text-light);
+}
+
+.job-card-actions a {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    border: 1px solid var(--accent-color);
+    background-color: transparent;
+    color: var(--accent-color);
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-block;
+}
+
+.job-card-actions a:hover {
+    background-color: var(--accent-color);
+    color: white;
+    text-decoration: none;
+}
+
+.job-card-actions .btn-danger {
+    border-color: #ff4757;
+    color: #ff4757;
+}
+
+.job-card-actions .btn-danger:hover {
+    background-color: #ff4757;
+    color: white;
+}
+
+/* Job card animations */
+.job-card.processing {
+    border-left: 4px solid var(--accent-color);
+    animation: pulse-border 2s infinite;
+}
+
+.job-card.completed {
+    border-left: 4px solid #00ff88;
+}
+
+.job-card.failed {
+    border-left: 4px solid #ff4757;
+}
+
+@keyframes pulse-border {
+    0% {
+        border-left-color: var(--accent-color);
+    }
+    50% {
+        border-left-color: #00ff88;
+    }
+    100% {
+        border-left-color: var(--accent-color);
+    }
+}
+
+/* Responsive design for job cards */
+@media (max-width: 768px) {
+    .job-card {
+        margin-bottom: 0.75rem;
+    }
+
+    .job-card-logs {
+        max-height: 100px;
+        font-size: 0.75rem;
+    }
+}
+
+/* Professional Process Management Interface */
+#process-management-container {
+    background: var(--dark-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.process-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.process-header h5 {
+    color: var(--text-light);
+    margin: 0;
+    font-weight: 600;
+    font-size: 1.25rem;
+}
+
+.process-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.process-filters {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.process-filters select,
+.process-filters input {
+    background: var(--dark-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-light);
+    border-radius: 6px;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    min-width: 120px;
+}
+
+.process-filters select:focus,
+.process-filters input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.process-filters input::placeholder {
+    color: var(--text-secondary);
+}
+
+.process-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.process-actions .btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+/* Process Table */
+.process-table-container {
+    background: var(--dark-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.process-table {
+    margin: 0;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.process-table thead th {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-light);
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 1rem 0.75rem;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.process-table tbody tr {
+    background: transparent;
+    border: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.process-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.process-table tbody tr.clickable:hover {
+    background: rgba(99, 102, 241, 0.1);
+    transform: translateY(-1px);
+}
+
+.process-table tbody td {
+    color: var(--text-light);
+    padding: 1rem 0.75rem;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    vertical-align: middle;
+    font-size: 0.875rem;
+}
+
+/* Process Status Badges */
+.process-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    min-width: 90px;
+    justify-content: center;
+}
+
+.process-status-badge.pending {
+    background: rgba(255, 165, 2, 0.2);
+    color: #ffa502;
+    border: 1px solid rgba(255, 165, 2, 0.3);
+}
+
+.process-status-badge.processing {
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--accent-color);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    animation: pulse-status 2s infinite;
+}
+
+.process-status-badge.completed {
+    background: rgba(0, 255, 136, 0.2);
+    color: #00ff88;
+    border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.process-status-badge.failed {
+    background: rgba(255, 71, 87, 0.2);
+    color: #ff4757;
+    border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+@keyframes pulse-status {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Process ID Display */
+.process-id {
+    font-family: "Courier New", monospace;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+}
+
+.process-id:hover {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+    cursor: pointer;
+}
+
+/* Worker ID Display */
+.worker-id {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* Progress Bar in Table */
+.table-progress-container {
+    width: 100px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.table-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-color), #00ff88);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.progress-text-small {
+    position: absolute;
+    top: -18px;
+    right: 0;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Process Parameters Display */
+.process-params {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.param-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.param-flag {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.param-value {
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+/* Time Display */
+.time-display {
+    font-family: "Courier New", monospace;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.duration-display {
+    font-family: "Courier New", monospace;
+    font-size: 0.8rem;
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+/* Action Buttons */
+.process-actions-cell {
+    display: flex;
+    gap: 0.375rem;
+    align-items: center;
+}
+
+.process-action-btn {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+}
+
+.process-action-btn:hover {
+    background: var(--border-color);
+    color: var(--text-light);
+    text-decoration: none;
+    transform: translateY(-1px);
+}
+
+.process-action-btn.view {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.process-action-btn.view:hover {
+    background: var(--accent-color);
+    color: white;
+}
+
+.process-action-btn.cancel {
+    border-color: #ff4757;
+    color: #ff4757;
+}
+
+.process-action-btn.cancel:hover {
+    background: #ff4757;
+    color: white;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-secondary);
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state h6 {
+    color: var(--text-light);
+    margin-bottom: 0.5rem;
+    font-size: 1.125rem;
+}
+
+.empty-state p {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+/* Loading States */
+.loading-row {
+    opacity: 0.6;
+}
+
+.loading-shimmer {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.05) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .process-table th:nth-child(5),
+    .process-table td:nth-child(5) {
+        display: none; /* Hide parameters on medium screens */
+    }
+}
+
+@media (max-width: 768px) {
+    .process-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    .process-controls {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .process-filters {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .process-table th:nth-child(3),
+    .process-table td:nth-child(3),
+    .process-table th:nth-child(6),
+    .process-table td:nth-child(6),
+    .process-table th:nth-child(7),
+    .process-table td:nth-child(7) {
+        display: none; /* Hide worker, started, duration on mobile */
+    }
+
+    .process-table-container {
+        overflow-x: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .process-table th:nth-child(4),
+    .process-table td:nth-child(4) {
+        display: none; /* Hide progress on very small screens */
+    }
 }

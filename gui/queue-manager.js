@@ -36,10 +36,23 @@ class VideoQueueManager {
             console.log("🚀 Redis client ready for operations");
         });
 
-        // Queue processing state
+        // Multi-worker queue processing state
         this.isProcessing = false;
-        this.currentJob = null;
-        this.currentProcess = null; // Track the current Python process
+        this.maxWorkers = parseInt(process.env.MAX_WORKERS) || 3; // Default to 3 workers
+        this.concurrentProcessing = process.env.ENABLE_CONCURRENT_PROCESSING === "true";
+        this.activeJobs = new Map(); // Track multiple active jobs by jobId
+        this.activeProcesses = new Map(); // Track multiple Python processes by jobId
+        this.availableWorkers = this.maxWorkers; // Number of available worker slots
+        this.jobLogs = new Map(); // Store logs for each job by jobId
+
+        console.log(`👥 Worker pool initialized: ${this.maxWorkers} max workers, concurrent processing: ${this.concurrentProcessing}`);
+
+        // Start periodic cleanup (every 5 minutes) to avoid performance issues
+        this.cleanupInterval = setInterval(() => {
+            this.cleanupProcessingQueue().catch((error) => {
+                console.error("❌ Background cleanup error:", error);
+            });
+        }, 5 * 60 * 1000); // 5 minutes
 
         // Redis queue keys with database-aware namespace
         const dbNumber = redisConfig.db;
@@ -127,9 +140,7 @@ class VideoQueueManager {
      */
     async getQueueStatus() {
         try {
-            // Clean up orphaned processing jobs before getting status
-            await this.cleanupProcessingQueue();
-
+            // Optimized for performance - removed expensive cleanup operations
             const [pending, processing, completed, failed] = await Promise.all([this.llenAsync(this.keys.pending), this.llenAsync(this.keys.processing), this.llenAsync(this.keys.completed), this.llenAsync(this.keys.failed)]);
 
             return {
@@ -193,7 +204,7 @@ class VideoQueueManager {
     }
 
     /**
-     * Start queue processing loop
+     * Start multi-worker queue processing loop
      */
     async startProcessing() {
         if (this.isProcessing) {
@@ -202,27 +213,44 @@ class VideoQueueManager {
         }
 
         this.isProcessing = true;
-        console.log("🚀 Starting queue processing worker...");
+        console.log(`🚀 Starting multi-worker queue processing (${this.maxWorkers} max workers, concurrent: ${this.concurrentProcessing})...`);
 
         // Main processing loop
         while (this.isProcessing) {
             try {
+                // Check if we have available worker slots
+                if (this.availableWorkers <= 0) {
+                    console.log(`⏳ All ${this.maxWorkers} workers busy, waiting...`);
+                    await this.sleep(2000); // Wait before checking again
+                    continue;
+                }
+
                 // Blocking pop from pending queue (waits up to 5 seconds)
                 const jobData = await this.brpopAsync(this.keys.pending, 5);
 
                 if (jobData && jobData[1]) {
                     const job = JSON.parse(jobData[1]);
 
-                    // Ensure only one job is processed at a time
-                    if (this.currentJob) {
-                        console.log(`⚠️ Job ${job.id} skipped - another job ${this.currentJob.id} is still processing`);
+                    // Check concurrent processing setting
+                    if (!this.concurrentProcessing && this.activeJobs.size > 0) {
+                        console.log(`⚠️ Job ${job.id} skipped - concurrent processing disabled and ${this.activeJobs.size} job(s) still processing`);
                         // Put the job back at the front of the queue
                         await this.lpushAsync(this.keys.pending, jobData[1]);
                         await this.sleep(2000); // Wait before trying again
                         continue;
                     }
 
-                    await this.processJob(job);
+                    // Process job if we have available workers
+                    if (this.availableWorkers > 0) {
+                        this.availableWorkers--;
+                        console.log(`👤 Assigning job ${job.id} to worker (${this.availableWorkers}/${this.maxWorkers} workers available)`);
+
+                        // Process job asynchronously (don't await - allows multiple jobs)
+                        this.processJobAsync(job).finally(() => {
+                            this.availableWorkers++;
+                            console.log(`✅ Worker freed for job ${job.id} (${this.availableWorkers}/${this.maxWorkers} workers available)`);
+                        });
+                    }
                 }
             } catch (error) {
                 console.error("❌ Queue processing error:", error);
@@ -235,6 +263,40 @@ class VideoQueueManager {
     }
 
     /**
+     * Async wrapper for processing jobs in multi-worker environment
+     * @param {Object} job - Job to process
+     */
+    async processJobAsync(job) {
+        try {
+            // Add job to active jobs tracking
+            this.activeJobs.set(job.id, job);
+            console.log(`📝 Added job ${job.id} to active jobs (${this.activeJobs.size}/${this.maxWorkers} active)`);
+
+            // Initialize job logs
+            this.addJobLog(job.id, `Job ${job.id} started with worker pool`, "info");
+            this.addJobLog(job.id, `Parameters: ${JSON.stringify(job.parameters)}`, "info");
+
+            await this.processJob(job);
+        } catch (error) {
+            console.error(`❌ Error in processJobAsync for job ${job.id}:`, error);
+            this.addJobLog(job.id, `Job error: ${error.message}`, "error");
+        } finally {
+            // Always clean up job tracking
+            this.activeJobs.delete(job.id);
+            this.activeProcesses.delete(job.id);
+            console.log(`🧹 Removed job ${job.id} from active tracking (${this.activeJobs.size}/${this.maxWorkers} active)`);
+
+            // Add completion log
+            this.addJobLog(job.id, "Job processing completed and removed from active pool", "info");
+
+            // Keep logs for 10 minutes after job completion
+            setTimeout(() => {
+                this.clearJobLogs(job.id);
+            }, 10 * 60 * 1000); // 10 minutes
+        }
+    }
+
+    /**
      * Process individual video generation job
      * @param {Object} job - Job to process
      */
@@ -242,7 +304,7 @@ class VideoQueueManager {
         // Job processing (UI queue management)
         console.log(`\n🔄 Starting job: ${job.id}`);
         console.log(`📋 Parameters:`, job.parameters);
-        console.log(`🔍 Current job before processing: ${this.currentJob ? this.currentJob.id : "null"}`);
+        console.log(`🔍 Active jobs: ${Array.from(this.activeJobs.keys()).join(", ") || "none"}`);
         console.log(`--- Python Script Output ---`);
 
         try {
@@ -251,8 +313,8 @@ class VideoQueueManager {
             job.startedAt = new Date().toISOString();
             job.progress = 10;
             job.currentStep = "Starting video generation...";
-            this.currentJob = job;
-            console.log(`✅ Set current job to: ${job.id}`);
+            job.workerId = `worker-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+            console.log(`✅ Assigned worker ID ${job.workerId} to job: ${job.id}`);
 
             // Move to processing queue and update job store
             await this.lpushAsync(this.keys.processing, JSON.stringify(job));
@@ -343,23 +405,24 @@ class VideoQueueManager {
                 jobParameters: job.parameters,
             });
 
-            // Kill any running Python process immediately
-            if (this.currentProcess && !this.currentProcess.killed) {
+            // Kill any running Python process immediately (multi-worker support)
+            const activeProcess = this.activeProcesses.get(job.id);
+            if (activeProcess && !activeProcess.killed) {
                 console.log(`🔪 EMERGENCY: Killing Python process for failed job ${job.id}`);
                 try {
                     // Force kill the process tree
                     if (process.platform === "win32") {
-                        exec(`taskkill /f /t /pid ${this.currentProcess.pid}`, (killError) => {
+                        exec(`taskkill /f /t /pid ${activeProcess.pid}`, (killError) => {
                             if (killError) {
                                 console.error(`❌ Failed to kill process: ${killError.message}`);
                             } else {
-                                console.log(`✅ Process ${this.currentProcess.pid} killed successfully`);
+                                console.log(`✅ Process ${activeProcess.pid} killed successfully`);
                             }
                         });
                     } else {
-                        this.currentProcess.kill("SIGKILL");
+                        activeProcess.kill("SIGKILL");
                     }
-                    this.currentProcess = null;
+                    // Cleanup will be handled by processJobAsync finally block
                 } catch (killError) {
                     console.error(`❌ Error killing process: ${killError.message}`);
                 }
@@ -452,8 +515,7 @@ class VideoQueueManager {
             console.log(`--- END FAILURE SUMMARY ---\n`);
         }
 
-        console.log(`🧹 Clearing current job: ${this.currentJob ? this.currentJob.id : "already null"}`);
-        this.currentJob = null;
+        console.log(`🧹 Job ${job.id} processing completed - cleanup handled by processJobAsync`);
     }
 
     /**
@@ -801,8 +863,9 @@ class VideoQueueManager {
                 },
             });
 
-            // Store reference to current process for cancellation
-            this.currentProcess = pythonProcess;
+            // Store reference to current process for cancellation (multi-worker support)
+            this.activeProcesses.set(job.id, pythonProcess);
+            console.log(`🔗 Stored process for job ${job.id} (${this.activeProcesses.size} active processes)`);
 
             let stdout = "";
             let stderr = "";
@@ -859,6 +922,9 @@ class VideoQueueManager {
 
                 // Output exactly like CLI - no prefixes
                 process.stdout.write(output);
+
+                // Capture output as job-specific logs
+                this.addJobLog(job.id, output, this.getLogTypeFromOutput(output));
 
                 // Update job progress and status based on output
                 if (job) {
@@ -1052,14 +1118,16 @@ class VideoQueueManager {
 
                 // Output exactly like CLI - no prefixes
                 process.stderr.write(output);
+
+                // Capture stderr as job-specific logs (usually errors)
+                this.addJobLog(job.id, output, "error");
             });
 
             // Handle process completion
             pythonProcess.on("close", (code) => {
-                // Clear process reference
-                if (this.currentProcess === pythonProcess) {
-                    this.currentProcess = null;
-                }
+                // Clear process reference from multi-worker tracking
+                this.activeProcesses.delete(job.id);
+                console.log(`🧹 Cleaned up process for job ${job.id} (${this.activeProcesses.size} active processes)`);
                 console.log(`\n--- Python Script Completed ---`);
                 if (code !== 0) {
                     // Check for specific error messages to make them more user-friendly
@@ -1238,11 +1306,14 @@ class VideoQueueManager {
                 throw new Error("Job not found");
             }
 
-            console.log(`🔍 Debug - currentJob: ${this.currentJob ? this.currentJob.id : "null"}, requested jobId: ${jobId}, currentProcess: ${this.currentProcess ? this.currentProcess.pid : "null"}`);
+            const activeJob = this.activeJobs.get(jobId);
+            const activeProcess = this.activeProcesses.get(jobId);
+            console.log(`🔍 Debug - activeJob: ${activeJob ? jobId : "null"}, activeProcess: ${activeProcess ? activeProcess.pid : "null"}`);
+            console.log(`🔍 Active jobs: ${Array.from(this.activeJobs.keys()).join(", ") || "none"}`);
 
-            // If this is the currently processing job, kill the Python process
-            if (this.currentJob && this.currentJob.id === jobId && this.currentProcess) {
-                const processPid = this.currentProcess.pid; // Store PID before nullifying
+            // If this job is currently processing, kill the Python process
+            if (activeJob && activeProcess) {
+                const processPid = activeProcess.pid;
                 console.log(`🛑 Killing Python process for job ${jobId} (PID: ${processPid})`);
 
                 try {
@@ -1260,7 +1331,7 @@ class VideoQueueManager {
                         });
                     } else {
                         // Unix-like systems: use SIGTERM first, then SIGKILL
-                        const processToKill = this.currentProcess; // Store reference before nullifying
+                        const processToKill = activeProcess;
                         processToKill.kill("SIGTERM");
 
                         // Force kill after 5 seconds if still running
@@ -1275,15 +1346,16 @@ class VideoQueueManager {
                     console.error(`❌ Failed to kill process: ${error}`);
                 }
 
-                this.currentProcess = null;
-                this.currentJob = null;
+                // Clean up job and process tracking
+                this.activeJobs.delete(jobId);
+                this.activeProcesses.delete(jobId);
+                this.availableWorkers++;
+                console.log(`🧹 Cleaned up job ${jobId} from active tracking (${this.availableWorkers}/${this.maxWorkers} workers available)`);
             } else {
-                console.log(`⚠️ Cannot kill process - either job is not currently processing or process reference is missing`);
-                if (!this.currentJob) {
-                    console.log(`   - No current job running`);
-                } else if (this.currentJob.id !== jobId) {
-                    console.log(`   - Current job ID (${this.currentJob.id}) doesn't match requested job ID (${jobId})`);
-                } else if (!this.currentProcess) {
+                console.log(`⚠️ Cannot kill process - job ${jobId} is not currently processing`);
+                if (!activeJob) {
+                    console.log(`   - Job ${jobId} is not in active jobs`);
+                } else if (!activeProcess) {
                     console.log(`   - No process reference available`);
                 }
             }
@@ -1406,19 +1478,23 @@ class VideoQueueManager {
     async getQueueStats() {
         try {
             const status = await this.getQueueStatus();
-            const jobs = await this.getAllJobs();
+            // Removed expensive getAllJobs() call - use queue counts for performance
 
             const jobsByStatus = {
-                pending: Object.values(jobs).filter((job) => job.status === "pending").length,
-                processing: Object.values(jobs).filter((job) => job.status === "processing").length,
-                completed: Object.values(jobs).filter((job) => job.status === "completed").length,
-                failed: Object.values(jobs).filter((job) => job.status === "failed").length,
+                pending: status.pending,
+                processing: status.processing,
+                completed: status.completed,
+                failed: status.failed,
             };
 
             return {
                 ...status,
                 jobsByStatus,
-                currentJob: this.currentJob,
+                activeJobs: Array.from(this.activeJobs.keys()), // List of active job IDs
+                activeWorkers: this.maxWorkers - this.availableWorkers,
+                availableWorkers: this.availableWorkers,
+                maxWorkers: this.maxWorkers,
+                concurrentProcessing: this.concurrentProcessing,
                 isProcessing: this.isProcessing,
             };
         } catch (error) {
@@ -1436,11 +1512,85 @@ class VideoQueueManager {
     }
 
     /**
+     * Determine log type based on output content
+     * @param {string} output - Output text
+     * @returns {string} Log type (info, success, warning, error, step)
+     */
+    getLogTypeFromOutput(output) {
+        const text = output.toLowerCase();
+
+        if (text.includes("error") || text.includes("❌") || text.includes("failed") || text.includes("exception")) {
+            return "error";
+        } else if (text.includes("warning") || text.includes("⚠️") || text.includes("warn")) {
+            return "warning";
+        } else if (text.includes("✅") || text.includes("success") || text.includes("completed") || text.includes("done")) {
+            return "success";
+        } else if (text.includes("step") || text.includes("[step") || text.includes("🔄") || text.includes("🗃️") || text.includes("🤖")) {
+            return "step";
+        } else {
+            return "info";
+        }
+    }
+
+    /**
+     * Add log entry for a specific job
+     * @param {string} jobId - Job ID
+     * @param {string} message - Log message
+     * @param {string} type - Log type (info, success, warning, error, step)
+     */
+    addJobLog(jobId, message, type = "info") {
+        if (!this.jobLogs.has(jobId)) {
+            this.jobLogs.set(jobId, []);
+        }
+
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            message: message.trim(),
+            type: type,
+        };
+
+        const logs = this.jobLogs.get(jobId);
+        logs.push(logEntry);
+
+        // Keep only last 200 log entries per job
+        if (logs.length > 200) {
+            logs.splice(0, logs.length - 200);
+        }
+
+        console.log(`📝 [${jobId.slice(-8)}] ${type.toUpperCase()}: ${message.trim()}`);
+    }
+
+    /**
+     * Get logs for a specific job
+     * @param {string} jobId - Job ID
+     * @returns {Array} Array of log entries
+     */
+    getJobLogs(jobId) {
+        return this.jobLogs.get(jobId) || [];
+    }
+
+    /**
+     * Clear logs for a specific job
+     * @param {string} jobId - Job ID
+     */
+    clearJobLogs(jobId) {
+        this.jobLogs.delete(jobId);
+        console.log(`🗑️ Cleared logs for job ${jobId}`);
+    }
+
+    /**
      * Close Redis connection
      */
     async close() {
         try {
             this.stopProcessing();
+
+            // Clear the periodic cleanup interval
+            if (this.cleanupInterval) {
+                clearInterval(this.cleanupInterval);
+                console.log("🧹 Stopped periodic cleanup");
+            }
+
             await this.quitAsync();
             console.log("🔌 Redis connection closed");
         } catch (error) {

@@ -100,14 +100,29 @@ def process_movie_trailers_to_clips(movie_data: List[Dict], max_movies: int = 3,
         for temp_dir in temp_dirs:
             cleanup_temp_files(temp_dir)
         
-        logger.info(f"🎬 Successfully created {len(clip_urls)} trailer clips")
+        # Report results with emphasis on YouTube importance
+        successful_count = len(clip_urls)
+        total_attempted = len(movie_data[:max_movies])
+        
+        if successful_count == total_attempted:
+            logger.info(f"🎉 Perfect! Successfully created {successful_count}/{total_attempted} trailer clips")
+        elif successful_count > 0:
+            logger.warning(f"⚠️ Partial success: {successful_count}/{total_attempted} trailer clips created")
+            logger.info(f"   💡 Some YouTube videos may have restrictions - this is normal")
+            logger.info(f"   🎬 Video generation will continue with available clips")
+        else:
+            logger.error(f"❌ No trailer clips could be downloaded ({successful_count}/{total_attempted})")
+            logger.error(f"   This may indicate YouTube bot detection is too strong")
+            logger.error(f"   💡 Try running locally first, or check YouTube URLs manually")
+        
         return clip_urls
         
     except Exception as e:
-        logger.error(f"❌ Error in process_movie_trailers_to_clips: {str(e)}")
+        logger.error(f"❌ Critical error in process_movie_trailers_to_clips: {str(e)}")
         # Cleanup on error
         for temp_dir in temp_dirs:
             cleanup_temp_files(temp_dir)
+        # Return empty dict but don't raise exception - let workflow decide
         return {}
 
 
@@ -164,9 +179,9 @@ def _process_single_trailer(movie_data: Dict, trailer_url: str, transform_mode: 
 
 def _download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers") -> Optional[str]:
     """
-    Download YouTube trailer video using yt-dlp.
+    Download YouTube trailer video using yt-dlp with cloud server optimization.
     
-    MODULAR VERSION - Uses exact same approach as working legacy code
+    MODULAR VERSION - Enhanced with anti-bot detection for Railway/cloud deployment
     
     Args:
         trailer_url (str): YouTube trailer URL
@@ -185,20 +200,39 @@ def _download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers
             logger.error(f"Invalid YouTube URL: {trailer_url}")
             return None
         
-        # Configure yt-dlp options for best quality video (same as legacy)
+        # Enhanced yt-dlp configuration for cloud servers (anti-bot detection)
         ydl_opts = {
             'format': 'best[height<=720][ext=mp4]/best[ext=mp4]/best',  # Prefer 720p MP4
             'outtmpl': os.path.join(output_dir, f'{video_id}_trailer.%(ext)s'),
             'quiet': True,  # Reduce verbose output
             'no_warnings': True,
+            # Anti-bot detection headers and options
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Accept-Encoding': 'gzip,deflate',
+                'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            },
+            # Additional anti-detection options
+            'extractor_retries': 3,  # Retry on temporary failures
+            'retries': 3,            # Retry downloads
+            'sleep_interval': 2,     # Wait between requests
+            'max_sleep_interval': 5, # Max wait time
+            # Bypass age restrictions
+            'age_limit': None,
+            # Use extract_flat to reduce requests
+            'extract_flat': False,
         }
         
-        logger.info(f"🎬 Downloading YouTube trailer: {trailer_url}")
+        logger.info(f"🎬 Downloading YouTube trailer (cloud-optimized): {trailer_url}")
         logger.info(f"   Video ID: {video_id}")
         logger.info(f"   Output directory: {output_dir}")
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Download the video
+            # Download the video with retries
             ydl.download([trailer_url])
             
             # Find the downloaded file
@@ -212,7 +246,87 @@ def _download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers
         return None
         
     except Exception as e:
-        logger.error(f"❌ Error downloading YouTube trailer {trailer_url}: {str(e)}")
+        error_msg = str(e)
+        
+        # Handle specific YouTube errors with solutions
+        if "Sign in to confirm you're not a bot" in error_msg:
+            logger.error(f"🤖 YouTube bot detection for: {trailer_url}")
+            logger.info(f"   Attempting fallback method...")
+            
+            # Try with different extraction method
+            return _download_youtube_fallback(trailer_url, output_dir, video_id)
+        
+        elif "Video unavailable" in error_msg:
+            logger.warning(f"📵 Video unavailable: {trailer_url}")
+            return None
+            
+        elif "Private video" in error_msg:
+            logger.warning(f"🔒 Private video: {trailer_url}")
+            return None
+            
+        else:
+            logger.error(f"❌ Error downloading YouTube trailer {trailer_url}: {str(e)}")
+            return None
+
+
+def _download_youtube_fallback(trailer_url: str, output_dir: str, video_id: str) -> Optional[str]:
+    """
+    Fallback method for downloading YouTube videos when bot detection is triggered.
+    
+    Uses alternative yt-dlp configuration with proxy-like behavior.
+    
+    Args:
+        trailer_url (str): YouTube trailer URL
+        output_dir (str): Directory to save downloaded video
+        video_id (str): Extracted video ID
+        
+    Returns:
+        str: Path to downloaded video file or None if failed
+    """
+    try:
+        logger.info(f"🔄 Trying fallback download method for: {video_id}")
+        
+        # Ultra-conservative yt-dlp options to avoid detection
+        fallback_opts = {
+            'format': 'worst[height>=360][ext=mp4]/worst[ext=mp4]/worst',  # Lower quality to reduce suspicion
+            'outtmpl': os.path.join(output_dir, f'{video_id}_trailer_fallback.%(ext)s'),
+            'quiet': True,
+            'no_warnings': True,
+            # More aggressive anti-bot measures
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                'Accept': '*/*',
+                'Accept-Encoding': 'identity',
+                'Connection': 'close',  # Don't keep connections alive
+            },
+            'extractor_retries': 5,     # More retries
+            'retries': 5,
+            'sleep_interval': 5,        # Longer waits
+            'max_sleep_interval': 15,
+            'fragment_retries': 5,
+            # Try to bypass geo-restrictions
+            'geo_bypass': True,
+            # Use slower extraction
+            'extract_flat': True,
+        }
+        
+        with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+            logger.info(f"⏳ Fallback download starting (this may take longer)...")
+            ydl.download([trailer_url])
+            
+            # Find the downloaded file
+            for file in os.listdir(output_dir):
+                if video_id in file and 'fallback' in file and file.endswith(('.mp4', '.webm', '.mkv')):
+                    downloaded_path = os.path.join(output_dir, file)
+                    logger.info(f"🎉 Fallback download successful: {downloaded_path}")
+                    return downloaded_path
+        
+        logger.warning(f"⚠️ Fallback method could not find downloaded file for: {video_id}")
+        return None
+        
+    except Exception as fallback_error:
+        logger.error(f"❌ Fallback download also failed: {str(fallback_error)}")
+        logger.info(f"💡 Suggestion: Try running locally first to test, then deploy")
         return None
 
 
