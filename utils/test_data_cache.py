@@ -41,20 +41,79 @@ def should_use_cache() -> bool:
     """
     Determine if test data caching should be used based on environment.
     
+    3-tier environment system:
+    - production: No cache, API calls only
+    - development: API calls + save all results 
+    - local: Cache only, no API calls
+    
     Returns:
-        bool: True if cache should be used, False otherwise
+        bool: True if cache should be used for reading, False otherwise
     """
     app_env = get_app_env()
     
     # Use cache in local development, not in production
     if app_env == 'local':
         return True
-    elif app_env == 'prod':
+    elif app_env in ['prod', 'production']:
         return False
+    elif app_env in ['dev', 'development']:
+        # Development mode - use APIs but will save results
+        return False  # Don't read cache initially, but will save
     else:
         # For other environments (staging, test, etc.), use cache by default
         logger.info(f"Unknown APP_ENV '{app_env}', defaulting to cache enabled")
         return True
+
+
+def should_save_results() -> bool:
+    """
+    Determine if results should be saved based on environment.
+    
+    Returns:
+        bool: True if results should be saved to cache, False otherwise
+    """
+    app_env = get_app_env()
+    
+    if app_env in ['local', 'dev', 'development']:
+        return True
+    elif app_env in ['prod', 'production']:
+        return False
+    else:
+        # For other environments, default to saving
+        return True
+
+
+def is_local_mode() -> bool:
+    """
+    Check if we're in local mode (no API calls, cache only).
+    
+    Returns:
+        bool: True if in local mode, False otherwise
+    """
+    app_env = get_app_env()
+    return app_env == 'local'
+
+
+def is_development_mode() -> bool:
+    """
+    Check if we're in development mode (API calls + save results).
+    
+    Returns:
+        bool: True if in development mode, False otherwise
+    """
+    app_env = get_app_env()
+    return app_env in ['dev', 'development']
+
+
+def is_production_mode() -> bool:
+    """
+    Check if we're in production mode (API calls only, no saving).
+    
+    Returns:
+        bool: True if in production mode, False otherwise
+    """
+    app_env = get_app_env()
+    return app_env in ['prod', 'production']
 
 # =============================================================================
 # TEST DATA CACHING FUNCTIONS
@@ -84,7 +143,7 @@ def get_test_data_path(data_type: str, country: str, genre: str, platform: str) 
 
 def save_test_data(data: Any, data_type: str, country: str, genre: str, platform: str) -> str:
     """
-    Save test data to test_output directory.
+    Save test data to test_output directory based on environment.
     
     Args:
         data: Data to save (must be JSON serializable)
@@ -94,9 +153,14 @@ def save_test_data(data: Any, data_type: str, country: str, genre: str, platform
         platform (str): Platform parameter
         
     Returns:
-        str: Path where data was saved, empty string if failed
+        str: Path where data was saved, empty string if failed or not saved
     """
     try:
+        # Check if we should save results based on environment
+        if not should_save_results():
+            app_env = get_app_env()
+            logger.info(f"💼 Results not saved for APP_ENV='{app_env}' (production mode)")
+            return ""  # Don't save in production mode
         # Ensure test_output directory exists
         os.makedirs('test_output', exist_ok=True)
         
@@ -153,7 +217,13 @@ def load_test_data(data_type: str, country: str, genre: str, platform: str) -> O
         
         if not os.path.exists(file_path):
             app_env = get_app_env()
-            logger.info(f"📁 No existing test data found: {file_path} (APP_ENV='{app_env}')")
+            if is_local_mode():
+                # In local mode, missing data is a problem since we can't generate fresh data
+                logger.error(f"❌ REQUIRED: No cached data found for LOCAL MODE: {file_path}")
+                logger.error(f"   💡 Run with APP_ENV=development first to generate and cache data")
+                raise FileNotFoundError(f"Local mode requires cached data: {file_path}")
+            else:
+                logger.info(f"📁 No existing test data found: {file_path} (APP_ENV='{app_env}')")
             return None
         
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -313,7 +383,7 @@ def list_test_data() -> Dict[str, Any]:
 
 def save_script_result(script_data: Dict, country: str, genre: str, platform: str) -> str:
     """
-    Save script generation result with additional metadata.
+    Save script generation result with additional metadata based on environment.
     
     Args:
         script_data (Dict): Script data including combined_script, individual_scripts, etc.
@@ -322,8 +392,14 @@ def save_script_result(script_data: Dict, country: str, genre: str, platform: st
         platform (str): Platform parameter
         
     Returns:
-        str: Path where data was saved
+        str: Path where data was saved, empty string if not saved
     """
+    # Check if we should save results based on environment
+    if not should_save_results():
+        app_env = get_app_env()
+        logger.debug(f"💼 Script results not saved for APP_ENV='{app_env}'")
+        return ""
+    
     # Add script-specific metadata
     enhanced_data = {
         **script_data,
@@ -336,7 +412,7 @@ def save_script_result(script_data: Dict, country: str, genre: str, platform: st
 
 def save_assets_result(assets_data: Dict, country: str, genre: str, platform: str) -> str:
     """
-    Save asset generation result with additional metadata.
+    Save asset generation result with additional metadata based on environment.
     
     Args:
         assets_data (Dict): Asset data including enhanced_posters, dynamic_clips, etc.
@@ -345,8 +421,14 @@ def save_assets_result(assets_data: Dict, country: str, genre: str, platform: st
         platform (str): Platform parameter
         
     Returns:
-        str: Path where data was saved
+        str: Path where data was saved, empty string if not saved
     """
+    # Check if we should save results based on environment
+    if not should_save_results():
+        app_env = get_app_env()
+        logger.debug(f"💼 Asset results not saved for APP_ENV='{app_env}'")
+        return ""
+    
     # Add asset-specific metadata
     enhanced_data = {
         **assets_data,
@@ -356,6 +438,86 @@ def save_assets_result(assets_data: Dict, country: str, genre: str, platform: st
     }
     
     return save_test_data(enhanced_data, 'assets', country, genre, platform)
+
+
+def save_heygen_result(heygen_data: Dict, country: str, genre: str, platform: str) -> str:
+    """
+    Save HeyGen generation result based on environment.
+    
+    Args:
+        heygen_data (Dict): HeyGen data including video_ids, urls, etc.
+        country (str): Country parameter
+        genre (str): Genre parameter
+        platform (str): Platform parameter
+        
+    Returns:
+        str: Path where data was saved, empty string if not saved
+    """
+    if not should_save_results():
+        app_env = get_app_env()
+        logger.debug(f"💼 HeyGen results not saved for APP_ENV='{app_env}'")
+        return ""
+    
+    enhanced_data = {
+        **heygen_data,
+        'video_count': len(heygen_data.get('video_ids', {})),
+        'generation_timestamp': time.time()
+    }
+    
+    return save_test_data(enhanced_data, 'heygen', country, genre, platform)
+
+
+def save_creatomate_result(creatomate_data: Dict, country: str, genre: str, platform: str) -> str:
+    """
+    Save Creatomate generation result based on environment.
+    
+    Args:
+        creatomate_data (Dict): Creatomate data including render_id, status, etc.
+        country (str): Country parameter
+        genre (str): Genre parameter
+        platform (str): Platform parameter
+        
+    Returns:
+        str: Path where data was saved, empty string if not saved
+    """
+    if not should_save_results():
+        app_env = get_app_env()
+        logger.debug(f"💼 Creatomate results not saved for APP_ENV='{app_env}'")
+        return ""
+    
+    enhanced_data = {
+        **creatomate_data,
+        'generation_timestamp': time.time()
+    }
+    
+    return save_test_data(enhanced_data, 'creatomate', country, genre, platform)
+
+
+def save_workflow_result(workflow_data: Dict, country: str, genre: str, platform: str) -> str:
+    """
+    Save complete workflow result based on environment.
+    
+    Args:
+        workflow_data (Dict): Complete workflow data including all steps
+        country (str): Country parameter
+        genre (str): Genre parameter
+        platform (str): Platform parameter
+        
+    Returns:
+        str: Path where data was saved, empty string if not saved
+    """
+    if not should_save_results():
+        app_env = get_app_env()
+        logger.debug(f"💼 Workflow results not saved for APP_ENV='{app_env}'")
+        return ""
+    
+    enhanced_data = {
+        **workflow_data,
+        'completed_steps': len(workflow_data.get('steps_completed', [])),
+        'final_timestamp': time.time()
+    }
+    
+    return save_test_data(enhanced_data, 'workflow', country, genre, platform)
 
 
 def get_cache_stats() -> Dict[str, Any]:

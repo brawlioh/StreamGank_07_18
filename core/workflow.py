@@ -18,7 +18,8 @@ from pathlib import Path
 # Import modular functions
 from ai.robust_script_generator import generate_video_scripts
 from video.poster_generator import create_enhanced_movie_posters
-from video.clip_processor import process_movie_trailers_to_clips
+# Import Vizard.ai integration (replaces old clip processing)
+from ai.vizard_client import process_movie_trailers_with_vizard
 
 # Import database functions
 from database.movie_extractor import extract_movie_data
@@ -34,7 +35,12 @@ from video.creatomate_client import create_creatomate_video
 from config.settings import get_scroll_settings, get_video_settings
 
 # Import test data caching utilities
-from utils.test_data_cache import load_test_data, save_script_result, save_assets_result, get_app_env, should_use_cache
+from utils.test_data_cache import (
+    load_test_data, save_script_result, save_assets_result,
+    save_heygen_result, save_creatomate_result, save_workflow_result,
+    get_app_env, should_use_cache, should_save_results,
+    is_local_mode, is_development_mode, is_production_mode
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +59,7 @@ def run_full_workflow(num_movies: int = 3,
                      scroll_distance: float = None,
                      poster_timing_mode: str = "heygen_last3s",
                      heygen_template_id: str = None,
+                     vizard_template_id: str = None,
                      pause_after_extraction: bool = False) -> dict:
     """
     Run the complete StreamGank video generation workflow.
@@ -89,9 +96,20 @@ def run_full_workflow(num_movies: int = 3,
     # Log environment information
     app_env = get_app_env()
     cache_enabled = should_use_cache()
+    save_enabled = should_save_results()
     
     print("🚀 Starting StreamGank video generation workflow")
-    print(f"🌍 Environment: APP_ENV='{app_env}' (Cache: {'ENABLED' if cache_enabled else 'DISABLED'})")
+    
+    # Enhanced environment logging
+    if is_local_mode():
+        print(f"🌍 Environment: APP_ENV='{app_env}' (LOCAL: Cache only, no API calls)")
+    elif is_development_mode():
+        print(f"🌍 Environment: APP_ENV='{app_env}' (DEVELOPMENT: API calls + save results)")
+    elif is_production_mode():
+        print(f"🌍 Environment: APP_ENV='{app_env}' (PRODUCTION: API calls only, no saving)")
+    else:
+        print(f"🌍 Environment: APP_ENV='{app_env}' (Cache: {'ENABLED' if cache_enabled else 'DISABLED'}, Save: {'ENABLED' if save_enabled else 'DISABLED'})")
+    
     print(f"Parameters: {num_movies} movies, {country}, {genre}, {platform}, {content_type}")
     
     # Load settings from centralized configuration
@@ -211,13 +229,15 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing script data from test_output
         cached_script_data = load_test_data('script_result', country, genre, platform)
         
+        # For testing intelligent highlights, we want to use cached scripts if available
         if cached_script_data and should_use_cache():
+        # if True:
             print("   📂 Using cached script data from test_output...")
             
-            # Extract data from cached result
-            combined_script = cached_script_data.get('combined_script', '')
-            script_file_path = cached_script_data.get('script_file_path', '')
-            individual_scripts = cached_script_data.get('individual_scripts', {})
+            # Extract data from cached result (with safe fallbacks)
+            combined_script = cached_script_data.get('combined_script', '') if isinstance(cached_script_data, dict) else ''
+            script_file_path = cached_script_data.get('script_file_path', '') if isinstance(cached_script_data, dict) else ''
+            individual_scripts = cached_script_data.get('individual_scripts', {}) if isinstance(cached_script_data, dict) else {}
             
             script_result = (combined_script, script_file_path, individual_scripts)
             
@@ -273,7 +293,8 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing asset data from test_output
         cached_assets_data = load_test_data('assets', country, genre, platform)
         
-        if cached_assets_data:
+        if cached_assets_data and should_use_cache():
+        # if False: # false for now to avoid regenerating assets this is for testing only please dont remove this line
             print("   📂 Using cached asset data from test_output...")
             
             enhanced_posters = cached_assets_data.get('enhanced_posters', {})
@@ -291,9 +312,22 @@ def run_full_workflow(num_movies: int = 3,
             if not enhanced_posters or len(enhanced_posters) < 3:
                 raise Exception(f"Failed to create enhanced posters - got {len(enhanced_posters) if enhanced_posters else 0}, need 3")
             
-            # Process movie clips (MODULAR FUNCTION)
-            print("   Processing dynamic cinematic portrait clips from trailers...")
-            dynamic_clips = process_movie_trailers_to_clips(raw_movies, max_movies=3, transform_mode="youtube_shorts")
+            # Process movie clips with Enhanced Intelligent Workflow
+            print("   🧠 Processing with Enhanced Intelligent Highlight Extraction...")
+            print("   🤖 FULL PIPELINE: Intelligent extraction + Vizard.ai processing")
+            print("   📥 Step 1: Downloading 1080p videos for analysis")
+            print("   🔍 Step 2: Multi-algorithm content analysis (audio, visual, motion)")
+            print("   ✂️  Step 3: Extracting optimal 1:30 segments intelligently")
+            print("   🏷️  Step 4: Generating content-based keywords")
+            print("   🤖 Step 5: Processing extracted highlights with Vizard.ai")
+            print("   ☁️  Step 6: Uploading final clips to Cloudinary")
+            dynamic_clips = process_movie_trailers_with_vizard(
+                raw_movies, 
+                max_movies=3, 
+                transform_mode="youtube_shorts",
+                use_intelligent_highlights=True,  # Enable intelligent processing
+                review_mode=False  # PRODUCTION: Continue with full Vizard.ai processing
+            )
             
             if not dynamic_clips or len(dynamic_clips) < 3:
                 raise Exception(f"Failed to create movie clips - got {len(dynamic_clips) if dynamic_clips else 0}, need 3")
@@ -338,6 +372,14 @@ def run_full_workflow(num_movies: int = 3,
         
         workflow_results['heygen_video_ids'] = heygen_video_ids
         workflow_results['steps_completed'].append('heygen_creation')
+        
+        # Save HeyGen results for development mode
+        heygen_data_to_save = {
+            'video_ids': heygen_video_ids,
+            'template_id': heygen_template_id,
+            'script_count': len(individual_scripts)
+        }
+        save_heygen_result(heygen_data_to_save, country, genre, platform)
         
         print(f"✅ STEP 4 COMPLETED - Created {len(heygen_video_ids)} HeyGen videos in {time.time() - step_start:.1f}s")
         
@@ -406,6 +448,17 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['creatomate_id'] = creatomate_id
         workflow_results['steps_completed'].append('creatomate_assembly')
         
+        # Save Creatomate results for development mode
+        creatomate_data_to_save = {
+            'render_id': creatomate_id,
+            'heygen_urls_count': len(heygen_video_urls),
+            'movie_covers_count': len(movie_covers),
+            'movie_clips_count': len(movie_clips),
+            'has_scroll_video': scroll_video_url is not None,
+            'poster_timing_mode': poster_timing_mode
+        }
+        save_creatomate_result(creatomate_data_to_save, country, genre, platform)
+        
         print(f"✅ STEP 7 COMPLETED - Final video submitted in {time.time() - step_start:.1f}s")
         
         # =============================================================================
@@ -415,6 +468,9 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['status'] = 'completed'
         workflow_results['total_duration'] = total_duration
         workflow_results['end_time'] = time.time()
+        
+        # Save complete workflow results for development mode
+        save_workflow_result(workflow_results, country, genre, platform)
         
         print(f"\n🎉 WORKFLOW COMPLETED SUCCESSFULLY!")
         print(f"   ⏱️ Total duration: {total_duration:.1f}s")

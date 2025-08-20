@@ -90,7 +90,8 @@ def create_heygen_video(script_data: Any,
         logger.info(f"🎬 Creating HeyGen videos")
         
         # Check if we're in local mode - use hardcoded URLs instead of API
-        if os.getenv('APP_ENV') == 'local':
+        from utils.test_data_cache import is_local_mode
+        if is_local_mode():
             logger.info("🏠 LOCAL MODE: Using hardcoded HeyGen URLs instead of API calls")
             return _get_local_heygen_videos(script_data)
         
@@ -445,7 +446,8 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
     logger.info(f"🔗 Getting HeyGen video URLs for {len(heygen_video_ids)} videos - STRICT MODE")
     
     # Check if we're in local mode - return hardcoded URLs directly
-    if os.getenv('APP_ENV') == 'local':
+    from utils.test_data_cache import is_local_mode
+    if is_local_mode():
         logger.info("🏠 LOCAL MODE: Returning hardcoded HeyGen URLs for Creatomate")
         return _get_local_heygen_urls_for_creatomate(heygen_video_ids)
     
