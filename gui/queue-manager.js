@@ -1,7 +1,7 @@
-const redis = require("redis");
-const { spawn, exec } = require("child_process");
-const path = require("path");
-const { promisify } = require("util");
+const redis = require('redis');
+const { spawn, exec } = require('child_process');
+const path = require('path');
+const { promisify } = require('util');
 
 /**
  * Redis-based Video Queue Manager
@@ -24,22 +24,22 @@ class VideoQueueManager {
         this.client = redis.createClient(redisConfig);
 
         // Event handlers for Redis connection
-        this.client.on("error", (err) => {
-            console.error("❌ Redis Client Error:", err);
+        this.client.on('error', (err) => {
+            console.error('❌ Redis Client Error:', err);
         });
 
-        this.client.on("connect", () => {
-            console.log("✅ Connected to Redis server");
+        this.client.on('connect', () => {
+            console.log('✅ Connected to Redis server');
         });
 
-        this.client.on("ready", () => {
-            console.log("🚀 Redis client ready for operations");
+        this.client.on('ready', () => {
+            console.log('🚀 Redis client ready for operations');
         });
 
         // Multi-worker queue processing state
         this.isProcessing = false;
         this.maxWorkers = parseInt(process.env.MAX_WORKERS) || 3; // Default to 3 workers
-        this.concurrentProcessing = process.env.ENABLE_CONCURRENT_PROCESSING === "true";
+        this.concurrentProcessing = process.env.ENABLE_CONCURRENT_PROCESSING === 'true';
         this.activeJobs = new Map(); // Track multiple active jobs by jobId
         this.activeProcesses = new Map(); // Track multiple Python processes by jobId
         this.availableWorkers = this.maxWorkers; // Number of available worker slots
@@ -50,7 +50,7 @@ class VideoQueueManager {
         // Start periodic cleanup (every 5 minutes) to avoid performance issues
         this.cleanupInterval = setInterval(() => {
             this.cleanupProcessingQueue().catch((error) => {
-                console.error("❌ Background cleanup error:", error);
+                console.error('❌ Background cleanup error:', error);
             });
         }, 5 * 60 * 1000); // 5 minutes
 
@@ -66,7 +66,7 @@ class VideoQueueManager {
         };
 
         console.log(`📋 Using Redis namespace: ${namespace}`);
-        console.log(`🔑 Queue keys: ${Object.keys(this.keys).join(", ")}`);
+        console.log(`🔑 Queue keys: ${Object.keys(this.keys).join(', ')}`);
 
         // Promisify Redis v3 methods for async/await usage
         this.lpushAsync = promisify(this.client.lpush).bind(this.client);
@@ -87,7 +87,7 @@ class VideoQueueManager {
      */
     async connect() {
         // Redis v3 connects automatically when first command is issued
-        console.log("🔗 Redis client ready (v3 auto-connects)");
+        console.log('🔗 Redis client ready (v3 auto-connects)');
     }
 
     /**
@@ -98,7 +98,7 @@ class VideoQueueManager {
     async addJob(parameters) {
         const job = {
             id: `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            status: "pending",
+            status: 'pending',
             parameters: parameters,
             createdAt: new Date().toISOString(),
             startedAt: null,
@@ -109,7 +109,7 @@ class VideoQueueManager {
             maxRetries: 3,
             error: null,
             progress: 0,
-            currentStep: "Queued for processing...",
+            currentStep: 'Queued for processing...',
         };
 
         try {
@@ -129,7 +129,7 @@ class VideoQueueManager {
 
             return job;
         } catch (error) {
-            console.error("❌ Failed to add job to queue:", error);
+            console.error('❌ Failed to add job to queue:', error);
             throw error;
         }
     }
@@ -151,7 +151,7 @@ class VideoQueueManager {
                 total: pending + processing + completed + failed,
             };
         } catch (error) {
-            console.error("❌ Failed to get queue status:", error);
+            console.error('❌ Failed to get queue status:', error);
             return { pending: 0, processing: 0, completed: 0, failed: 0, total: 0 };
         }
     }
@@ -171,7 +171,7 @@ class VideoQueueManager {
 
             return jobs;
         } catch (error) {
-            console.error("❌ Failed to get all jobs:", error);
+            console.error('❌ Failed to get all jobs:', error);
             return {};
         }
     }
@@ -208,7 +208,7 @@ class VideoQueueManager {
      */
     async startProcessing() {
         if (this.isProcessing) {
-            console.log("⚠️ Queue processing already running");
+            console.log('⚠️ Queue processing already running');
             return;
         }
 
@@ -253,13 +253,13 @@ class VideoQueueManager {
                     }
                 }
             } catch (error) {
-                console.error("❌ Queue processing error:", error);
+                console.error('❌ Queue processing error:', error);
                 // Wait before retrying to avoid rapid error loops
                 await this.sleep(5000);
             }
         }
 
-        console.log("🛑 Queue processing stopped");
+        console.log('🛑 Queue processing stopped');
     }
 
     /**
@@ -273,13 +273,13 @@ class VideoQueueManager {
             console.log(`📝 Added job ${job.id} to active jobs (${this.activeJobs.size}/${this.maxWorkers} active)`);
 
             // Initialize job logs
-            this.addJobLog(job.id, `Job ${job.id} started with worker pool`, "info");
-            this.addJobLog(job.id, `Parameters: ${JSON.stringify(job.parameters)}`, "info");
+            this.addJobLog(job.id, `Job ${job.id} started with worker pool`, 'info');
+            this.addJobLog(job.id, `Parameters: ${JSON.stringify(job.parameters)}`, 'info');
 
             await this.processJob(job);
         } catch (error) {
             console.error(`❌ Error in processJobAsync for job ${job.id}:`, error);
-            this.addJobLog(job.id, `Job error: ${error.message}`, "error");
+            this.addJobLog(job.id, `Job error: ${error.message}`, 'error');
         } finally {
             // Always clean up job tracking
             this.activeJobs.delete(job.id);
@@ -287,7 +287,7 @@ class VideoQueueManager {
             console.log(`🧹 Removed job ${job.id} from active tracking (${this.activeJobs.size}/${this.maxWorkers} active)`);
 
             // Add completion log
-            this.addJobLog(job.id, "Job processing completed and removed from active pool", "info");
+            this.addJobLog(job.id, 'Job processing completed and removed from active pool', 'info');
 
             // Keep logs for 10 minutes after job completion
             setTimeout(() => {
@@ -304,15 +304,15 @@ class VideoQueueManager {
         // Job processing (UI queue management)
         console.log(`\n🔄 Starting job: ${job.id}`);
         console.log(`📋 Parameters:`, job.parameters);
-        console.log(`🔍 Active jobs: ${Array.from(this.activeJobs.keys()).join(", ") || "none"}`);
+        console.log(`🔍 Active jobs: ${Array.from(this.activeJobs.keys()).join(', ') || 'none'}`);
         console.log(`--- Python Script Output ---`);
 
         try {
             // Update job status to processing
-            job.status = "processing";
+            job.status = 'processing';
             job.startedAt = new Date().toISOString();
             job.progress = 10;
-            job.currentStep = "Starting video generation...";
+            job.currentStep = 'Starting video generation...';
             job.workerId = `worker-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
             console.log(`✅ Assigned worker ID ${job.workerId} to job: ${job.id}`);
 
@@ -334,10 +334,10 @@ class VideoQueueManager {
             // Check if we have a video URL, Creatomate ID, or paused after extraction
             if (result.pausedAfterExtraction) {
                 // Process was paused after movie extraction - this is a successful completion
-                job.status = "completed";
+                job.status = 'completed';
                 job.completedAt = new Date().toISOString();
                 job.progress = 100;
-                job.currentStep = "Movie extraction completed - process paused for review";
+                job.currentStep = 'Movie extraction completed - process paused for review';
                 job.pausedAfterExtraction = true;
 
                 // Extract movie information from stdout for UI display
@@ -351,33 +351,33 @@ class VideoQueueManager {
                 await this.lpushAsync(this.keys.completed, JSON.stringify(job));
             } else if (result.videoUrl) {
                 // Video is fully complete
-                job.status = "completed";
+                job.status = 'completed';
                 job.completedAt = new Date().toISOString();
                 job.creatomateId = result.creatomateId;
                 job.videoUrl = result.videoUrl;
                 job.progress = 100;
-                job.currentStep = "Video generation completed!";
+                job.currentStep = 'Video generation completed!';
 
                 // Remove from processing queue and add to completed
                 await this.lremAsync(this.keys.processing, 1, processingJobState);
                 await this.lpushAsync(this.keys.completed, JSON.stringify(job));
             } else if (result.creatomateId) {
                 // Python script done but video still rendering
-                job.status = "completed"; // Mark as completed for Python script
+                job.status = 'completed'; // Mark as completed for Python script
                 job.creatomateId = result.creatomateId;
                 job.videoUrl = null; // No video URL yet
                 job.progress = 90;
-                job.currentStep = "Python script completed, video rendering in progress...";
+                job.currentStep = 'Python script completed, video rendering in progress...';
 
                 // Remove from processing queue and add to completed (but video not ready)
                 await this.lremAsync(this.keys.processing, 1, processingJobState);
                 await this.lpushAsync(this.keys.completed, JSON.stringify(job));
             } else {
                 // No video URL or Creatomate ID - something went wrong
-                job.status = "completed";
+                job.status = 'completed';
                 job.progress = 100;
-                job.currentStep = "Script completed but no video information available";
-                job.error = "No video URL or Creatomate ID returned";
+                job.currentStep = 'Script completed but no video information available';
+                job.error = 'No video URL or Creatomate ID returned';
 
                 // Remove from processing queue and add to completed
                 await this.lremAsync(this.keys.processing, 1, processingJobState);
@@ -411,7 +411,7 @@ class VideoQueueManager {
                 console.log(`🔪 EMERGENCY: Killing Python process for failed job ${job.id}`);
                 try {
                     // Force kill the process tree
-                    if (process.platform === "win32") {
+                    if (process.platform === 'win32') {
                         exec(`taskkill /f /t /pid ${activeProcess.pid}`, (killError) => {
                             if (killError) {
                                 console.error(`❌ Failed to kill process: ${killError.message}`);
@@ -420,7 +420,7 @@ class VideoQueueManager {
                             }
                         });
                     } else {
-                        activeProcess.kill("SIGKILL");
+                        activeProcess.kill('SIGKILL');
                     }
                     // Cleanup will be handled by processJobAsync finally block
                 } catch (killError) {
@@ -432,7 +432,7 @@ class VideoQueueManager {
             const processingJobState = JSON.stringify(job);
 
             // Mark job as FAILED immediately - reset everything for complete restart
-            job.status = "failed";
+            job.status = 'failed';
             job.error = this.categorizeError(error.message);
             job.retryCount++;
             job.progress = 0; // Reset progress to 0 for fresh start
@@ -457,7 +457,7 @@ class VideoQueueManager {
                 console.log(`⏰ Will retry after ${shouldRetry.delaySeconds}s delay`);
 
                 // Reset job to fresh state for complete restart
-                job.status = "pending";
+                job.status = 'pending';
                 job.progress = 0;
                 job.currentStep = `🔄 Scheduled for retry (attempt ${job.retryCount + 1}/${job.maxRetries}) - ${shouldRetry.reason}`;
                 job.error = null; // Clear error for fresh start
@@ -509,7 +509,7 @@ class VideoQueueManager {
             console.log(`Job ID: ${job.id}`);
             console.log(`Error: ${job.error}`);
             console.log(`Retry Count: ${job.retryCount}/${job.maxRetries}`);
-            console.log(`Will Retry: ${job.retryCount < job.maxRetries ? "YES" : "NO"}`);
+            console.log(`Will Retry: ${job.retryCount < job.maxRetries ? 'YES' : 'NO'}`);
             console.log(`Failed At: ${job.failedAt}`);
             console.log(`Parameters: ${JSON.stringify(job.parameters, null, 2)}`);
             console.log(`--- END FAILURE SUMMARY ---\n`);
@@ -524,102 +524,102 @@ class VideoQueueManager {
      * @returns {string} Categorized and formatted error message
      */
     categorizeError(errorMessage) {
-        if (!errorMessage) return "Unknown error occurred";
+        if (!errorMessage) return 'Unknown error occurred';
 
         const message = errorMessage.toLowerCase();
 
         // HeyGen API errors (highest priority - payment issues)
-        if (message.includes("insufficient credit") || message.includes("movio_payment_insufficient_credit")) {
-            return "💳 HeyGen Credits Exhausted - Please add credits to your HeyGen account";
+        if (message.includes('insufficient credit') || message.includes('movio_payment_insufficient_credit')) {
+            return '💳 HeyGen Credits Exhausted - Please add credits to your HeyGen account';
         }
-        if (message.includes("heygen") && (message.includes("authentication") || message.includes("unauthorized"))) {
-            return "🔐 HeyGen Authentication Failed - Check your API key";
+        if (message.includes('heygen') && (message.includes('authentication') || message.includes('unauthorized'))) {
+            return '🔐 HeyGen Authentication Failed - Check your API key';
         }
-        if (message.includes("heygen") && message.includes("rate limit")) {
-            return "⏳ HeyGen Rate Limit Exceeded - Too many requests";
+        if (message.includes('heygen') && message.includes('rate limit')) {
+            return '⏳ HeyGen Rate Limit Exceeded - Too many requests';
         }
-        if (message.includes("heygen") && message.includes("error")) {
-            return "🎭 HeyGen API Error - Service temporarily unavailable";
+        if (message.includes('heygen') && message.includes('error')) {
+            return '🎭 HeyGen API Error - Service temporarily unavailable';
         }
 
         // Creatomate API errors
-        if (message.includes("creatomate") && message.includes("insufficient credit")) {
-            return "💳 Creatomate Credits Exhausted - Please add credits to your account";
+        if (message.includes('creatomate') && message.includes('insufficient credit')) {
+            return '💳 Creatomate Credits Exhausted - Please add credits to your account';
         }
-        if (message.includes("creatomate") && (message.includes("authentication") || message.includes("401"))) {
-            return "🔐 Creatomate Authentication Failed - Check your API key";
+        if (message.includes('creatomate') && (message.includes('authentication') || message.includes('401'))) {
+            return '🔐 Creatomate Authentication Failed - Check your API key';
         }
-        if (message.includes("creatomate") && (message.includes("rate limit") || message.includes("429"))) {
-            return "⏳ Creatomate Rate Limit Exceeded - Please wait before retrying";
+        if (message.includes('creatomate') && (message.includes('rate limit') || message.includes('429'))) {
+            return '⏳ Creatomate Rate Limit Exceeded - Please wait before retrying';
         }
-        if (message.includes("creatomate") && message.includes("api error")) {
-            return "🎬 Creatomate API Error - Video service temporarily unavailable";
+        if (message.includes('creatomate') && message.includes('api error')) {
+            return '🎬 Creatomate API Error - Video service temporarily unavailable';
         }
 
         // Database and content errors
-        if (message.includes("insufficient movies") || (message.includes("only") && message.includes("found with current filters"))) {
-            return "🎬 Not Enough Movies Available - Try different filters";
+        if (message.includes('insufficient movies') || (message.includes('only') && message.includes('found with current filters'))) {
+            return '🎬 Not Enough Movies Available - Try different filters';
         }
-        if (message.includes("no movies found") || message.includes("database query failed")) {
-            return "🗃️ No Movies Found - Change genre/platform/content type";
+        if (message.includes('no movies found') || message.includes('database query failed')) {
+            return '🗃️ No Movies Found - Change genre/platform/content type';
         }
-        if (message.includes("connection failed") || message.includes("database connection failed")) {
-            return "🌐 Database Connection Failed - Check internet connection";
+        if (message.includes('connection failed') || message.includes('database connection failed')) {
+            return '🌐 Database Connection Failed - Check internet connection';
         }
 
         // Screenshot and browser errors
-        if (message.includes("screenshot") && message.includes("failed")) {
-            return "📸 Screenshot Capture Failed - Network or website issue";
+        if (message.includes('screenshot') && message.includes('failed')) {
+            return '📸 Screenshot Capture Failed - Network or website issue';
         }
-        if (message.includes("browser") || message.includes("playwright")) {
-            return "🌐 Browser Automation Failed - Website access issue";
+        if (message.includes('browser') || message.includes('playwright')) {
+            return '🌐 Browser Automation Failed - Website access issue';
         }
 
         // Process and system errors
-        if (message.includes("killed") || message.includes("cancelled") || message.includes("stopped")) {
-            return "🛑 Process Cancelled - Job was stopped by user or system";
+        if (message.includes('killed') || message.includes('cancelled') || message.includes('stopped')) {
+            return '🛑 Process Cancelled - Job was stopped by user or system';
         }
-        if (message.includes("timeout") || message.includes("timed out")) {
-            return "⏱️ Process Timeout - Operation took too long";
+        if (message.includes('timeout') || message.includes('timed out')) {
+            return '⏱️ Process Timeout - Operation took too long';
         }
-        if (message.includes("memory") || message.includes("out of memory")) {
-            return "🧠 Memory Error - Insufficient system memory";
+        if (message.includes('memory') || message.includes('out of memory')) {
+            return '🧠 Memory Error - Insufficient system memory';
         }
-        if (message.includes("disk") || message.includes("space")) {
-            return "💾 Disk Space Error - Insufficient storage available";
+        if (message.includes('disk') || message.includes('space')) {
+            return '💾 Disk Space Error - Insufficient storage available';
         }
 
         // Network and connectivity errors
-        if (message.includes("network") || message.includes("connection refused") || message.includes("unreachable")) {
-            return "🌐 Network Error - Check internet connection";
+        if (message.includes('network') || message.includes('connection refused') || message.includes('unreachable')) {
+            return '🌐 Network Error - Check internet connection';
         }
-        if (message.includes("ssl") || message.includes("certificate")) {
-            return "🔒 SSL Certificate Error - Network security issue";
+        if (message.includes('ssl') || message.includes('certificate')) {
+            return '🔒 SSL Certificate Error - Network security issue';
         }
 
         // File and permission errors
-        if (message.includes("permission") || message.includes("access denied")) {
-            return "🔒 Permission Error - File access denied";
+        if (message.includes('permission') || message.includes('access denied')) {
+            return '🔒 Permission Error - File access denied';
         }
-        if (message.includes("file not found") || message.includes("no such file")) {
-            return "📁 File Not Found - Missing required file";
+        if (message.includes('file not found') || message.includes('no such file')) {
+            return '📁 File Not Found - Missing required file';
         }
 
         // Generic API errors
-        if (message.includes("api") && message.includes("error")) {
-            return "🔧 API Error - External service temporarily unavailable";
+        if (message.includes('api') && message.includes('error')) {
+            return '🔧 API Error - External service temporarily unavailable';
         }
 
         // Python/script specific errors
-        if (message.includes("failed to process exactly") && message.includes("movie clips")) {
-            return "🎬 Movie Processing Failed - Critical workflow error";
+        if (message.includes('failed to process exactly') && message.includes('movie clips')) {
+            return '🎬 Movie Processing Failed - Critical workflow error';
         }
-        if (message.includes("python") || message.includes("traceback")) {
-            return "🐍 Script Error - Internal processing failure";
+        if (message.includes('python') || message.includes('traceback')) {
+            return '🐍 Script Error - Internal processing failure';
         }
 
         // Fallback for any unmatched errors
-        return `⚠️ ${errorMessage.substring(0, 100)}${errorMessage.length > 100 ? "..." : ""}`;
+        return `⚠️ ${errorMessage.substring(0, 100)}${errorMessage.length > 100 ? '...' : ''}`;
     }
 
     /**
@@ -668,31 +668,31 @@ class VideoQueueManager {
      */
     extractCriticalErrorMessage(output) {
         // HeyGen credit errors
-        if (output.includes("MOVIO_PAYMENT_INSUFFICIENT_CREDIT") || output.includes("Insufficient credit")) {
-            return "HeyGen credits exhausted - Please add credits to continue";
+        if (output.includes('MOVIO_PAYMENT_INSUFFICIENT_CREDIT') || output.includes('Insufficient credit')) {
+            return 'HeyGen credits exhausted - Please add credits to continue';
         }
 
         // Critical workflow failures
-        if (output.includes("Failed to process exactly") && output.includes("movie clips")) {
-            return "Critical workflow failure - Movie processing failed";
+        if (output.includes('Failed to process exactly') && output.includes('movie clips')) {
+            return 'Critical workflow failure - Movie processing failed';
         }
 
         // Authentication errors
-        if (output.includes("Authentication failed") || output.includes("Invalid API key")) {
-            return "API authentication failed - Check your credentials";
+        if (output.includes('Authentication failed') || output.includes('Invalid API key')) {
+            return 'API authentication failed - Check your credentials';
         }
 
         // System resource errors
-        if (output.includes("Out of memory")) {
-            return "System out of memory - Process cannot continue";
+        if (output.includes('Out of memory')) {
+            return 'System out of memory - Process cannot continue';
         }
 
-        if (output.includes("No space left") || output.includes("Disk quota exceeded")) {
-            return "Insufficient disk space - Cannot continue processing";
+        if (output.includes('No space left') || output.includes('Disk quota exceeded')) {
+            return 'Insufficient disk space - Cannot continue processing';
         }
 
         // Generic critical error
-        return "Critical error detected - Process terminated";
+        return 'Critical error detected - Process terminated';
     }
 
     /**
@@ -706,120 +706,120 @@ class VideoQueueManager {
         if (!errorMessage) {
             return {
                 retry: true,
-                reason: "Generic error - standard retry",
+                reason: 'Generic error - standard retry',
                 delaySeconds: Math.pow(2, currentRetryCount) * 30,
-                solution: "Monitor logs for specific error details",
+                solution: 'Monitor logs for specific error details',
             };
         }
 
         const error = errorMessage.toLowerCase();
 
         // ❌ NEVER RETRY - Credit/Payment Issues
-        if (error.includes("credits exhausted") || error.includes("insufficient credit") || error.includes("payment")) {
+        if (error.includes('credits exhausted') || error.includes('insufficient credit') || error.includes('payment')) {
             return {
                 retry: false,
-                reason: "Payment/credit issue requires manual resolution",
+                reason: 'Payment/credit issue requires manual resolution',
                 delaySeconds: 0,
-                solution: "Add credits to your HeyGen/Creatomate account before retrying",
+                solution: 'Add credits to your HeyGen/Creatomate account before retrying',
             };
         }
 
         // ❌ NEVER RETRY - Authentication Issues
-        if (error.includes("authentication failed") || error.includes("invalid api key") || error.includes("unauthorized")) {
+        if (error.includes('authentication failed') || error.includes('invalid api key') || error.includes('unauthorized')) {
             return {
                 retry: false,
-                reason: "Authentication failure requires credential fix",
+                reason: 'Authentication failure requires credential fix',
                 delaySeconds: 0,
-                solution: "Check and update your API keys in environment variables",
+                solution: 'Check and update your API keys in environment variables',
             };
         }
 
         // ❌ NEVER RETRY - System Resource Issues
-        if (error.includes("out of memory") || error.includes("disk space") || error.includes("quota exceeded")) {
+        if (error.includes('out of memory') || error.includes('disk space') || error.includes('quota exceeded')) {
             return {
                 retry: false,
-                reason: "System resource exhaustion requires admin intervention",
+                reason: 'System resource exhaustion requires admin intervention',
                 delaySeconds: 0,
-                solution: "Free up system resources (memory/disk) before retrying",
+                solution: 'Free up system resources (memory/disk) before retrying',
             };
         }
 
         // ❌ NEVER RETRY - Critical Workflow Failures (until manual review)
-        if (error.includes("critical workflow") || error.includes("movie processing failed")) {
+        if (error.includes('critical workflow') || error.includes('movie processing failed')) {
             return {
                 retry: false,
-                reason: "Critical workflow failure needs investigation",
+                reason: 'Critical workflow failure needs investigation',
                 delaySeconds: 0,
-                solution: "Check system logs and try different movie parameters",
+                solution: 'Check system logs and try different movie parameters',
             };
         }
 
         // 🟡 LIMITED RETRY - Rate Limits (short backoff)
-        if (error.includes("rate limit") || error.includes("too many requests")) {
+        if (error.includes('rate limit') || error.includes('too many requests')) {
             return {
                 retry: currentRetryCount < Math.min(maxRetries, 2), // Max 2 retries for rate limits
-                reason: "Rate limit - short retry with backoff",
+                reason: 'Rate limit - short retry with backoff',
                 delaySeconds: Math.pow(2, currentRetryCount + 2) * 60, // 4, 8, 16 minutes
-                solution: "Wait for rate limit window to reset",
+                solution: 'Wait for rate limit window to reset',
             };
         }
 
         // 🟡 SMART RETRY - Network Issues (medium backoff)
-        if (error.includes("network") || error.includes("connection") || error.includes("timeout")) {
+        if (error.includes('network') || error.includes('connection') || error.includes('timeout')) {
             return {
                 retry: currentRetryCount < maxRetries,
-                reason: "Network issue - medium retry with backoff",
+                reason: 'Network issue - medium retry with backoff',
                 delaySeconds: Math.pow(2, currentRetryCount) * 60, // 1, 2, 4 minutes
-                solution: "Check internet connection stability",
+                solution: 'Check internet connection stability',
             };
         }
 
         // 🟡 SMART RETRY - Screenshot/Browser Issues (medium backoff)
-        if (error.includes("screenshot") || error.includes("browser")) {
+        if (error.includes('screenshot') || error.includes('browser')) {
             return {
                 retry: currentRetryCount < maxRetries,
-                reason: "Screenshot/browser issue - medium retry",
+                reason: 'Screenshot/browser issue - medium retry',
                 delaySeconds: Math.pow(2, currentRetryCount) * 45, // 45s, 90s, 180s
-                solution: "Website may be temporarily inaccessible",
+                solution: 'Website may be temporarily inaccessible',
             };
         }
 
         // 🟡 SMART RETRY - Database/Content Issues (longer backoff)
-        if (error.includes("no movies found") || error.includes("not enough movies")) {
+        if (error.includes('no movies found') || error.includes('not enough movies')) {
             return {
                 retry: currentRetryCount < Math.min(maxRetries, 1), // Only 1 retry
-                reason: "Content issue - single retry with different filters suggested",
+                reason: 'Content issue - single retry with different filters suggested',
                 delaySeconds: 120, // 2 minutes
-                solution: "Try different genre/platform/content type combination",
+                solution: 'Try different genre/platform/content type combination',
             };
         }
 
         // 🟡 SMART RETRY - API Service Issues (adaptive backoff)
-        if (error.includes("api error") || error.includes("service") || error.includes("temporarily unavailable")) {
+        if (error.includes('api error') || error.includes('service') || error.includes('temporarily unavailable')) {
             return {
                 retry: currentRetryCount < maxRetries,
-                reason: "External API issue - adaptive retry",
+                reason: 'External API issue - adaptive retry',
                 delaySeconds: Math.pow(2, currentRetryCount + 1) * 30, // 1, 2, 4 minutes
-                solution: "External service is experiencing issues",
+                solution: 'External service is experiencing issues',
             };
         }
 
         // 🟡 SMART RETRY - Process Cancellation (immediate retry allowed)
-        if (error.includes("cancelled") || error.includes("stopped") || error.includes("killed")) {
+        if (error.includes('cancelled') || error.includes('stopped') || error.includes('killed')) {
             return {
                 retry: currentRetryCount < maxRetries,
-                reason: "Process was cancelled - can retry immediately",
+                reason: 'Process was cancelled - can retry immediately',
                 delaySeconds: 30, // Short delay
-                solution: "Job was stopped, safe to retry",
+                solution: 'Job was stopped, safe to retry',
             };
         }
 
         // ✅ DEFAULT RETRY - Unknown errors (standard exponential backoff)
         return {
             retry: currentRetryCount < maxRetries,
-            reason: "Unknown error - standard exponential backoff",
+            reason: 'Unknown error - standard exponential backoff',
             delaySeconds: Math.pow(2, currentRetryCount) * 30, // 30s, 1m, 2m, 4m
-            solution: "Monitor logs for specific error patterns",
+            solution: 'Monitor logs for specific error patterns',
         };
     }
 
@@ -835,31 +835,31 @@ class VideoQueueManager {
 
             // Construct Python command (Using main.py modular system as requested)
             // Check if running in Docker or locally
-            const isDocker = process.env.PYTHON_BACKEND_PATH === "/app";
-            const scriptPath = isDocker ? "main.py" : path.join(__dirname, "../main.py");
-            const args = [scriptPath, "--country", country, "--platform", platform, "--genre", genre, "--content-type", contentType];
+            const isDocker = process.env.PYTHON_BACKEND_PATH === '/app';
+            const scriptPath = isDocker ? 'main.py' : path.join(__dirname, '../main.py');
+            const args = [scriptPath, '--country', country, '--platform', platform, '--genre', genre, '--content-type', contentType];
 
             // Add template parameter if provided and not 'auto'
-            if (template && template !== "auto") {
-                args.push("--heygen-template-id", template);
+            if (template && template !== 'auto') {
+                args.push('--heygen-template-id', template);
             }
 
             // Add pause flag if enabled
             if (pauseAfterExtraction) {
-                args.push("--pause-after-extraction");
+                args.push('--pause-after-extraction');
             }
 
             // Executing exact CLI command as requested
-            console.log("🚀 Executing exact CLI command:", "python", args.join(" "));
+            console.log('🚀 Executing exact CLI command:', 'python', args.join(' '));
 
             // Spawn Python process
-            const workingDir = isDocker ? "/app" : path.join(__dirname, "..");
-            const pythonProcess = spawn("python", args, {
+            const workingDir = isDocker ? '/app' : path.join(__dirname, '..');
+            const pythonProcess = spawn('python', args, {
                 cwd: workingDir,
                 env: {
                     ...process.env,
-                    PYTHONIOENCODING: "utf-8",
-                    PYTHONUNBUFFERED: "1",
+                    PYTHONIOENCODING: 'utf-8',
+                    PYTHONUNBUFFERED: '1',
                 },
             });
 
@@ -867,28 +867,28 @@ class VideoQueueManager {
             this.activeProcesses.set(job.id, pythonProcess);
             console.log(`🔗 Stored process for job ${job.id} (${this.activeProcesses.size} active processes)`);
 
-            let stdout = "";
-            let stderr = "";
+            let stdout = '';
+            let stderr = '';
 
             // Handle Python process output
-            pythonProcess.stdout.on("data", async (data) => {
-                const output = data.toString("utf8");
+            pythonProcess.stdout.on('data', async (data) => {
+                const output = data.toString('utf8');
                 stdout += output;
 
                 // 🚨 IMMEDIATE CRITICAL ERROR DETECTION - Stop process on fatal errors
                 if (this.detectCriticalErrors(output)) {
-                    console.log("🚨 CRITICAL ERROR DETECTED - Stopping process immediately");
+                    console.log('🚨 CRITICAL ERROR DETECTED - Stopping process immediately');
                     if (pythonProcess && !pythonProcess.killed) {
-                        pythonProcess.kill("SIGKILL");
+                        pythonProcess.kill('SIGKILL');
                     }
                     reject(new Error(this.extractCriticalErrorMessage(output)));
                     return;
                 }
 
                 // Check for movie extraction completion and capture for UI display
-                if (output.includes("📋 Movies extracted from database:")) {
+                if (output.includes('📋 Movies extracted from database:')) {
                     // Initialize movie capture for UI display only
-                    job.extractedMoviesOutput = "";
+                    job.extractedMoviesOutput = '';
                     job.capturingMovies = true;
                 }
 
@@ -897,12 +897,12 @@ class VideoQueueManager {
                     // Look for movie lines with format "   1. Title (Year) - IMDB: Score" or similar variations
                     const movieLineMatch = output.match(/^\s+\d+\.\s+.+\(\d{4}\)\s+-\s+IMDB:/);
                     if (movieLineMatch) {
-                        job.extractedMoviesOutput += output.trim() + "\n";
+                        job.extractedMoviesOutput += output.trim() + '\n';
                         console.log(`📋 Captured movie line: ${output.trim()}`);
                     }
 
                     // Stop capturing when we hit the next step or completion
-                    if (output.includes("✅ STEP 1 COMPLETED") || output.includes("[STEP 2/7]")) {
+                    if (output.includes('✅ STEP 1 COMPLETED') || output.includes('[STEP 2/7]')) {
                         // Finalize the captured movies and immediately display in UI
                         if (job.extractedMoviesOutput.trim()) {
                             job.extractedMovies = job.extractedMoviesOutput.trim();
@@ -910,7 +910,7 @@ class VideoQueueManager {
 
                             // Update job progress with movie extraction step and trigger UI update
                             job.progress = Math.max(job.progress, 22);
-                            job.currentStep = "📋 Movies extracted - displaying in UI...";
+                            job.currentStep = '📋 Movies extracted - displaying in UI...';
                             job.showExtractedMovies = true; // Flag to trigger immediate UI display
                             await this.updateJob(job);
                         }
@@ -940,98 +940,98 @@ class VideoQueueManager {
                         const stepPatterns = [
                             // Step 1: Database Extraction
                             {
-                                patterns: ["STEP 1/7"],
+                                patterns: ['STEP 1/7'],
                                 progress: 15,
-                                step: "🗃️ Step 1/7: Extracting movies from database...",
+                                step: '🗃️ Step 1/7: Extracting movies from database...',
                             },
                             {
-                                patterns: ["✅ STEP 1 COMPLETED"],
+                                patterns: ['✅ STEP 1 COMPLETED'],
                                 progress: 20,
-                                step: "✅ Step 1 completed: Movies extracted successfully",
+                                step: '✅ Step 1 completed: Movies extracted successfully',
                             },
 
                             // Step 2: Script Generation
                             {
-                                patterns: ["STEP 2/7"],
+                                patterns: ['STEP 2/7'],
                                 progress: 25,
-                                step: "🤖 Step 2/7: Generating AI-powered scripts...",
+                                step: '🤖 Step 2/7: Generating AI-powered scripts...',
                             },
                             {
-                                patterns: ["✅ STEP 2 COMPLETED"],
+                                patterns: ['✅ STEP 2 COMPLETED'],
                                 progress: 35,
-                                step: "✅ Step 2 completed: AI scripts generated successfully",
+                                step: '✅ Step 2 completed: AI scripts generated successfully',
                             },
 
                             // Step 3: Asset Preparation
                             {
-                                patterns: ["STEP 3/7"],
+                                patterns: ['STEP 3/7'],
                                 progress: 40,
-                                step: "🎨 Step 3/7: Creating enhanced posters and clips...",
+                                step: '🎨 Step 3/7: Creating enhanced posters and clips...',
                             },
                             {
-                                patterns: ["✅ STEP 3 COMPLETED"],
+                                patterns: ['✅ STEP 3 COMPLETED'],
                                 progress: 50,
-                                step: "✅ Step 3 completed: Assets created successfully",
+                                step: '✅ Step 3 completed: Assets created successfully',
                             },
 
                             // Step 4: HeyGen Video Creation
                             {
-                                patterns: ["STEP 4/7"],
+                                patterns: ['STEP 4/7'],
                                 progress: 55,
-                                step: "🎭 Step 4/7: Creating HeyGen AI avatar videos...",
+                                step: '🎭 Step 4/7: Creating HeyGen AI avatar videos...',
                             },
                             {
-                                patterns: ["✅ STEP 4 COMPLETED"],
+                                patterns: ['✅ STEP 4 COMPLETED'],
                                 progress: 65,
-                                step: "✅ Step 4 completed: HeyGen videos created successfully",
+                                step: '✅ Step 4 completed: HeyGen videos created successfully',
                             },
 
                             // Step 5: HeyGen Video Processing
                             {
-                                patterns: ["STEP 5/7"],
+                                patterns: ['STEP 5/7'],
                                 progress: 70,
-                                step: "⏳ Step 5/7: Processing HeyGen video URLs...",
+                                step: '⏳ Step 5/7: Processing HeyGen video URLs...',
                             },
                             {
-                                patterns: ["✅ STEP 5 COMPLETED"],
+                                patterns: ['✅ STEP 5 COMPLETED'],
                                 progress: 75,
-                                step: "✅ Step 5 completed: Video URLs processed successfully",
+                                step: '✅ Step 5 completed: Video URLs processed successfully',
                             },
 
                             // Step 6: Scroll Video Generation
                             {
-                                patterns: ["STEP 6/7"],
+                                patterns: ['STEP 6/7'],
                                 progress: 80,
-                                step: "📱 Step 6/7: Generating scroll video overlay...",
+                                step: '📱 Step 6/7: Generating scroll video overlay...',
                             },
                             {
-                                patterns: ["✅ STEP 6 COMPLETED"],
+                                patterns: ['✅ STEP 6 COMPLETED'],
                                 progress: 85,
-                                step: "✅ Step 6 completed: Scroll overlay generated successfully",
+                                step: '✅ Step 6 completed: Scroll overlay generated successfully',
                             },
                             {
-                                patterns: ["STEP 6/7", "SKIPPED"],
+                                patterns: ['STEP 6/7', 'SKIPPED'],
                                 progress: 85,
-                                step: "⏭️ Step 6 skipped: No scroll video needed",
+                                step: '⏭️ Step 6 skipped: No scroll video needed',
                             },
 
                             // Step 7: Creatomate Assembly
                             {
-                                patterns: ["STEP 7/7"],
+                                patterns: ['STEP 7/7'],
                                 progress: 90,
-                                step: "🎬 Step 7/7: Assembling final video with Creatomate...",
+                                step: '🎬 Step 7/7: Assembling final video with Creatomate...',
                             },
                             {
-                                patterns: ["✅ STEP 7 COMPLETED"],
+                                patterns: ['✅ STEP 7 COMPLETED'],
                                 progress: 95,
-                                step: "✅ Step 7 completed: Final video submitted for rendering",
+                                step: '✅ Step 7 completed: Final video submitted for rendering',
                             },
 
                             // Workflow Completion
                             {
-                                patterns: ["🎉 WORKFLOW COMPLETED SUCCESSFULLY"],
+                                patterns: ['🎉 WORKFLOW COMPLETED SUCCESSFULLY'],
                                 progress: 100,
-                                step: "🎉 Workflow completed successfully!",
+                                step: '🎉 Workflow completed successfully!',
                             },
                         ];
 
@@ -1053,44 +1053,44 @@ class VideoQueueManager {
 
                         // Legacy detection patterns (fallback for any missed cases)
                         if (!progressUpdated) {
-                            if (output.includes("Connecting to database") || output.includes("extracting movies")) {
+                            if (output.includes('Connecting to database') || output.includes('extracting movies')) {
                                 job.progress = Math.max(job.progress, 25);
-                                job.currentStep = "Extracting movies from database...";
+                                job.currentStep = 'Extracting movies from database...';
                                 progressUpdated = true;
                             }
-                            if (output.includes("Movies processed") || output.includes("Successfully extracted")) {
+                            if (output.includes('Movies processed') || output.includes('Successfully extracted')) {
                                 job.progress = Math.max(job.progress, 35);
-                                job.currentStep = "Movies extracted successfully";
+                                job.currentStep = 'Movies extracted successfully';
                                 progressUpdated = true;
                             }
-                            if (output.includes("Capturing StreamGank screenshots") || output.includes("Screenshot")) {
+                            if (output.includes('Capturing StreamGank screenshots') || output.includes('Screenshot')) {
                                 job.progress = Math.max(job.progress, 45);
-                                job.currentStep = "Capturing screenshots...";
+                                job.currentStep = 'Capturing screenshots...';
                                 progressUpdated = true;
                             }
-                            if (output.includes("Uploading") && output.includes("Cloudinary")) {
+                            if (output.includes('Uploading') && output.includes('Cloudinary')) {
                                 job.progress = Math.max(job.progress, 55);
-                                job.currentStep = "Uploading files to Cloudinary...";
+                                job.currentStep = 'Uploading files to Cloudinary...';
                                 progressUpdated = true;
                             }
-                            if (output.includes("Enriching movie data") || output.includes("AI descriptions")) {
+                            if (output.includes('Enriching movie data') || output.includes('AI descriptions')) {
                                 job.progress = Math.max(job.progress, 65);
-                                job.currentStep = "Enriching movie data with AI...";
+                                job.currentStep = 'Enriching movie data with AI...';
                                 progressUpdated = true;
                             }
-                            if (output.includes("HeyGen videos created") || output.includes("Creating HeyGen")) {
+                            if (output.includes('HeyGen videos created') || output.includes('Creating HeyGen')) {
                                 job.progress = Math.max(job.progress, 75);
-                                job.currentStep = "Creating HeyGen avatar videos...";
+                                job.currentStep = 'Creating HeyGen avatar videos...';
                                 progressUpdated = true;
                             }
-                            if (output.includes("Creatomate") && !output.includes("Video URL")) {
+                            if (output.includes('Creatomate') && !output.includes('Video URL')) {
                                 job.progress = Math.max(job.progress, 85);
-                                job.currentStep = "Submitting to Creatomate for rendering...";
+                                job.currentStep = 'Submitting to Creatomate for rendering...';
                                 progressUpdated = true;
                             }
-                            if (output.includes("Video URL") || output.includes("succeeded")) {
+                            if (output.includes('Video URL') || output.includes('succeeded')) {
                                 job.progress = Math.max(job.progress, 95);
-                                job.currentStep = "Video rendering completed!";
+                                job.currentStep = 'Video rendering completed!';
                                 progressUpdated = true;
                             }
                         }
@@ -1102,15 +1102,15 @@ class VideoQueueManager {
                 }
             });
 
-            pythonProcess.stderr.on("data", (data) => {
-                const output = data.toString("utf8");
+            pythonProcess.stderr.on('data', (data) => {
+                const output = data.toString('utf8');
                 stderr += output;
 
                 // 🚨 IMMEDIATE CRITICAL ERROR DETECTION in stderr
                 if (this.detectCriticalErrors(output)) {
-                    console.log("🚨 CRITICAL ERROR DETECTED in stderr - Stopping process immediately");
+                    console.log('🚨 CRITICAL ERROR DETECTED in stderr - Stopping process immediately');
                     if (pythonProcess && !pythonProcess.killed) {
-                        pythonProcess.kill("SIGKILL");
+                        pythonProcess.kill('SIGKILL');
                     }
                     reject(new Error(this.extractCriticalErrorMessage(output)));
                     return;
@@ -1120,11 +1120,11 @@ class VideoQueueManager {
                 process.stderr.write(output);
 
                 // Capture stderr as job-specific logs (usually errors)
-                this.addJobLog(job.id, output, "error");
+                this.addJobLog(job.id, output, 'error');
             });
 
             // Handle process completion
-            pythonProcess.on("close", (code) => {
+            pythonProcess.on('close', (code) => {
                 // Clear process reference from multi-worker tracking
                 this.activeProcesses.delete(job.id);
                 console.log(`🧹 Cleaned up process for job ${job.id} (${this.activeProcesses.size} active processes)`);
@@ -1134,24 +1134,24 @@ class VideoQueueManager {
                     const errorOutput = stdout + stderr;
 
                     // Check for Creatomate API errors (insufficient credits, etc.)
-                    if (errorOutput.includes("Creatomate API error")) {
+                    if (errorOutput.includes('Creatomate API error')) {
                         const creatomateErrorMatch = errorOutput.match(/Creatomate API error: (\d+) - ({.*?})/);
                         if (creatomateErrorMatch) {
                             const statusCode = creatomateErrorMatch[1];
-                            let errorMessage = "";
+                            let errorMessage = '';
 
                             try {
                                 const errorData = JSON.parse(creatomateErrorMatch[2]);
-                                if (statusCode === "402") {
-                                    errorMessage = `💳 Insufficient Creatomate credits - ${errorData.hint || "Please check your subscription usage"}`;
-                                } else if (statusCode === "401") {
-                                    errorMessage = `🔐 Creatomate authentication failed - ${errorData.hint || "Please check your API key"}`;
-                                } else if (statusCode === "429") {
-                                    errorMessage = `⏳ Creatomate rate limit exceeded - ${errorData.hint || "Please wait before retrying"}`;
-                                } else if (statusCode === "400") {
-                                    errorMessage = `⚠️ Invalid Creatomate request - ${errorData.hint || errorData.message || "Please check your video parameters"}`;
+                                if (statusCode === '402') {
+                                    errorMessage = `💳 Insufficient Creatomate credits - ${errorData.hint || 'Please check your subscription usage'}`;
+                                } else if (statusCode === '401') {
+                                    errorMessage = `🔐 Creatomate authentication failed - ${errorData.hint || 'Please check your API key'}`;
+                                } else if (statusCode === '429') {
+                                    errorMessage = `⏳ Creatomate rate limit exceeded - ${errorData.hint || 'Please wait before retrying'}`;
+                                } else if (statusCode === '400') {
+                                    errorMessage = `⚠️ Invalid Creatomate request - ${errorData.hint || errorData.message || 'Please check your video parameters'}`;
                                 } else {
-                                    errorMessage = `🔧 Creatomate API error (${statusCode}) - ${errorData.hint || errorData.message || "Unknown API error"}`;
+                                    errorMessage = `🔧 Creatomate API error (${statusCode}) - ${errorData.hint || errorData.message || 'Unknown API error'}`;
                                 }
                             } catch (e) {
                                 errorMessage = `🔧 Creatomate API error (${statusCode}) - Please check your account status and try again`;
@@ -1163,7 +1163,7 @@ class VideoQueueManager {
                     }
 
                     // Check for HeyGen API errors
-                    if (errorOutput.includes("HeyGen API error") || errorOutput.includes("HeyGen error")) {
+                    if (errorOutput.includes('HeyGen API error') || errorOutput.includes('HeyGen error')) {
                         const heygenErrorMatch = errorOutput.match(/HeyGen.*?error[:\s]+(.*?)(?:\n|$)/i);
                         if (heygenErrorMatch) {
                             const errorMsg = heygenErrorMatch[1].trim();
@@ -1173,19 +1173,19 @@ class VideoQueueManager {
                     }
 
                     // Check for insufficient movies error (less than 3 movies found)
-                    if (errorOutput.includes("Insufficient movies found") || (errorOutput.includes("only") && errorOutput.includes("movie(s) available"))) {
+                    if (errorOutput.includes('Insufficient movies found') || (errorOutput.includes('only') && errorOutput.includes('movie(s) available'))) {
                         const movieCountMatch = errorOutput.match(/only (\d+) movie\(s\) available/);
-                        const movieCount = movieCountMatch ? movieCountMatch[1] : "few";
+                        const movieCount = movieCountMatch ? movieCountMatch[1] : 'few';
 
                         // Try to extract movie names from the output
-                        let movieNames = "";
+                        let movieNames = '';
                         const movieSectionMatch = errorOutput.match(/🎬 Movies found with current filters:([\s\S]*?)(?:\n\n|\n   Please try)/);
                         if (movieSectionMatch && movieSectionMatch[1]) {
-                            const movieLines = movieSectionMatch[1].trim().split("\n");
+                            const movieLines = movieSectionMatch[1].trim().split('\n');
                             const movies = movieLines
                                 .filter((line) => line.trim().match(/^\d+\./))
-                                .map((line) => line.trim().replace(/^\d+\.\s*/, ""))
-                                .join(", ");
+                                .map((line) => line.trim().replace(/^\d+\.\s*/, ''))
+                                .join(', ');
                             if (movies) {
                                 movieNames = ` Found movies: ${movies}.`;
                             }
@@ -1196,37 +1196,37 @@ class VideoQueueManager {
                     }
 
                     // Check for database errors
-                    if (errorOutput.includes("No movies found matching criteria") || errorOutput.includes("Database query failed")) {
-                        reject(new Error("🗃️ No movies found for the selected parameters (genre, platform, content type). Please try different filters to find available content."));
+                    if (errorOutput.includes('No movies found matching criteria') || errorOutput.includes('Database query failed')) {
+                        reject(new Error('🗃️ No movies found for the selected parameters (genre, platform, content type). Please try different filters to find available content.'));
                         return;
                     }
 
                     // Check for connection errors
-                    if (errorOutput.includes("Connection failed") || errorOutput.includes("Database connection failed")) {
-                        reject(new Error("🌐 Database connection failed. Please check your internet connection and try again."));
+                    if (errorOutput.includes('Connection failed') || errorOutput.includes('Database connection failed')) {
+                        reject(new Error('🌐 Database connection failed. Please check your internet connection and try again.'));
                         return;
                     }
 
                     // Check for screenshot/browser errors
-                    if (errorOutput.includes("Screenshot") && errorOutput.includes("failed")) {
-                        reject(new Error("📸 Screenshot capture failed. This might be due to network issues or website accessibility. Please try again."));
+                    if (errorOutput.includes('Screenshot') && errorOutput.includes('failed')) {
+                        reject(new Error('📸 Screenshot capture failed. This might be due to network issues or website accessibility. Please try again.'));
                         return;
                     }
 
                     // Generic error message for other failures
-                    reject(new Error(`Video generation failed: ${stderr || "Unknown error occurred"}`));
+                    reject(new Error(`Video generation failed: ${stderr || 'Unknown error occurred'}`));
                     return;
                 }
 
                 // Parse results from Python output
-                let creatomateId = "";
-                let videoUrl = "";
+                let creatomateId = '';
+                let videoUrl = '';
                 let pausedAfterExtraction = false;
 
                 // Check if process was paused after extraction
-                if (stdout.includes("PROCESS PAUSED - Movie extraction completed")) {
+                if (stdout.includes('PROCESS PAUSED - Movie extraction completed')) {
                     pausedAfterExtraction = true;
-                    console.log("📋 Process paused after movie extraction");
+                    console.log('📋 Process paused after movie extraction');
                 }
 
                 // Extract Creatomate ID (UUID format)
@@ -1248,7 +1248,7 @@ class VideoQueueManager {
                     resolve({
                         success: true,
                         pausedAfterExtraction: true,
-                        message: "Movie extraction completed - process paused for review",
+                        message: 'Movie extraction completed - process paused for review',
                         stdout: stdout,
                         stderr: stderr,
                     });
@@ -1263,7 +1263,7 @@ class VideoQueueManager {
             });
 
             // Handle process errors
-            pythonProcess.on("error", (error) => {
+            pythonProcess.on('error', (error) => {
                 reject(new Error(`Failed to start Python process: ${error.message}`));
             });
         });
@@ -1303,13 +1303,13 @@ class VideoQueueManager {
             // Get the job
             const job = await this.getJob(jobId);
             if (!job) {
-                throw new Error("Job not found");
+                throw new Error('Job not found');
             }
 
             const activeJob = this.activeJobs.get(jobId);
             const activeProcess = this.activeProcesses.get(jobId);
-            console.log(`🔍 Debug - activeJob: ${activeJob ? jobId : "null"}, activeProcess: ${activeProcess ? activeProcess.pid : "null"}`);
-            console.log(`🔍 Active jobs: ${Array.from(this.activeJobs.keys()).join(", ") || "none"}`);
+            console.log(`🔍 Debug - activeJob: ${activeJob ? jobId : 'null'}, activeProcess: ${activeProcess ? activeProcess.pid : 'null'}`);
+            console.log(`🔍 Active jobs: ${Array.from(this.activeJobs.keys()).join(', ') || 'none'}`);
 
             // If this job is currently processing, kill the Python process
             if (activeJob && activeProcess) {
@@ -1318,8 +1318,8 @@ class VideoQueueManager {
 
                 try {
                     // On Windows, use taskkill for more reliable process termination
-                    if (process.platform === "win32") {
-                        console.log("🪟 Using Windows taskkill for process termination");
+                    if (process.platform === 'win32') {
+                        console.log('🪟 Using Windows taskkill for process termination');
 
                         // Kill the process tree (including child processes)
                         exec(`taskkill /pid ${processPid} /t /f`, (error, stdout, stderr) => {
@@ -1332,13 +1332,13 @@ class VideoQueueManager {
                     } else {
                         // Unix-like systems: use SIGTERM first, then SIGKILL
                         const processToKill = activeProcess;
-                        processToKill.kill("SIGTERM");
+                        processToKill.kill('SIGTERM');
 
                         // Force kill after 5 seconds if still running
                         setTimeout(() => {
                             if (processToKill && !processToKill.killed) {
                                 console.log(`🔪 Force killing Python process for job ${jobId} (PID: ${processPid})`);
-                                processToKill.kill("SIGKILL");
+                                processToKill.kill('SIGKILL');
                             }
                         }, 5000);
                     }
@@ -1361,11 +1361,11 @@ class VideoQueueManager {
             }
 
             // Update job status
-            job.status = "cancelled";
+            job.status = 'cancelled';
             job.progress = 0;
             job.cancelledAt = new Date().toISOString();
-            job.currentStep = "Job cancelled by user";
-            job.error = "Process stopped by user request";
+            job.currentStep = 'Job cancelled by user';
+            job.error = 'Process stopped by user request';
 
             // Remove from processing queue if it's there
             await this.removeFromProcessingQueue(job);
@@ -1393,7 +1393,7 @@ class VideoQueueManager {
      */
     stopProcessing() {
         this.isProcessing = false;
-        console.log("🛑 Queue processing stopped");
+        console.log('🛑 Queue processing stopped');
     }
 
     /**
@@ -1402,9 +1402,9 @@ class VideoQueueManager {
     async clearAllQueues() {
         try {
             await Promise.all([this.delAsync(this.keys.pending), this.delAsync(this.keys.processing), this.delAsync(this.keys.completed), this.delAsync(this.keys.failed), this.delAsync(this.keys.jobs)]);
-            console.log("🗑️ All queues cleared");
+            console.log('🗑️ All queues cleared');
         } catch (error) {
-            console.error("❌ Failed to clear queues:", error);
+            console.error('❌ Failed to clear queues:', error);
         }
     }
 
@@ -1422,13 +1422,13 @@ class VideoQueueManager {
                     const jobDetails = await this.getJob(job.id);
 
                     // If job is completed or failed in job store but still in processing queue, remove it
-                    if (jobDetails && (jobDetails.status === "completed" || jobDetails.status === "failed")) {
+                    if (jobDetails && (jobDetails.status === 'completed' || jobDetails.status === 'failed')) {
                         await this.lremAsync(this.keys.processing, 1, jobStr);
                         cleanedCount++;
                         console.log(`🧹 Cleaned up orphaned processing job: ${job.id} (status: ${jobDetails.status})`);
                     }
                     // Also check for jobs stuck in processing for more than 30 minutes
-                    else if (jobDetails && jobDetails.status === "processing" && jobDetails.startedAt) {
+                    else if (jobDetails && jobDetails.status === 'processing' && jobDetails.startedAt) {
                         const startTime = new Date(jobDetails.startedAt);
                         const now = new Date();
                         const timeDiff = now - startTime;
@@ -1436,8 +1436,8 @@ class VideoQueueManager {
 
                         if (timeDiff > thirtyMinutes) {
                             // Mark as failed and remove from processing queue
-                            jobDetails.status = "failed";
-                            jobDetails.error = "Job timed out after 30 minutes";
+                            jobDetails.status = 'failed';
+                            jobDetails.error = 'Job timed out after 30 minutes';
                             jobDetails.failedAt = new Date().toISOString();
 
                             await this.lremAsync(this.keys.processing, 1, jobStr);
@@ -1467,7 +1467,7 @@ class VideoQueueManager {
 
             return cleanedCount;
         } catch (error) {
-            console.error("❌ Failed to cleanup processing queue:", error);
+            console.error('❌ Failed to cleanup processing queue:', error);
             return 0;
         }
     }
@@ -1498,7 +1498,7 @@ class VideoQueueManager {
                 isProcessing: this.isProcessing,
             };
         } catch (error) {
-            console.error("❌ Failed to get queue stats:", error);
+            console.error('❌ Failed to get queue stats:', error);
             return null;
         }
     }
@@ -1519,16 +1519,16 @@ class VideoQueueManager {
     getLogTypeFromOutput(output) {
         const text = output.toLowerCase();
 
-        if (text.includes("error") || text.includes("❌") || text.includes("failed") || text.includes("exception")) {
-            return "error";
-        } else if (text.includes("warning") || text.includes("⚠️") || text.includes("warn")) {
-            return "warning";
-        } else if (text.includes("✅") || text.includes("success") || text.includes("completed") || text.includes("done")) {
-            return "success";
-        } else if (text.includes("step") || text.includes("[step") || text.includes("🔄") || text.includes("🗃️") || text.includes("🤖")) {
-            return "step";
+        if (text.includes('error') || text.includes('❌') || text.includes('failed') || text.includes('exception')) {
+            return 'error';
+        } else if (text.includes('warning') || text.includes('⚠️') || text.includes('warn')) {
+            return 'warning';
+        } else if (text.includes('✅') || text.includes('success') || text.includes('completed') || text.includes('done')) {
+            return 'success';
+        } else if (text.includes('step') || text.includes('[step') || text.includes('🔄') || text.includes('🗃️') || text.includes('🤖')) {
+            return 'step';
         } else {
-            return "info";
+            return 'info';
         }
     }
 
@@ -1538,7 +1538,7 @@ class VideoQueueManager {
      * @param {string} message - Log message
      * @param {string} type - Log type (info, success, warning, error, step)
      */
-    addJobLog(jobId, message, type = "info") {
+    addJobLog(jobId, message, type = 'info') {
         if (!this.jobLogs.has(jobId)) {
             this.jobLogs.set(jobId, []);
         }
@@ -1588,13 +1588,13 @@ class VideoQueueManager {
             // Clear the periodic cleanup interval
             if (this.cleanupInterval) {
                 clearInterval(this.cleanupInterval);
-                console.log("🧹 Stopped periodic cleanup");
+                console.log('🧹 Stopped periodic cleanup');
             }
 
             await this.quitAsync();
-            console.log("🔌 Redis connection closed");
+            console.log('🔌 Redis connection closed');
         } catch (error) {
-            console.error("❌ Error closing Redis connection:", error);
+            console.error('❌ Error closing Redis connection:', error);
         }
     }
 }
