@@ -1,11 +1,10 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>StreamGank Video Generator</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
         <link rel="stylesheet" href="css/style.css" />
     </head>
     <body>
@@ -27,14 +26,6 @@
         </header>
 
         <div class="container-fluid main-content">
-            <!-- Professional Status Messages (At the top) -->
-            <div class="status-messages mb-4" id="status-messages">
-                <div class="status-message waiting">
-                    <span class="status-icon">⏳</span>
-                    <span class="status-text">Ready to generate video. Click the Generate button to start.</span>
-                </div>
-            </div>
-
             <div class="row">
                 <!-- Left Panel -->
                 <div class="col-md-3 filter-panel">
@@ -44,8 +35,8 @@
                         <h3>Streaming Country</h3>
                         <div class="form-group country-selector">
                             <select id="country" class="form-select">
-                                <option value="FR">France (FR)</option>
-                                <option value="US" selected>United States (US)</option>
+                                <option value="FR" selected>France (FR)</option>
+                                <option value="US">United States (US)</option>
                                 <option value="GB" disabled>United Kingdom (GB)</option>
                                 <option value="CA" disabled>Canada (CA)</option>
                                 <option value="AU" disabled>Australia (AU)</option>
@@ -88,24 +79,11 @@
                                 <label class="form-check-label" for="all">All</label>
                             </div>
                             <div class="form-check">
-                                <input
-                                    class="form-check-input"
-                                    type="radio"
-                                    name="contentType"
-                                    id="movie"
-                                    value="Film"
-                                />
+                                <input class="form-check-input" type="radio" name="contentType" id="movie" value="Film" />
                                 <label class="form-check-label" for="movie">Movies</label>
                             </div>
                             <div class="form-check">
-                                <input
-                                    class="form-check-input"
-                                    type="radio"
-                                    name="contentType"
-                                    id="serie"
-                                    checked="checked"
-                                    value="Serie"
-                                />
+                                <input class="form-check-input" type="radio" name="contentType" id="serie" checked value="Serie" />
                                 <label class="form-check-label" for="serie">TV Shows</label>
                             </div>
                         </div>
@@ -115,32 +93,19 @@
                         <h3>Generation Options</h3>
                         <div class="form-group options-selector">
                             <div class="form-check">
-                                <input
-                                    class="form-check-input"
-                                    type="checkbox"
-                                    id="pauseAfterExtraction"
-                                    value="true"
-                                />
+                                <input class="form-check-input" type="checkbox" id="pauseAfterExtraction" value="true" />
                                 <label class="form-check-label" for="pauseAfterExtraction">
                                     <strong>Pause after movie extraction</strong><br />
-                                    <small class="text-muted"
-                                        >Stop process after finding 3 movies to review before video generation</small
-                                    >
+                                    <small class="text-muted">Stop process after finding 3 movies to review before video generation</small>
                                 </label>
                             </div>
                         </div>
                     </div>
 
-                    <button id="generate-video" class="btn btn-success btn-lg mt-4 w-100">
-                        <span class="icon">🎬</span> Generate Video
-                    </button>
+                    <button id="generate-video" class="btn btn-success btn-lg mt-4 w-100"><span class="icon">🎬</span> Generate Video</button>
 
                     <div class="progress mt-4 d-none" id="progress-container">
-                        <div
-                            class="progress-bar progress-bar-striped progress-bar-animated"
-                            role="progressbar"
-                            style="width: 0%"
-                        ></div>
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                     </div>
                 </div>
 
@@ -173,9 +138,7 @@
                             </div>
                             <div class="url-preview">
                                 <span class="label">Target URL:</span>
-                                <span class="value url-value" id="preview-url"
-                                    >https://streamgank.com/?country=FR&genres=Horreur&platforms=netflix</span
-                                >
+                                <span class="value url-value" id="preview-url">https://streamgank.com/?country=FR&genres=Horreur&platforms=netflix</span>
                             </div>
                         </div>
                     </div>
@@ -184,71 +147,72 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2 class="panel-title mb-0">Generation Status</h2>
                             <div>
-                                <button id="queue-status-btn" class="btn btn-outline-info btn-sm me-2">
-                                    <span>📋</span> Queue Status
-                                </button>
-                                <button id="clear-logs-btn" class="btn btn-outline-secondary btn-sm">
-                                    <span>🗑️</span> Clear Logs
-                                </button>
+                                <button id="queue-status-btn" class="btn btn-outline-info btn-sm me-2"><span>📋</span> Queue Status</button>
+                                <button id="clear-logs-btn" class="btn btn-outline-secondary btn-sm"><span>🗑️</span> Clear Logs</button>
                             </div>
                         </div>
-                        <!-- Professional Job Management Dashboard -->
-                        <div class="card bg-dark border-secondary mb-4" style="border-radius: 12px">
-                            <div
-                                class="card-header bg-gradient"
-                                style="
-                                    background: linear-gradient(135deg, #495057 0%, #343a40 100%);
-                                    border-radius: 12px 12px 0 0;
-                                "
-                            >
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <h5 class="mb-0 text-light">
-                                        <i class="fas fa-tasks me-2"></i>
-                                        Job Management Dashboard
-                                        <span id="job-count-badge" class="badge bg-primary ms-2">0</span>
-                                    </h5>
-                                    <div class="d-flex gap-2">
-                                        <button id="refresh-jobs" class="btn btn-outline-light btn-sm">
-                                            <i class="fas fa-sync-alt me-1"></i> Refresh
-                                        </button>
-                                        <select
-                                            id="status-filter"
-                                            class="form-select form-select-sm"
-                                            style="width: auto"
-                                        >
+                        <!-- Professional Process Management Interface -->
+                        <div id="process-management-container" class="mb-4" style="display: none">
+                            <div class="process-header">
+                                <h5>⚙️ Process Management</h5>
+                                <div class="process-controls">
+                                    <div class="process-filters">
+                                        <select id="status-filter" class="form-select form-select-sm">
                                             <option value="all">All Status</option>
                                             <option value="pending">Pending</option>
-                                            <option value="active">Active</option>
+                                            <option value="processing">Processing</option>
                                             <option value="completed">Completed</option>
                                             <option value="failed">Failed</option>
-                                            <option value="cancelled">Cancelled</option>
                                         </select>
+                                        <input type="text" id="search-processes" class="form-control form-control-sm" placeholder="🔍 Search processes..." />
+                                    </div>
+                                    <div class="process-actions">
+                                        <button id="refresh-processes" class="btn btn-outline-primary btn-sm">🔄 Refresh</button>
+                                        <button id="clear-completed" class="btn btn-outline-secondary btn-sm">🗑️ Clear Completed</button>
                                     </div>
                                 </div>
                             </div>
-                            <div class="card-body" style="background-color: #212529; border-radius: 0 0 12px 12px">
-                                <!-- Job Cards Container -->
-                                <div id="job-cards-container" class="row g-3">
-                                    <!-- Job cards will be inserted here -->
-                                </div>
+
+                            <!-- Process List Table -->
+                            <div class="process-table-container">
+                                <table class="table process-table" id="process-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Status</th>
+                                            <th>Job ID</th>
+                                            <th>Worker</th>
+                                            <th>Progress</th>
+                                            <th>Country/Platform/Genre</th>
+                                            <th>Started</th>
+                                            <th>Duration</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="process-table-body">
+                                        <!-- Process rows will be inserted here -->
+                                    </tbody>
+                                </table>
 
                                 <!-- Empty State -->
-                                <div id="empty-jobs-state" class="text-center py-5" style="display: none">
-                                    <div class="mb-3">
-                                        <i class="fas fa-clipboard-list fa-3x text-muted"></i>
-                                    </div>
-                                    <h5 class="text-light mb-2">No Jobs Found</h5>
-                                    <p class="text-muted">Generate a video to see jobs appear here</p>
-                                </div>
-
-                                <!-- Loading State -->
-                                <div id="jobs-loading-state" class="text-center py-5">
-                                    <div class="spinner-border text-primary mb-3" role="status">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                    <p class="text-light">Loading jobs...</p>
+                                <div id="empty-process-state" class="empty-state" style="display: none">
+                                    <div class="empty-icon">📋</div>
+                                    <h6>No Active Processes</h6>
+                                    <p>Submit a video generation job to see processes here</p>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Global Status Messages (General system messages only) -->
+                        <div class="status-messages" id="status-messages">
+                            <div class="status-message waiting">
+                                <span class="status-icon">⏳</span>
+                                <span class="status-text">Ready to generate video. Click the Generate button to start.</span>
+                            </div>
+                        </div>
+
+                        <!-- Notice: Individual job progress is displayed in Process Management table below -->
+                        <div class="alert alert-info" style="margin-top: 1rem; padding: 0.75rem; font-size: 0.875rem">
+                            <strong>ℹ️ Process Tracking:</strong> Individual job progress and logs are displayed in the Process Management table below. Click "👁️ View" on any job to see detailed logs and status.
                         </div>
 
                         <!-- Redis Queue Status Dashboard -->
@@ -312,12 +276,8 @@
                                     </div>
 
                                     <div class="d-flex justify-content-between">
-                                        <button id="refresh-queue-btn" class="btn btn-outline-primary btn-sm">
-                                            🔄 Refresh
-                                        </button>
-                                        <button id="clear-queue-btn" class="btn btn-outline-danger btn-sm">
-                                            🗑️ Clear Queue
-                                        </button>
+                                        <button id="refresh-queue-btn" class="btn btn-outline-primary btn-sm">🔄 Refresh</button>
+                                        <button id="clear-queue-btn" class="btn btn-outline-danger btn-sm">🗑️ Clear Queue</button>
                                     </div>
                                 </div>
                             </div>
@@ -356,24 +316,14 @@
                                             <div class="spinner-border spinner-border-sm me-2" role="status"></div>
                                             <div>
                                                 <strong>Video is being rendered...</strong><br />
-                                                <small
-                                                    >Your video is currently being processed by Creatomate. This may
-                                                    take several minutes.</small
-                                                >
+                                                <small>Your video is currently being processed by Creatomate. This may take several minutes.</small>
                                             </div>
                                         </div>
-                                        <button id="check-status-btn" class="btn btn-outline-primary btn-sm">
-                                            <span>🔄</span> Check Status
-                                        </button>
-                                        <button id="load-video-btn" class="btn btn-outline-success btn-sm ms-2">
-                                            <span>🎬</span> Load Video
-                                        </button>
+                                        <button id="check-status-btn" class="btn btn-outline-primary btn-sm"><span>🔄</span> Check Status</button>
+                                        <button id="load-video-btn" class="btn btn-outline-success btn-sm ms-2"><span>🎬</span> Load Video</button>
                                     </div>
                                     <div class="mt-2">
-                                        <small class="text-muted">
-                                            Creatomate ID:
-                                            <span id="creatomate-id-display" class="font-monospace">-</span>
-                                        </small>
+                                        <small class="text-muted"> Creatomate ID: <span id="creatomate-id-display" class="font-monospace">-</span> </small>
                                     </div>
                                 </div>
                             </div>
@@ -384,7 +334,8 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
-        <!-- Vite Entry Point - Professional Modular JavaScript System -->
-        <script type="module" src="/src/main.js"></script>
+        <!-- JavaScript bundles will be automatically injected by webpack HtmlWebpackPlugin -->
+        <!-- Development: Use webpack-dev-server -->  
+        <!-- Production: Optimized bundles with cache-busting hashes -->
     </body>
 </html>

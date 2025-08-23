@@ -1,18 +1,18 @@
 {
   "data": {
-    "combined_script": "Dare to dive into Netflixs most chilling Horror trio from StreamGank? Buckle up, theyre causing nightmares worldwide!\n\nDare to dive into Netflixs most chilling Horror trio from StreamGank? Buckle up, theyre causing nightmares worldwide! Everyones too scared to watch Stranger Things, the 2016 horror masterpiece thats leaving Netflix viewers absolutely petrified!\n\nEveryones too scared to watch The Haunting of Hill House, but are you brave enough to confront the chilling secrets within?\n\nEveryones too scared to watch Love, Death & Robots, the horror masterpiece thats redefining terror on Netflix in 2019!",
+    "combined_script": "Brace yourself for StreamGanks top 3 spine-chilling Horror flicks on Netflix that are guaranteed to keep you up all night!\n\nBrace yourself for StreamGanks top 3 spine-chilling Horror flicks on Netflix that are guaranteed to keep you up all night! Everyones too scared to watch Stranger Things, but once you witness the terrifying unknown, youll be obsessed!\n\nEveryones too scared to watch The Haunting of Hill House, but are you brave enough to face the terror that awaits on Netflix?\n\nThis horror masterpiece Love, Death & Robots proves that even your wildest nightmares arent as terrifying as you think; theyre worse!",
     "script_file_path": "videos/combined_script.txt",
     "individual_scripts": {
       "movie1": {
-        "text": "Dare to dive into Netflixs most chilling Horror trio from StreamGank? Buckle up, theyre causing nightmares worldwide! Everyones too scared to watch Stranger Things, the 2016 horror masterpiece thats leaving Netflix viewers absolutely petrified!",
+        "text": "Brace yourself for StreamGanks top 3 spine-chilling Horror flicks on Netflix that are guaranteed to keep you up all night! Everyones too scared to watch Stranger Things, but once you witness the terrifying unknown, youll be obsessed!",
         "path": "videos/script_movie1.txt"
       },
       "movie2": {
-        "text": "Everyones too scared to watch The Haunting of Hill House, but are you brave enough to confront the chilling secrets within?",
+        "text": "Everyones too scared to watch The Haunting of Hill House, but are you brave enough to face the terror that awaits on Netflix?",
         "path": "videos/script_movie2.txt"
       },
       "movie3": {
-        "text": "Everyones too scared to watch Love, Death & Robots, the horror masterpiece thats redefining terror on Netflix in 2019!",
+        "text": "This horror masterpiece Love, Death & Robots proves that even your wildest nightmares arent as terrifying as you think; theyre worse!",
         "path": "videos/script_movie3.txt"
       }
     },
@@ -21,9 +21,9 @@
         "id": 22571,
         "title": "Stranger Things",
         "year": 2016,
-        "imdb": "8.6/10 (1,475,446 votes)",
+        "imdb": "8.6/10 (1,476,585 votes)",
         "imdb_score": 8.6,
-        "imdb_votes": 1475446,
+        "imdb_votes": 1476585,
         "runtime": "61 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/301444843/s332/stranger-things.webp",
@@ -40,9 +40,9 @@
         "id": 14393,
         "title": "The Haunting of Hill House",
         "year": 2018,
-        "imdb": "8.5/10 (314,310 votes)",
+        "imdb": "8.5/10 (314,495 votes)",
         "imdb_score": 8.5,
-        "imdb_votes": 314310,
+        "imdb_votes": 314495,
         "runtime": "58 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/82936641/s332/the-haunting-of-hill-house.webp",
@@ -83,7 +83,7 @@
       "num_movies": 3
     },
     "script_count": 3,
-    "generation_timestamp": 1755697893.709005
+    "generation_timestamp": 1755927984.7390196
   },
   "metadata": {
     "data_type": "script_result",
@@ -92,7 +92,7 @@
       "genre": "Horror",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1755697893.7091367,
-    "saved_datetime": "2025-08-20 21:51:33"
+    "saved_timestamp": 1755927984.7391229,
+    "saved_datetime": "2025-08-23 13:46:24"
   }
 }

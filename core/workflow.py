@@ -18,8 +18,8 @@ from pathlib import Path
 # Import modular functions
 from ai.robust_script_generator import generate_video_scripts
 from video.poster_generator import create_enhanced_movie_posters
-# Import Vizard.ai integration (replaces old clip processing)
-from ai.vizard_client import process_movie_trailers_with_vizard
+# Import clip processing (standard video processing without AI)
+from video.clip_processor import process_movie_trailers_to_clips
 
 # Import database functions
 from database.movie_extractor import extract_movie_data
@@ -36,7 +36,7 @@ from config.settings import get_scroll_settings, get_video_settings
 
 # Import test data caching utilities
 from utils.test_data_cache import (
-    load_test_data, save_script_result, save_assets_result,
+    load_test_data, save_test_data, save_script_result, save_assets_result,
     save_heygen_result, save_creatomate_result, save_workflow_result,
     get_app_env, should_use_cache, should_save_results,
     is_local_mode, is_development_mode, is_production_mode
@@ -59,7 +59,6 @@ def run_full_workflow(num_movies: int = 3,
                      scroll_distance: float = None,
                      poster_timing_mode: str = "heygen_last3s",
                      heygen_template_id: str = None,
-                     vizard_template_id: str = None,
                      pause_after_extraction: bool = False) -> dict:
     """
     Run the complete StreamGank video generation workflow.
@@ -231,7 +230,7 @@ def run_full_workflow(num_movies: int = 3,
         
         # For testing intelligent highlights, we want to use cached scripts if available
         if cached_script_data and should_use_cache():
-        # if True:
+        #if True:
             print("   📂 Using cached script data from test_output...")
             
             # Extract data from cached result (with safe fallbacks)
@@ -293,8 +292,8 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing asset data from test_output
         cached_assets_data = load_test_data('assets', country, genre, platform)
         
-        if cached_assets_data and should_use_cache():
-        # if False: # false for now to avoid regenerating assets this is for testing only please dont remove this line
+        # if cached_assets_data and should_use_cache():
+        if False: # false for now to avoid regenerating assets this is for testing only please dont remove this line
             print("   📂 Using cached asset data from test_output...")
             
             enhanced_posters = cached_assets_data.get('enhanced_posters', {})
@@ -312,25 +311,27 @@ def run_full_workflow(num_movies: int = 3,
             if not enhanced_posters or len(enhanced_posters) < 3:
                 raise Exception(f"Failed to create enhanced posters - got {len(enhanced_posters) if enhanced_posters else 0}, need 3")
             
-            # Process movie clips with Enhanced Intelligent Workflow
-            print("   🧠 Processing with Enhanced Intelligent Highlight Extraction...")
-            print("   🤖 FULL PIPELINE: Intelligent extraction + Vizard.ai processing")
-            print("   📥 Step 1: Downloading 1080p videos for analysis")
-            print("   🔍 Step 2: Multi-algorithm content analysis (audio, visual, motion)")
-            print("   ✂️  Step 3: Extracting optimal 1:30 segments intelligently")
-            print("   🏷️  Step 4: Generating content-based keywords")
-            print("   🤖 Step 5: Processing extracted highlights with Vizard.ai")
-            print("   ☁️  Step 6: Uploading final clips to Cloudinary")
-            dynamic_clips = process_movie_trailers_with_vizard(
+            # Process movie clips with Intelligent Highlight Detection
+            print("   🧠 Processing movie trailers with INTELLIGENT HIGHLIGHT DETECTION...")
+            print("   📥 Step 1: Downloading high-quality trailers")
+            print("   🔍 Step 2: Scanning entire video for optimal moments")
+            print("   🔊 Step 3: Audio analysis to avoid silent segments")
+            print("   🎬 Step 4: Visual motion detection for dynamic scenes")
+            print("   ✨ Step 5: Selecting 2 best highlights with professional transitions")
+            print("   🎭 Step 6: Composing with fade effects and outro")
+            print("   ☁️  Step 7: Uploading intelligently crafted clips to Cloudinary")
+            dynamic_clips = process_movie_trailers_to_clips(
                 raw_movies, 
                 max_movies=3, 
-                transform_mode="youtube_shorts",
-                use_intelligent_highlights=True,  # Enable intelligent processing
-                review_mode=False  # PRODUCTION: Continue with full Vizard.ai processing
+                transform_mode="youtube_shorts"
             )
             
-            if not dynamic_clips or len(dynamic_clips) < 3:
-                raise Exception(f"Failed to create movie clips - got {len(dynamic_clips) if dynamic_clips else 0}, need 3")
+            # Enhanced: Allow partial success with graceful handling
+            if not dynamic_clips or len(dynamic_clips) == 0:
+                raise Exception("Failed to create any movie clips - cannot proceed without video content")
+            elif len(dynamic_clips) < 3:
+                logger.warning(f"⚠️ Partial clip success: Got {len(dynamic_clips)}/3 clips - continuing with available content")
+                print(f"   ⚠️ Some trailers failed processing (YouTube restrictions/short videos) - continuing with {len(dynamic_clips)} clips")
             
             # Save asset results to test_output for future use
             assets_data_to_save = {
@@ -360,39 +361,86 @@ def run_full_workflow(num_movies: int = 3,
         print(f"✅ STEP 3 COMPLETED - Created {len(movie_covers)} posters and {len(movie_clips)} clips in {time.time() - step_start:.1f}s")
         
         # =============================================================================
-        # STEP 4: HEYGEN VIDEO CREATION
+        # STEP 4: HEYGEN VIDEO CREATION (WITH ENVIRONMENT-AWARE CACHING)
         # =============================================================================
         print(f"\n[STEP 4/7] HeyGen Video Creation - Generating AI avatar videos")
         step_start = time.time()
         
-        heygen_video_ids = create_heygen_video(individual_scripts, True, heygen_template_id)
+        # Try to load existing HeyGen data from cache
+        cached_heygen_data = load_test_data('heygen', country, genre, platform)
         
-        if not heygen_video_ids:
-            raise Exception("HeyGen video creation failed")
+        if cached_heygen_data and should_use_cache():
+            print("   📂 Using cached HeyGen data from test_output...")
+            
+            # Extract data from cached result (with safe fallbacks)
+            heygen_video_ids = cached_heygen_data.get('video_ids', {}) if isinstance(cached_heygen_data, dict) else {}
+            template_id_used = cached_heygen_data.get('template_id', heygen_template_id) if isinstance(cached_heygen_data, dict) else heygen_template_id
+            
+            print(f"   📋 Loaded {len(heygen_video_ids)} cached HeyGen video IDs")
+            
+        else:
+            if is_local_mode():
+                raise Exception("LOCAL MODE: No cached HeyGen data available. Run with APP_ENV=development first to generate and cache data.")
+            
+            print("   🔄 No cached HeyGen data found, creating new videos...")
+            print("   Using HeyGen API for video generation...")
+            
+            heygen_video_ids = create_heygen_video(individual_scripts, True, heygen_template_id)
+            
+            if not heygen_video_ids:
+                raise Exception("HeyGen video creation failed")
+            
+            # Save HeyGen results if environment allows
+            if should_save_results():
+                heygen_data_to_save = {
+                    'video_ids': heygen_video_ids,
+                    'template_id': heygen_template_id,
+                    'script_count': len(individual_scripts)
+                }
+                save_heygen_result(heygen_data_to_save, country, genre, platform)
         
         workflow_results['heygen_video_ids'] = heygen_video_ids
         workflow_results['steps_completed'].append('heygen_creation')
         
-        # Save HeyGen results for development mode
-        heygen_data_to_save = {
-            'video_ids': heygen_video_ids,
-            'template_id': heygen_template_id,
-            'script_count': len(individual_scripts)
-        }
-        save_heygen_result(heygen_data_to_save, country, genre, platform)
-        
-        print(f"✅ STEP 4 COMPLETED - Created {len(heygen_video_ids)} HeyGen videos in {time.time() - step_start:.1f}s")
+        print(f"✅ STEP 4 COMPLETED - {'Loaded' if should_use_cache() and cached_heygen_data else 'Created'} {len(heygen_video_ids)} HeyGen videos in {time.time() - step_start:.1f}s")
         
         # =============================================================================
-        # STEP 5: GET HEYGEN VIDEO URLS
+        # STEP 5: GET HEYGEN VIDEO URLS (WITH ENVIRONMENT-AWARE CACHING)
         # =============================================================================
         print(f"\n[STEP 5/7] HeyGen Video Processing - Waiting for video completion")
         step_start = time.time()
         
-        heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, individual_scripts)
+        # Try to load existing HeyGen URLs from cache
+        cached_heygen_urls_data = load_test_data('heygen_urls', country, genre, platform)
         
-        if not heygen_video_urls:
-            raise Exception("HeyGen video URL retrieval failed")
+        if cached_heygen_urls_data and should_use_cache():
+            print("   📂 Using cached HeyGen URLs from test_output...")
+            
+            # Extract data from cached result (with safe fallbacks)
+            heygen_video_urls = cached_heygen_urls_data.get('video_urls', {}) if isinstance(cached_heygen_urls_data, dict) else {}
+            
+            print(f"   📋 Loaded {len(heygen_video_urls)} cached HeyGen video URLs")
+            
+        else:
+            if is_local_mode():
+                raise Exception("LOCAL MODE: No cached HeyGen URL data available. Run with APP_ENV=development first to generate and cache data.")
+            
+            print("   🔄 No cached HeyGen URLs found, fetching from API...")
+            print("   Waiting for HeyGen video processing completion...")
+            
+            heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, individual_scripts)
+            
+            if not heygen_video_urls:
+                raise Exception("HeyGen video URL retrieval failed")
+            
+            # Save HeyGen URL results if environment allows
+            if should_save_results():
+                heygen_urls_data_to_save = {
+                    'video_urls': heygen_video_urls,
+                    'video_ids': heygen_video_ids,
+                    'url_count': len(heygen_video_urls)
+                }
+                save_test_data(heygen_urls_data_to_save, 'heygen_urls', country, genre, platform)
         
         workflow_results['heygen_video_urls'] = heygen_video_urls
         workflow_results['steps_completed'].append('heygen_processing')
@@ -400,66 +448,127 @@ def run_full_workflow(num_movies: int = 3,
         print(f"✅ STEP 5 COMPLETED - Got {len(heygen_video_urls)} video URLs in {time.time() - step_start:.1f}s")
         
         # =============================================================================
-        # STEP 6: SCROLL VIDEO GENERATION (OPTIONAL)
+        # STEP 6: SCROLL VIDEO GENERATION (WITH ENVIRONMENT-AWARE CACHING)
         # =============================================================================
         scroll_video_url = None
         if not skip_scroll_video:
             print(f"\n[STEP 6/7] Scroll Video Generation - Creating StreamGank scroll overlay")
             step_start = time.time()
             
-            scroll_video_url = generate_scroll_video(
-                country=country,
-                genre=genre,
-                platform=platform,
-                content_type=content_type,
-                smooth=smooth_scroll,
-                scroll_distance=scroll_distance,
-                duration=scroll_settings.get('target_duration', 4)
-            )
+            # Try to load existing scroll video data from cache
+            cached_scroll_data = load_test_data('scroll_video', country, genre, platform)
+            
+            if cached_scroll_data and should_use_cache():
+                print("   📂 Using cached scroll video data from test_output...")
+                
+                # Extract data from cached result (with safe fallbacks)
+                scroll_video_url = cached_scroll_data.get('scroll_video_url', None) if isinstance(cached_scroll_data, dict) else None
+                
+                if scroll_video_url:
+                    print(f"   📋 Loaded cached scroll video URL")
+                else:
+                    print(f"   ⚠️ Cached scroll video data found but no valid URL")
+                
+            else:
+                if is_local_mode():
+                    print("   🌍 LOCAL MODE: No cached scroll video data available")
+                    print("   ⚠️ Continuing without scroll video (no API calls in local mode)")
+                    scroll_video_url = None
+                else:
+                    print("   🔄 No cached scroll video data found, generating new video...")
+                    print("   Using scroll video generation API...")
+                    
+                    scroll_video_url = generate_scroll_video(
+                        country=country,
+                        genre=genre,
+                        platform=platform,
+                        content_type=content_type,
+                        smooth=smooth_scroll,
+                        scroll_distance=scroll_distance,
+                        duration=scroll_settings.get('target_duration', 4)
+                    )
+                    
+                    # Save scroll video results if environment allows
+                    if should_save_results() and scroll_video_url:
+                        scroll_data_to_save = {
+                            'scroll_video_url': scroll_video_url,
+                            'parameters': {
+                                'country': country,
+                                'genre': genre,
+                                'platform': platform,
+                                'content_type': content_type,
+                                'smooth_scroll': smooth_scroll,
+                                'scroll_distance': scroll_distance,
+                                'duration': scroll_settings.get('target_duration', 4)
+                            }
+                        }
+                        save_test_data(scroll_data_to_save, 'scroll_video', country, genre, platform)
             
             if scroll_video_url:
                 workflow_results['scroll_video_url'] = scroll_video_url
-                print(f"✅ STEP 6 COMPLETED - Scroll video created in {time.time() - step_start:.1f}s")
+                print(f"✅ STEP 6 COMPLETED - {'Loaded' if should_use_cache() and cached_scroll_data and cached_scroll_data.get('scroll_video_url') else 'Generated'} scroll video in {time.time() - step_start:.1f}s")
             else:
-                print(f"⚠️ STEP 6 SKIPPED - Scroll video generation failed, continuing without it")
+                print(f"⚠️ STEP 6 SKIPPED - Scroll video {'not available in cache' if is_local_mode() else 'generation failed'}, continuing without it")
         else:
             print(f"\n[STEP 6/7] Scroll Video Generation - SKIPPED (user requested)")
         
         workflow_results['steps_completed'].append('scroll_generation')
         
         # =============================================================================
-        # STEP 7: CREATOMATE FINAL ASSEMBLY
+        # STEP 7: CREATOMATE FINAL ASSEMBLY (WITH ENVIRONMENT-AWARE CACHING)
         # =============================================================================
         print(f"\n[STEP 7/7] Creatomate Assembly - Creating final video")
         step_start = time.time()
         
-        creatomate_id = create_creatomate_video(
-            heygen_video_urls=heygen_video_urls,
-            movie_covers=movie_covers,
-            movie_clips=movie_clips,
-            scroll_video_url=scroll_video_url,
-            scripts=individual_scripts,
-            poster_timing_mode=poster_timing_mode
-        )
+        # Try to load existing Creatomate data from cache
+        cached_creatomate_data = load_test_data('creatomate', country, genre, platform)
         
-        if not creatomate_id or creatomate_id.startswith('error'):
-            raise Exception(f"Creatomate video creation failed: {creatomate_id}")
+        if cached_creatomate_data and should_use_cache():
+            print("   📂 Using cached Creatomate data from test_output...")
+            
+            # Extract data from cached result (with safe fallbacks)
+            creatomate_id = cached_creatomate_data.get('render_id', '') if isinstance(cached_creatomate_data, dict) else ''
+            
+            if creatomate_id and not creatomate_id.startswith('error'):
+                print(f"   📋 Loaded cached Creatomate render ID: {creatomate_id}")
+            else:
+                raise Exception(f"LOCAL MODE: Invalid cached Creatomate data: {creatomate_id}")
+            
+        else:
+            if is_local_mode():
+                raise Exception("LOCAL MODE: No cached Creatomate data available. Run with APP_ENV=development first to generate and cache data.")
+            
+            print("   🔄 No cached Creatomate data found, creating new video...")
+            print("   Using Creatomate API for final video assembly...")
+            
+            creatomate_id = create_creatomate_video(
+                heygen_video_urls=heygen_video_urls,
+                movie_covers=movie_covers,
+                movie_clips=movie_clips,
+                scroll_video_url=scroll_video_url,
+                scripts=individual_scripts,
+                poster_timing_mode=poster_timing_mode
+            )
+            
+            if not creatomate_id or creatomate_id.startswith('error'):
+                raise Exception(f"Creatomate video creation failed: {creatomate_id}")
+            
+            # Save Creatomate results if environment allows
+            if should_save_results():
+                creatomate_data_to_save = {
+                    'render_id': creatomate_id,
+                    'heygen_urls_count': len(heygen_video_urls),
+                    'movie_covers_count': len(movie_covers),
+                    'movie_clips_count': len(movie_clips),
+                    'has_scroll_video': scroll_video_url is not None,
+                    'poster_timing_mode': poster_timing_mode
+                }
+                save_creatomate_result(creatomate_data_to_save, country, genre, platform)
         
         workflow_results['creatomate_id'] = creatomate_id
         workflow_results['steps_completed'].append('creatomate_assembly')
         
-        # Save Creatomate results for development mode
-        creatomate_data_to_save = {
-            'render_id': creatomate_id,
-            'heygen_urls_count': len(heygen_video_urls),
-            'movie_covers_count': len(movie_covers),
-            'movie_clips_count': len(movie_clips),
-            'has_scroll_video': scroll_video_url is not None,
-            'poster_timing_mode': poster_timing_mode
-        }
-        save_creatomate_result(creatomate_data_to_save, country, genre, platform)
-        
-        print(f"✅ STEP 7 COMPLETED - Final video submitted in {time.time() - step_start:.1f}s")
+        print(f"✅ STEP 7 COMPLETED - {'Loaded' if should_use_cache() and cached_creatomate_data else 'Created'} final video in {time.time() - step_start:.1f}s")
         
         # =============================================================================
         # WORKFLOW COMPLETION
@@ -476,6 +585,15 @@ def run_full_workflow(num_movies: int = 3,
         print(f"   ⏱️ Total duration: {total_duration:.1f}s")
         print(f"   📊 Steps completed: {len(workflow_results['steps_completed'])}/7")
         print(f"   🎬 Creatomate ID: {creatomate_id}")
+        
+        # Show environment-specific completion message
+        if is_local_mode():
+            print(f"   🌍 LOCAL MODE: Used cached data for all steps")
+        elif is_development_mode():
+            print(f"   🔧 DEVELOPMENT MODE: Generated and saved data for future use")
+        elif is_production_mode():
+            print(f"   💼 PRODUCTION MODE: Generated fresh data without caching")
+        
         print(f"   💡 Check status: python main.py --check-creatomate {creatomate_id}")
         
         # Save results if output file specified
@@ -501,6 +619,14 @@ def run_full_workflow(num_movies: int = 3,
         print(f"   Error: {str(e)}")
         print(f"   Duration before failure: {total_duration:.1f}s")
         
+        # Show environment-specific error guidance
+        if is_local_mode() and "No cached" in str(e):
+            print(f"   💡 LOCAL MODE TIP: Run with APP_ENV=development first to generate cache data")
+        elif is_production_mode():
+            print(f"   💼 PRODUCTION MODE: Check API connectivity and quotas")
+        elif is_development_mode():
+            print(f"   🔧 DEVELOPMENT MODE: Check API connectivity, cached data will be preserved")
+        
         # Save partial results if output file specified
         if output:
             try:
@@ -510,7 +636,8 @@ def run_full_workflow(num_movies: int = 3,
             except Exception as save_error:
                 print(f"   ⚠️ Failed to save partial results: {str(save_error)}")
         
-        raise RuntimeError(f"❌ CRITICAL: Failed to process exactly {num_movies} movie clips")
+        # Re-raise the original exception instead of a generic one
+        raise
 
 # =============================================================================
 # LEGACY COMPATIBILITY FUNCTIONS

@@ -9,32 +9,56 @@ const { promisify } = require('util');
  */
 class VideoQueueManager {
     constructor() {
-        // Redis client configuration with database selection
+        // Redis client configuration with database selection - OPTIMIZED for performance and connection pooling
         const redisConfig = {
             host: process.env.REDIS_HOST,
             port: parseInt(process.env.REDIS_PORT),
             password: process.env.REDIS_PASSWORD,
             db: parseInt(process.env.REDIS_DB), // Database selection (0-15)
-            retry_delay_on_failover: 100,
-            enable_ready_check: false,
-            max_attempts: null,
+            retry_delay_on_failover: 100, // Faster failover for status requests
+            enable_ready_check: true, // Enable ready check for better connection reliability
+            max_attempts: 3, // Reduced retry attempts for faster failure
+            connect_timeout: 1500, // Reduced connection timeout for status requests
+            socket_keepalive: true, // Keep connections alive
+            no_ready_check: false, // Ensure connection is ready
+            // Connection pooling settings to prevent exhaustion during heavy processing
+            return_buffers: false, // Use strings instead of buffers for better performance
+            detect_buffers: false, // Disable buffer detection for speed
+            socket_nodelay: true, // Disable Nagle algorithm for low latency
+            family: 'IPv4' // Force IPv4 to avoid DNS lookup delays
         };
 
         console.log(`🔗 Connecting to Redis database ${redisConfig.db} on ${redisConfig.host}:${redisConfig.port}`);
-        this.client = redis.createClient(redisConfig);
 
-        // Event handlers for Redis connection
-        this.client.on('error', (err) => {
-            console.error('❌ Redis Client Error:', err);
-        });
+        // Production-level Redis connection pooling for high concurrency
+        this.clients = [];
+        this.currentClientIndex = 0;
+        this.poolSize = parseInt(process.env.REDIS_POOL_SIZE) || 1; // Single connection for efficiency
 
-        this.client.on('connect', () => {
-            console.log('✅ Connected to Redis server');
-        });
+        console.log(`🔗 Creating Redis connection (professional single connection)...`);
 
-        this.client.on('ready', () => {
-            console.log('🚀 Redis client ready for operations');
-        });
+        // Create single connection (professional approach)
+        for (let i = 0; i < this.poolSize; i++) {
+            const client = redis.createClient(redisConfig);
+
+            // Event handlers for each client in the pool
+            client.on('error', (err) => {
+                console.error(`❌ Redis Client ${i} Error:`, err);
+            });
+
+            client.on('connect', () => {
+                console.log(`✅ Redis Client ${i} connected`);
+            });
+
+            client.on('ready', () => {
+                console.log(`🚀 Redis Client ${i} ready`);
+            });
+
+            this.clients.push(client);
+        }
+
+        // Primary client for backward compatibility
+        this.client = this.clients[0];
 
         // Multi-worker queue processing state
         this.isProcessing = false;
@@ -45,14 +69,19 @@ class VideoQueueManager {
         this.availableWorkers = this.maxWorkers; // Number of available worker slots
         this.jobLogs = new Map(); // Store logs for each job by jobId
 
-        console.log(`👥 Worker pool initialized: ${this.maxWorkers} max workers, concurrent processing: ${this.concurrentProcessing}`);
+        console.log(
+            `👥 Worker pool initialized: ${this.maxWorkers} max workers, concurrent processing: ${this.concurrentProcessing}`
+        );
 
-        // Start periodic cleanup (every 5 minutes) to avoid performance issues
-        this.cleanupInterval = setInterval(() => {
-            this.cleanupProcessingQueue().catch((error) => {
-                console.error('❌ Background cleanup error:', error);
-            });
-        }, 5 * 60 * 1000); // 5 minutes
+        // PROFESSIONAL: Minimal cleanup since webhooks handle real-time updates
+        this.cleanupInterval = setInterval(
+            () => {
+                this.cleanupProcessingQueue().catch((error) => {
+                    console.error('❌ Background cleanup error:', error);
+                });
+            },
+            30 * 60 * 1000  // 30 minutes - much less frequent
+        );
 
         // Redis queue keys with database-aware namespace
         const dbNumber = redisConfig.db;
@@ -62,7 +91,7 @@ class VideoQueueManager {
             processing: `${namespace}:queue:processing`,
             completed: `${namespace}:queue:completed`,
             failed: `${namespace}:queue:failed`,
-            jobs: `${namespace}:jobs`,
+            jobs: `${namespace}:jobs`
         };
 
         console.log(`📋 Using Redis namespace: ${namespace}`);
@@ -80,6 +109,133 @@ class VideoQueueManager {
         this.delAsync = promisify(this.client.del).bind(this.client);
         this.lrangeAsync = promisify(this.client.lrange).bind(this.client);
         this.quitAsync = promisify(this.client.quit).bind(this.client);
+
+        // Production-level error tracking and recovery
+        this.errorCount = 0;
+        this.lastErrorTime = 0;
+        this.maxErrorsBeforeAlert = 10;
+        this.errorResetInterval = 300000; // 5 minutes
+
+        // Webhook manager reference (will be set by server.js)
+        this.webhookManager = null;
+    }
+
+    /**
+     * Set webhook manager for external notifications
+     * @param {WebhookManager} webhookManager - Webhook manager instance
+     */
+    setWebhookManager(webhookManager) {
+        this.webhookManager = webhookManager;
+        console.log('🔗 Webhook manager integrated with queue processing');
+    }
+
+    /**
+     * Send webhook notification for job events
+     * @param {string} event - Event type (job.completed, job.failed, etc.)
+     * @param {Object} job - Job object
+     */
+    async sendWebhookNotification(event, job) {
+        if (!this.webhookManager) {
+            // Webhook manager not configured - silent skip
+            return;
+        }
+
+        try {
+            // Prepare clean job data for webhook (remove sensitive info)
+            const webhookData = {
+                job_id: job.id,
+                status: job.status,
+                created_at: job.createdAt,
+                started_at: job.startedAt,
+                completed_at: job.completedAt,
+                failed_at: job.failedAt,
+                parameters: {
+                    country: job.parameters.country,
+                    platform: job.parameters.platform,
+                    genre: job.parameters.genre,
+                    contentType: job.parameters.contentType,
+                    template: job.parameters.template
+                },
+                progress: job.progress,
+                current_step: job.currentStep,
+                video_url: job.videoUrl || null,
+                creatomate_id: job.creatomateId || null,
+                error: job.error || null,
+                retry_count: job.retryCount || 0,
+                processing_duration_ms:
+                    job.completedAt && job.startedAt ? new Date(job.completedAt) - new Date(job.startedAt) : null
+            };
+
+            // Send webhook notification asynchronously (don't block job processing)
+            this.webhookManager.sendWebhookNotification(event, webhookData).catch((error) => {
+                console.warn(`⚠️ Webhook notification failed for job ${job.id}: ${error.message}`);
+            });
+        } catch (error) {
+            console.warn(`⚠️ Failed to prepare webhook notification for job ${job.id}: ${error.message}`);
+        }
+    }
+
+    /**
+     * Get the next available Redis client from the connection pool
+     * Round-robin load balancing across connections
+     */
+    getNextClient() {
+        const client = this.clients[this.currentClientIndex];
+        this.currentClientIndex = (this.currentClientIndex + 1) % this.poolSize;
+        return client;
+    }
+
+    /**
+     * Execute Redis command with connection pool and error recovery
+     * @param {Function} operation - Redis operation function
+     * @param {Array} args - Arguments for the operation
+     * @param {string} operationName - Name of the operation for logging
+     * @returns {Promise} Result of the operation
+     */
+    async executeWithPool(operation, args = [], operationName = 'redis_operation') {
+        let lastError;
+
+        // Try each client in the pool if needed
+        for (let attempt = 0; attempt < this.poolSize; attempt++) {
+            try {
+                const client = this.getNextClient();
+                const boundOperation = promisify(operation).bind(client);
+                const result = await boundOperation(...args);
+
+                // Reset error count on successful operation
+                if (this.errorCount > 0 && Date.now() - this.lastErrorTime > this.errorResetInterval) {
+                    this.errorCount = 0;
+                }
+
+                return result;
+            } catch (error) {
+                lastError = error;
+                this.errorCount++;
+                this.lastErrorTime = Date.now();
+
+                console.warn(
+                    `⚠️ Redis ${operationName} failed on attempt ${attempt + 1}/${this.poolSize}:`,
+                    error.message
+                );
+
+                // If we've tried all clients, we'll break out and throw
+                if (attempt === this.poolSize - 1) {
+                    break;
+                }
+
+                // Small delay before trying next client
+                await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+        }
+
+        // Alert on too many errors
+        if (this.errorCount >= this.maxErrorsBeforeAlert) {
+            console.error(
+                `🚨 PRODUCTION ALERT: Redis error count exceeded ${this.maxErrorsBeforeAlert} in last ${this.errorResetInterval / 1000}s`
+            );
+        }
+
+        throw lastError;
     }
 
     /**
@@ -109,7 +265,7 @@ class VideoQueueManager {
             maxRetries: 3,
             error: null,
             progress: 0,
-            currentStep: 'Queued for processing...',
+            currentStep: 'Queued for processing...'
         };
 
         try {
@@ -135,13 +291,25 @@ class VideoQueueManager {
     }
 
     /**
-     * Get current queue status
+     * Get current queue status - PRODUCTION OPTIMIZED with connection pooling and timeout protection
      * @returns {Object} Queue statistics
      */
     async getQueueStatus() {
         try {
-            // Optimized for performance - removed expensive cleanup operations
-            const [pending, processing, completed, failed] = await Promise.all([this.llenAsync(this.keys.pending), this.llenAsync(this.keys.processing), this.llenAsync(this.keys.completed), this.llenAsync(this.keys.failed)]);
+            // Add timeout protection to prevent hanging during heavy processing
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Queue status timeout')), 800); // 800ms timeout for Redis operations
+            });
+
+            // Use connection pool for Redis operations with load balancing
+            const statusPromise = Promise.all([
+                this.executeWithPool(this.getNextClient().llen, [this.keys.pending], 'llen_pending'),
+                this.executeWithPool(this.getNextClient().llen, [this.keys.processing], 'llen_processing'),
+                this.executeWithPool(this.getNextClient().llen, [this.keys.completed], 'llen_completed'),
+                this.executeWithPool(this.getNextClient().llen, [this.keys.failed], 'llen_failed')
+            ]);
+
+            const [pending, processing, completed, failed] = await Promise.race([statusPromise, timeoutPromise]);
 
             return {
                 pending,
@@ -149,44 +317,100 @@ class VideoQueueManager {
                 completed,
                 failed,
                 total: pending + processing + completed + failed,
+                _poolUsed: true // Debug flag for production monitoring
             };
         } catch (error) {
-            console.error('❌ Failed to get queue status:', error);
-            return { pending: 0, processing: 0, completed: 0, failed: 0, total: 0 };
+            // Enhanced error handling with production-level recovery
+            if (error.message === 'Queue status timeout') {
+                console.warn('⚠️ Redis queue status request timed out (system likely under heavy load)');
+            } else {
+                console.error('❌ Failed to get queue status:', error.message);
+
+                // Try fallback to primary client as last resort
+                try {
+                    console.log('🔄 Attempting fallback to primary client...');
+                    const [pending, processing, completed, failed] = await Promise.all([
+                        this.llenAsync(this.keys.pending),
+                        this.llenAsync(this.keys.processing),
+                        this.llenAsync(this.keys.completed),
+                        this.llenAsync(this.keys.failed)
+                    ]);
+
+                    console.log('✅ Fallback to primary client successful');
+                    return {
+                        pending,
+                        processing,
+                        completed,
+                        failed,
+                        total: pending + processing + completed + failed,
+                        _fallback: true
+                    };
+                } catch (fallbackError) {
+                    console.error('❌ Fallback to primary client also failed:', fallbackError.message);
+                }
+            }
+
+            // Return safe defaults during complete Redis failure
+            return {
+                pending: 0,
+                processing: 0,
+                completed: 0,
+                failed: 0,
+                total: 0,
+                _error: true,
+                _errorMessage: error.message,
+                _errorCount: this.errorCount
+            };
         }
     }
 
     /**
      * Get all jobs with details
-     * @returns {Object} All jobs indexed by job ID
+     * @returns {Array} All jobs as array
      */
     async getAllJobs() {
         try {
             const allJobs = await this.hgetallAsync(this.keys.jobs);
-            const jobs = {};
+            const jobs = [];
+
+            // Handle empty Redis database (allJobs can be null on first startup)
+            if (!allJobs || Object.keys(allJobs).length === 0) {
+                return [];
+            }
 
             for (const [jobId, jobData] of Object.entries(allJobs)) {
-                jobs[jobId] = JSON.parse(jobData);
+                const jobInfo = JSON.parse(jobData);
+                jobInfo.id = jobId; // Ensure job ID is included
+                jobs.push(jobInfo);
             }
 
             return jobs;
         } catch (error) {
             console.error('❌ Failed to get all jobs:', error);
-            return {};
+            return [];
         }
     }
 
     /**
-     * Get specific job by ID
+     * Get specific job by ID - OPTIMIZED with performance monitoring
      * @param {string} jobId - Job identifier
      * @returns {Object|null} Job object or null if not found
      */
     async getJob(jobId) {
+        const startTime = Date.now();
         try {
             const jobData = await this.hgetAsync(this.keys.jobs, jobId);
+            const duration = Date.now() - startTime;
+
+            // Log slow Redis operations
+            if (duration > 200) {
+                console.warn(`⚠️ Slow Redis getJob for ${jobId.slice(-8)}: ${duration}ms`);
+            }
+
             return jobData ? JSON.parse(jobData) : null;
         } catch (error) {
-            console.error(`❌ Failed to get job ${jobId}:`, error);
+            const duration = Date.now() - startTime;
+            console.error(`❌ Failed to get job ${jobId} (${duration}ms):`, error.message);
             return null;
         }
     }
@@ -213,7 +437,9 @@ class VideoQueueManager {
         }
 
         this.isProcessing = true;
-        console.log(`🚀 Starting multi-worker queue processing (${this.maxWorkers} max workers, concurrent: ${this.concurrentProcessing})...`);
+        console.log(
+            `🚀 Starting multi-worker queue processing (${this.maxWorkers} max workers, concurrent: ${this.concurrentProcessing})...`
+        );
 
         // Main processing loop
         while (this.isProcessing) {
@@ -233,7 +459,9 @@ class VideoQueueManager {
 
                     // Check concurrent processing setting
                     if (!this.concurrentProcessing && this.activeJobs.size > 0) {
-                        console.log(`⚠️ Job ${job.id} skipped - concurrent processing disabled and ${this.activeJobs.size} job(s) still processing`);
+                        console.log(
+                            `⚠️ Job ${job.id} skipped - concurrent processing disabled and ${this.activeJobs.size} job(s) still processing`
+                        );
                         // Put the job back at the front of the queue
                         await this.lpushAsync(this.keys.pending, jobData[1]);
                         await this.sleep(2000); // Wait before trying again
@@ -243,12 +471,16 @@ class VideoQueueManager {
                     // Process job if we have available workers
                     if (this.availableWorkers > 0) {
                         this.availableWorkers--;
-                        console.log(`👤 Assigning job ${job.id} to worker (${this.availableWorkers}/${this.maxWorkers} workers available)`);
+                        console.log(
+                            `👤 Assigning job ${job.id} to worker (${this.availableWorkers}/${this.maxWorkers} workers available)`
+                        );
 
                         // Process job asynchronously (don't await - allows multiple jobs)
                         this.processJobAsync(job).finally(() => {
                             this.availableWorkers++;
-                            console.log(`✅ Worker freed for job ${job.id} (${this.availableWorkers}/${this.maxWorkers} workers available)`);
+                            console.log(
+                                `✅ Worker freed for job ${job.id} (${this.availableWorkers}/${this.maxWorkers} workers available)`
+                            );
                         });
                     }
                 }
@@ -284,15 +516,20 @@ class VideoQueueManager {
             // Always clean up job tracking
             this.activeJobs.delete(job.id);
             this.activeProcesses.delete(job.id);
-            console.log(`🧹 Removed job ${job.id} from active tracking (${this.activeJobs.size}/${this.maxWorkers} active)`);
+            console.log(
+                `🧹 Removed job ${job.id} from active tracking (${this.activeJobs.size}/${this.maxWorkers} active)`
+            );
 
             // Add completion log
             this.addJobLog(job.id, 'Job processing completed and removed from active pool', 'info');
 
             // Keep logs for 10 minutes after job completion
-            setTimeout(() => {
-                this.clearJobLogs(job.id);
-            }, 10 * 60 * 1000); // 10 minutes
+            setTimeout(
+                () => {
+                    this.clearJobLogs(job.id);
+                },
+                10 * 60 * 1000
+            ); // 10 minutes
         }
     }
 
@@ -349,6 +586,9 @@ class VideoQueueManager {
                 // Remove from processing queue and add to completed
                 await this.lremAsync(this.keys.processing, 1, processingJobState);
                 await this.lpushAsync(this.keys.completed, JSON.stringify(job));
+
+                // Send webhook notification for partial completion (extraction done)
+                this.sendWebhookNotification('job.extraction_completed', job);
             } else if (result.videoUrl) {
                 // Video is fully complete
                 job.status = 'completed';
@@ -361,6 +601,9 @@ class VideoQueueManager {
                 // Remove from processing queue and add to completed
                 await this.lremAsync(this.keys.processing, 1, processingJobState);
                 await this.lpushAsync(this.keys.completed, JSON.stringify(job));
+
+                // Send webhook notification for full completion
+                this.sendWebhookNotification('job.completed', job);
             } else if (result.creatomateId) {
                 // Python script done but video still rendering
                 job.status = 'completed'; // Mark as completed for Python script
@@ -372,6 +615,9 @@ class VideoQueueManager {
                 // Remove from processing queue and add to completed (but video not ready)
                 await this.lremAsync(this.keys.processing, 1, processingJobState);
                 await this.lpushAsync(this.keys.completed, JSON.stringify(job));
+
+                // Send webhook notification for script completion (video still rendering)
+                this.sendWebhookNotification('job.script_completed', job);
             } else {
                 // No video URL or Creatomate ID - something went wrong
                 job.status = 'completed';
@@ -382,6 +628,9 @@ class VideoQueueManager {
                 // Remove from processing queue and add to completed
                 await this.lremAsync(this.keys.processing, 1, processingJobState);
                 await this.lpushAsync(this.keys.completed, JSON.stringify(job));
+
+                // Send webhook notification for incomplete completion
+                this.sendWebhookNotification('job.completed_with_issues', job);
             }
 
             await this.updateJob(job);
@@ -402,7 +651,7 @@ class VideoQueueManager {
                 stack: error.stack,
                 timestamp: new Date().toISOString(),
                 jobId: job.id,
-                jobParameters: job.parameters,
+                jobParameters: job.parameters
             });
 
             // Kill any running Python process immediately (multi-worker support)
@@ -479,6 +728,9 @@ class VideoQueueManager {
 
                 await this.lpushAsync(this.keys.failed, JSON.stringify(job));
                 console.log(`🗂️ Job ${job.id} moved to failed queue - requires manual intervention`);
+
+                // Send webhook notification for job failure (no retry)
+                this.sendWebhookNotification('job.failed_no_retry', job);
             } else {
                 console.log(`💀 PERMANENT FAILURE: Job ${job.id} exceeded max retries (${job.maxRetries})`);
                 console.log(`📊 Final failure reason: ${job.error}`);
@@ -486,6 +738,9 @@ class VideoQueueManager {
                 // Move to failed queue for manual review
                 await this.lpushAsync(this.keys.failed, JSON.stringify(job));
                 console.log(`🗂️ Job ${job.id} moved to failed queue for manual review`);
+
+                // Send webhook notification for permanent job failure
+                this.sendWebhookNotification('job.failed', job);
             }
 
             // Remove from processing queue using the original processing state
@@ -557,7 +812,10 @@ class VideoQueueManager {
         }
 
         // Database and content errors
-        if (message.includes('insufficient movies') || (message.includes('only') && message.includes('found with current filters'))) {
+        if (
+            message.includes('insufficient movies') ||
+            (message.includes('only') && message.includes('found with current filters'))
+        ) {
             return '🎬 Not Enough Movies Available - Try different filters';
         }
         if (message.includes('no movies found') || message.includes('database query failed')) {
@@ -655,7 +913,7 @@ class VideoQueueManager {
 
             // File system failures
             /Permission denied.*critical/i,
-            /File system.*read-only/i,
+            /File system.*read-only/i
         ];
 
         return criticalPatterns.some((pattern) => pattern.test(output));
@@ -708,7 +966,7 @@ class VideoQueueManager {
                 retry: true,
                 reason: 'Generic error - standard retry',
                 delaySeconds: Math.pow(2, currentRetryCount) * 30,
-                solution: 'Monitor logs for specific error details',
+                solution: 'Monitor logs for specific error details'
             };
         }
 
@@ -720,17 +978,21 @@ class VideoQueueManager {
                 retry: false,
                 reason: 'Payment/credit issue requires manual resolution',
                 delaySeconds: 0,
-                solution: 'Add credits to your HeyGen/Creatomate account before retrying',
+                solution: 'Add credits to your HeyGen/Creatomate account before retrying'
             };
         }
 
         // ❌ NEVER RETRY - Authentication Issues
-        if (error.includes('authentication failed') || error.includes('invalid api key') || error.includes('unauthorized')) {
+        if (
+            error.includes('authentication failed') ||
+            error.includes('invalid api key') ||
+            error.includes('unauthorized')
+        ) {
             return {
                 retry: false,
                 reason: 'Authentication failure requires credential fix',
                 delaySeconds: 0,
-                solution: 'Check and update your API keys in environment variables',
+                solution: 'Check and update your API keys in environment variables'
             };
         }
 
@@ -740,7 +1002,7 @@ class VideoQueueManager {
                 retry: false,
                 reason: 'System resource exhaustion requires admin intervention',
                 delaySeconds: 0,
-                solution: 'Free up system resources (memory/disk) before retrying',
+                solution: 'Free up system resources (memory/disk) before retrying'
             };
         }
 
@@ -750,7 +1012,7 @@ class VideoQueueManager {
                 retry: false,
                 reason: 'Critical workflow failure needs investigation',
                 delaySeconds: 0,
-                solution: 'Check system logs and try different movie parameters',
+                solution: 'Check system logs and try different movie parameters'
             };
         }
 
@@ -760,7 +1022,7 @@ class VideoQueueManager {
                 retry: currentRetryCount < Math.min(maxRetries, 2), // Max 2 retries for rate limits
                 reason: 'Rate limit - short retry with backoff',
                 delaySeconds: Math.pow(2, currentRetryCount + 2) * 60, // 4, 8, 16 minutes
-                solution: 'Wait for rate limit window to reset',
+                solution: 'Wait for rate limit window to reset'
             };
         }
 
@@ -770,7 +1032,7 @@ class VideoQueueManager {
                 retry: currentRetryCount < maxRetries,
                 reason: 'Network issue - medium retry with backoff',
                 delaySeconds: Math.pow(2, currentRetryCount) * 60, // 1, 2, 4 minutes
-                solution: 'Check internet connection stability',
+                solution: 'Check internet connection stability'
             };
         }
 
@@ -780,7 +1042,7 @@ class VideoQueueManager {
                 retry: currentRetryCount < maxRetries,
                 reason: 'Screenshot/browser issue - medium retry',
                 delaySeconds: Math.pow(2, currentRetryCount) * 45, // 45s, 90s, 180s
-                solution: 'Website may be temporarily inaccessible',
+                solution: 'Website may be temporarily inaccessible'
             };
         }
 
@@ -790,7 +1052,7 @@ class VideoQueueManager {
                 retry: currentRetryCount < Math.min(maxRetries, 1), // Only 1 retry
                 reason: 'Content issue - single retry with different filters suggested',
                 delaySeconds: 120, // 2 minutes
-                solution: 'Try different genre/platform/content type combination',
+                solution: 'Try different genre/platform/content type combination'
             };
         }
 
@@ -800,7 +1062,7 @@ class VideoQueueManager {
                 retry: currentRetryCount < maxRetries,
                 reason: 'External API issue - adaptive retry',
                 delaySeconds: Math.pow(2, currentRetryCount + 1) * 30, // 1, 2, 4 minutes
-                solution: 'External service is experiencing issues',
+                solution: 'External service is experiencing issues'
             };
         }
 
@@ -810,7 +1072,7 @@ class VideoQueueManager {
                 retry: currentRetryCount < maxRetries,
                 reason: 'Process was cancelled - can retry immediately',
                 delaySeconds: 30, // Short delay
-                solution: 'Job was stopped, safe to retry',
+                solution: 'Job was stopped, safe to retry'
             };
         }
 
@@ -819,7 +1081,7 @@ class VideoQueueManager {
             retry: currentRetryCount < maxRetries,
             reason: 'Unknown error - standard exponential backoff',
             delaySeconds: Math.pow(2, currentRetryCount) * 30, // 30s, 1m, 2m, 4m
-            solution: 'Monitor logs for specific error patterns',
+            solution: 'Monitor logs for specific error patterns'
         };
     }
 
@@ -837,12 +1099,28 @@ class VideoQueueManager {
             // Check if running in Docker or locally
             const isDocker = process.env.PYTHON_BACKEND_PATH === '/app';
             const scriptPath = isDocker ? 'main.py' : path.join(__dirname, '../main.py');
-            const args = [scriptPath, '--country', country, '--platform', platform, '--genre', genre, '--content-type', contentType];
+            const args = [
+                scriptPath,
+                '--country',
+                country,
+                '--platform',
+                platform,
+                '--genre',
+                genre,
+                '--content-type',
+                contentType
+            ];
 
             // Add template parameter if provided and not 'auto'
             if (template && template !== 'auto') {
                 args.push('--heygen-template-id', template);
             }
+
+            // Add Vizard template ID for intelligent video processing
+            args.push('--vizard-template-id', '69147768');
+
+            // Add job ID for webhook notifications
+            args.push('--job-id', job.id);
 
             // Add pause flag if enabled
             if (pauseAfterExtraction) {
@@ -859,8 +1137,8 @@ class VideoQueueManager {
                 env: {
                     ...process.env,
                     PYTHONIOENCODING: 'utf-8',
-                    PYTHONUNBUFFERED: '1',
-                },
+                    PYTHONUNBUFFERED: '1'
+                }
             });
 
             // Store reference to current process for cancellation (multi-worker support)
@@ -942,102 +1220,104 @@ class VideoQueueManager {
                             {
                                 patterns: ['STEP 1/7'],
                                 progress: 15,
-                                step: '🗃️ Step 1/7: Extracting movies from database...',
+                                step: '🗃️ Step 1/7: Extracting movies from database...'
                             },
                             {
                                 patterns: ['✅ STEP 1 COMPLETED'],
                                 progress: 20,
-                                step: '✅ Step 1 completed: Movies extracted successfully',
+                                step: '✅ Step 1 completed: Movies extracted successfully'
                             },
 
                             // Step 2: Script Generation
                             {
                                 patterns: ['STEP 2/7'],
                                 progress: 25,
-                                step: '🤖 Step 2/7: Generating AI-powered scripts...',
+                                step: '🤖 Step 2/7: Generating AI-powered scripts...'
                             },
                             {
                                 patterns: ['✅ STEP 2 COMPLETED'],
                                 progress: 35,
-                                step: '✅ Step 2 completed: AI scripts generated successfully',
+                                step: '✅ Step 2 completed: AI scripts generated successfully'
                             },
 
                             // Step 3: Asset Preparation
                             {
                                 patterns: ['STEP 3/7'],
                                 progress: 40,
-                                step: '🎨 Step 3/7: Creating enhanced posters and clips...',
+                                step: '🎨 Step 3/7: Creating enhanced posters and clips...'
                             },
                             {
                                 patterns: ['✅ STEP 3 COMPLETED'],
                                 progress: 50,
-                                step: '✅ Step 3 completed: Assets created successfully',
+                                step: '✅ Step 3 completed: Assets created successfully'
                             },
 
                             // Step 4: HeyGen Video Creation
                             {
                                 patterns: ['STEP 4/7'],
                                 progress: 55,
-                                step: '🎭 Step 4/7: Creating HeyGen AI avatar videos...',
+                                step: '🎭 Step 4/7: Creating HeyGen AI avatar videos...'
                             },
                             {
                                 patterns: ['✅ STEP 4 COMPLETED'],
                                 progress: 65,
-                                step: '✅ Step 4 completed: HeyGen videos created successfully',
+                                step: '✅ Step 4 completed: HeyGen videos created successfully'
                             },
 
                             // Step 5: HeyGen Video Processing
                             {
                                 patterns: ['STEP 5/7'],
                                 progress: 70,
-                                step: '⏳ Step 5/7: Processing HeyGen video URLs...',
+                                step: '⏳ Step 5/7: Processing HeyGen video URLs...'
                             },
                             {
                                 patterns: ['✅ STEP 5 COMPLETED'],
                                 progress: 75,
-                                step: '✅ Step 5 completed: Video URLs processed successfully',
+                                step: '✅ Step 5 completed: Video URLs processed successfully'
                             },
 
                             // Step 6: Scroll Video Generation
                             {
                                 patterns: ['STEP 6/7'],
                                 progress: 80,
-                                step: '📱 Step 6/7: Generating scroll video overlay...',
+                                step: '📱 Step 6/7: Generating scroll video overlay...'
                             },
                             {
                                 patterns: ['✅ STEP 6 COMPLETED'],
                                 progress: 85,
-                                step: '✅ Step 6 completed: Scroll overlay generated successfully',
+                                step: '✅ Step 6 completed: Scroll overlay generated successfully'
                             },
                             {
                                 patterns: ['STEP 6/7', 'SKIPPED'],
                                 progress: 85,
-                                step: '⏭️ Step 6 skipped: No scroll video needed',
+                                step: '⏭️ Step 6 skipped: No scroll video needed'
                             },
 
                             // Step 7: Creatomate Assembly
                             {
                                 patterns: ['STEP 7/7'],
                                 progress: 90,
-                                step: '🎬 Step 7/7: Assembling final video with Creatomate...',
+                                step: '🎬 Step 7/7: Assembling final video with Creatomate...'
                             },
                             {
                                 patterns: ['✅ STEP 7 COMPLETED'],
                                 progress: 95,
-                                step: '✅ Step 7 completed: Final video submitted for rendering',
+                                step: '✅ Step 7 completed: Final video submitted for rendering'
                             },
 
                             // Workflow Completion
                             {
                                 patterns: ['🎉 WORKFLOW COMPLETED SUCCESSFULLY'],
                                 progress: 100,
-                                step: '🎉 Workflow completed successfully!',
-                            },
+                                step: '🎉 Workflow completed successfully!'
+                            }
                         ];
 
                         // Check each pattern to find a match
                         for (const pattern of stepPatterns) {
-                            const matchesAll = pattern.patterns.every((p) => output.toLowerCase().includes(p.toLowerCase()));
+                            const matchesAll = pattern.patterns.every((p) =>
+                                output.toLowerCase().includes(p.toLowerCase())
+                            );
 
                             if (matchesAll) {
                                 // Step pattern matched - update job for UI display only
@@ -1167,19 +1447,28 @@ class VideoQueueManager {
                         const heygenErrorMatch = errorOutput.match(/HeyGen.*?error[:\s]+(.*?)(?:\n|$)/i);
                         if (heygenErrorMatch) {
                             const errorMsg = heygenErrorMatch[1].trim();
-                            reject(new Error(`🎭 HeyGen API error - ${errorMsg}. Please check your HeyGen account and API settings.`));
+                            reject(
+                                new Error(
+                                    `🎭 HeyGen API error - ${errorMsg}. Please check your HeyGen account and API settings.`
+                                )
+                            );
                             return;
                         }
                     }
 
                     // Check for insufficient movies error (less than 3 movies found)
-                    if (errorOutput.includes('Insufficient movies found') || (errorOutput.includes('only') && errorOutput.includes('movie(s) available'))) {
+                    if (
+                        errorOutput.includes('Insufficient movies found') ||
+                        (errorOutput.includes('only') && errorOutput.includes('movie(s) available'))
+                    ) {
                         const movieCountMatch = errorOutput.match(/only (\d+) movie\(s\) available/);
                         const movieCount = movieCountMatch ? movieCountMatch[1] : 'few';
 
                         // Try to extract movie names from the output
                         let movieNames = '';
-                        const movieSectionMatch = errorOutput.match(/🎬 Movies found with current filters:([\s\S]*?)(?:\n\n|\n   Please try)/);
+                        const movieSectionMatch = errorOutput.match(
+                            /🎬 Movies found with current filters:([\s\S]*?)(?:\n\n|\n   Please try)/
+                        );
                         if (movieSectionMatch && movieSectionMatch[1]) {
                             const movieLines = movieSectionMatch[1].trim().split('\n');
                             const movies = movieLines
@@ -1191,25 +1480,47 @@ class VideoQueueManager {
                             }
                         }
 
-                        reject(new Error(`🎬 Not enough movies available - only ${movieCount} found with current filters.${movieNames} Please try different genre, platform, or content type to find more movies.`));
+                        reject(
+                            new Error(
+                                `🎬 Not enough movies available - only ${movieCount} found with current filters.${movieNames} Please try different genre, platform, or content type to find more movies.`
+                            )
+                        );
                         return;
                     }
 
                     // Check for database errors
-                    if (errorOutput.includes('No movies found matching criteria') || errorOutput.includes('Database query failed')) {
-                        reject(new Error('🗃️ No movies found for the selected parameters (genre, platform, content type). Please try different filters to find available content.'));
+                    if (
+                        errorOutput.includes('No movies found matching criteria') ||
+                        errorOutput.includes('Database query failed')
+                    ) {
+                        reject(
+                            new Error(
+                                '🗃️ No movies found for the selected parameters (genre, platform, content type). Please try different filters to find available content.'
+                            )
+                        );
                         return;
                     }
 
                     // Check for connection errors
-                    if (errorOutput.includes('Connection failed') || errorOutput.includes('Database connection failed')) {
-                        reject(new Error('🌐 Database connection failed. Please check your internet connection and try again.'));
+                    if (
+                        errorOutput.includes('Connection failed') ||
+                        errorOutput.includes('Database connection failed')
+                    ) {
+                        reject(
+                            new Error(
+                                '🌐 Database connection failed. Please check your internet connection and try again.'
+                            )
+                        );
                         return;
                     }
 
                     // Check for screenshot/browser errors
                     if (errorOutput.includes('Screenshot') && errorOutput.includes('failed')) {
-                        reject(new Error('📸 Screenshot capture failed. This might be due to network issues or website accessibility. Please try again.'));
+                        reject(
+                            new Error(
+                                '📸 Screenshot capture failed. This might be due to network issues or website accessibility. Please try again.'
+                            )
+                        );
                         return;
                     }
 
@@ -1230,7 +1541,9 @@ class VideoQueueManager {
                 }
 
                 // Extract Creatomate ID (UUID format)
-                const creatomateMatch = stdout.match(/Creatomate.*?([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+                const creatomateMatch = stdout.match(
+                    /Creatomate.*?([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i
+                );
                 if (creatomateMatch && creatomateMatch[1]) {
                     creatomateId = creatomateMatch[1];
                 }
@@ -1250,14 +1563,14 @@ class VideoQueueManager {
                         pausedAfterExtraction: true,
                         message: 'Movie extraction completed - process paused for review',
                         stdout: stdout,
-                        stderr: stderr,
+                        stderr: stderr
                     });
                 } else {
                     resolve({
                         creatomateId,
                         videoUrl,
                         stdout,
-                        stderr,
+                        stderr
                     });
                 }
             });
@@ -1308,7 +1621,9 @@ class VideoQueueManager {
 
             const activeJob = this.activeJobs.get(jobId);
             const activeProcess = this.activeProcesses.get(jobId);
-            console.log(`🔍 Debug - activeJob: ${activeJob ? jobId : 'null'}, activeProcess: ${activeProcess ? activeProcess.pid : 'null'}`);
+            console.log(
+                `🔍 Debug - activeJob: ${activeJob ? jobId : 'null'}, activeProcess: ${activeProcess ? activeProcess.pid : 'null'}`
+            );
             console.log(`🔍 Active jobs: ${Array.from(this.activeJobs.keys()).join(', ') || 'none'}`);
 
             // If this job is currently processing, kill the Python process
@@ -1350,7 +1665,9 @@ class VideoQueueManager {
                 this.activeJobs.delete(jobId);
                 this.activeProcesses.delete(jobId);
                 this.availableWorkers++;
-                console.log(`🧹 Cleaned up job ${jobId} from active tracking (${this.availableWorkers}/${this.maxWorkers} workers available)`);
+                console.log(
+                    `🧹 Cleaned up job ${jobId} from active tracking (${this.availableWorkers}/${this.maxWorkers} workers available)`
+                );
             } else {
                 console.log(`⚠️ Cannot kill process - job ${jobId} is not currently processing`);
                 if (!activeJob) {
@@ -1375,6 +1692,9 @@ class VideoQueueManager {
 
             // Move to failed queue (cancelled jobs go here for tracking)
             await this.lpushAsync(this.keys.failed, JSON.stringify(job));
+
+            // Send webhook notification for job cancellation
+            this.sendWebhookNotification('job.cancelled', job);
 
             console.log(`✅ Job ${jobId} cancelled successfully`);
 
@@ -1401,7 +1721,13 @@ class VideoQueueManager {
      */
     async clearAllQueues() {
         try {
-            await Promise.all([this.delAsync(this.keys.pending), this.delAsync(this.keys.processing), this.delAsync(this.keys.completed), this.delAsync(this.keys.failed), this.delAsync(this.keys.jobs)]);
+            await Promise.all([
+                this.delAsync(this.keys.pending),
+                this.delAsync(this.keys.processing),
+                this.delAsync(this.keys.completed),
+                this.delAsync(this.keys.failed),
+                this.delAsync(this.keys.jobs)
+            ]);
             console.log('🗑️ All queues cleared');
         } catch (error) {
             console.error('❌ Failed to clear queues:', error);
@@ -1443,8 +1769,14 @@ class VideoQueueManager {
                             await this.lremAsync(this.keys.processing, 1, jobStr);
                             await this.lpushAsync(this.keys.failed, JSON.stringify(jobDetails));
                             await this.updateJob(jobDetails);
+
+                            // Send webhook notification for timeout
+                            this.sendWebhookNotification('job.timeout', jobDetails);
+
                             cleanedCount++;
-                            console.log(`🧹 Cleaned up timed out processing job: ${job.id} (running for ${Math.round(timeDiff / 60000)} minutes)`);
+                            console.log(
+                                `🧹 Cleaned up timed out processing job: ${job.id} (running for ${Math.round(timeDiff / 60000)} minutes)`
+                            );
                         }
                     }
                     // Remove jobs that don't exist in job store
@@ -1473,7 +1805,23 @@ class VideoQueueManager {
     }
 
     /**
-     * Get queue statistics for monitoring
+     * Check if system is actively processing jobs (for caching decisions)
+     */
+    async isActivelyProcessing() {
+        try {
+            // Check if we have active jobs or processing queue has items
+            const hasActiveJobs = this.activeJobs.size > 0;
+            const processingCount = await this.llenAsync(this.keys.processing);
+            return hasActiveJobs || processingCount > 0 || this.isProcessing;
+        } catch (error) {
+            console.error('❌ Failed to check processing status:', error);
+            // Assume processing during errors to use cached data
+            return true;
+        }
+    }
+
+    /**
+     * Get queue statistics for monitoring - OPTIMIZED for performance during processing
      */
     async getQueueStats() {
         try {
@@ -1484,7 +1832,7 @@ class VideoQueueManager {
                 pending: status.pending,
                 processing: status.processing,
                 completed: status.completed,
-                failed: status.failed,
+                failed: status.failed
             };
 
             return {
@@ -1495,7 +1843,7 @@ class VideoQueueManager {
                 availableWorkers: this.availableWorkers,
                 maxWorkers: this.maxWorkers,
                 concurrentProcessing: this.concurrentProcessing,
-                isProcessing: this.isProcessing,
+                isProcessing: this.isProcessing
             };
         } catch (error) {
             console.error('❌ Failed to get queue stats:', error);
@@ -1523,9 +1871,20 @@ class VideoQueueManager {
             return 'error';
         } else if (text.includes('warning') || text.includes('⚠️') || text.includes('warn')) {
             return 'warning';
-        } else if (text.includes('✅') || text.includes('success') || text.includes('completed') || text.includes('done')) {
+        } else if (
+            text.includes('✅') ||
+            text.includes('success') ||
+            text.includes('completed') ||
+            text.includes('done')
+        ) {
             return 'success';
-        } else if (text.includes('step') || text.includes('[step') || text.includes('🔄') || text.includes('🗃️') || text.includes('🤖')) {
+        } else if (
+            text.includes('step') ||
+            text.includes('[step') ||
+            text.includes('🔄') ||
+            text.includes('🗃️') ||
+            text.includes('🤖')
+        ) {
             return 'step';
         } else {
             return 'info';
@@ -1539,6 +1898,42 @@ class VideoQueueManager {
      * @param {string} type - Log type (info, success, warning, error, step)
      */
     addJobLog(jobId, message, type = 'info') {
+        // FILTER OUT detailed workflow logs - don't store them at all
+        // These logs clutter the job detail pages and are not useful for users
+        const shouldSkipLog =
+            // Skip step-by-step workflow details
+            message.match(/^Step \d+\/\d+:/) ||
+            message.includes('Database Extraction - Extracting') ||
+            message.includes('Script Generation - Generating') ||
+            message.includes('Asset Preparation - Creating') ||
+            message.includes('HeyGen Video Creation - Generating') ||
+            message.includes('Video Processing') ||
+            message.includes('Scroll Video Generation') ||
+            message.includes('Creatomate') ||
+            message.includes('Parameters: {') ||
+            message.includes('Job job_') ||
+            message.includes('started with worker') ||
+            message.includes('Queue position:') ||
+            message.includes('Queue stats') ||
+            message.includes('Processing job') ||
+            // Skip technical extraction details
+            (message.includes('Extracting ') && message.includes('movies from database')) ||
+            (message.includes('Generating scripts for') && message.includes('content on')) ||
+            message.includes('Creating enhanced posters and movie clips') ||
+            message.includes('waiting for video completion') ||
+            // Skip settings and cache messages
+            message.includes('Using settings') ||
+            message.includes('smooth_scroll') ||
+            message.includes('cached script') ||
+            message.includes('cached asset') ||
+            message.includes('Loaded');
+
+        if (shouldSkipLog) {
+            // Still log to console for debugging, but don't store for GUI
+            console.log(`🔇 [${jobId.slice(-8)}] FILTERED: ${message.trim()}`);
+            return;
+        }
+
         if (!this.jobLogs.has(jobId)) {
             this.jobLogs.set(jobId, []);
         }
@@ -1546,7 +1941,7 @@ class VideoQueueManager {
         const logEntry = {
             timestamp: new Date().toISOString(),
             message: message.trim(),
-            type: type,
+            type: type
         };
 
         const logs = this.jobLogs.get(jobId);

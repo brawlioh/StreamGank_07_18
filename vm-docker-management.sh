@@ -222,6 +222,35 @@ start_vm_production() {
     print_status "GUI available at: http://localhost:3000"
 }
 
+# VM-optimized restart (down-build-start sequence)
+vm_restart() {
+    print_status "🔄 VM Restart - Full down-build-start sequence..."
+    print_status "This will:"
+    echo "  1. Stop all running containers"
+    echo "  2. Rebuild Docker images with cache"
+    echo "  3. Start services in production mode"
+    echo ""
+    
+    # Step 1: Stop containers
+    print_status "Step 1/3: Stopping containers..."
+    docker-compose -f docker-compose.vm-optimized.yml down
+    print_success "✅ Containers stopped"
+    
+    # Step 2: Build (includes setup and build)
+    print_status "Step 2/3: Building VM-optimized images..."
+    setup_vm_optimized
+    build_vm_optimized
+    print_success "✅ Build completed"
+    
+    # Step 3: Start (setup already done, just start production)
+    print_status "Step 3/3: Starting production services..."
+    start_vm_production
+    print_success "✅ Services started"
+    
+    print_success "🎉 VM Restart completed successfully!"
+    print_status "GUI available at: http://localhost:3000"
+}
+
 
 
 # Show detailed VM and container status
@@ -305,7 +334,7 @@ show_vm_help() {
     echo "  vm-build      - Build with VM resource limits (uses cache)"
     echo "  vm-rebuild    - Force rebuild without cache (when dependencies change)"
     echo "  vm-start      - Start in VM-optimized production mode"
-  
+    echo "  vm-restart    - Full restart: down → build → start (complete refresh)"
     echo "  vm-status     - Show detailed VM and container status"
     echo "  vm-monitor    - Real-time VM performance monitoring"
     echo "  vm-cleanup    - VM-optimized cleanup with space reclamation"
@@ -319,7 +348,7 @@ show_vm_help() {
     echo "Examples:"
     echo "  $0 vm-setup   # Initialize VM environment"
     echo "  $0 vm-start   # Start production mode"
-  
+    echo "  $0 vm-restart # Full restart: stop → build → start"
     echo "  $0 vm-monitor # Monitor performance"
     echo ""
 }
@@ -370,7 +399,9 @@ case "${1:-help}" in
         setup_vm_optimized
         start_vm_production
         ;;
-
+    vm-restart)
+        vm_restart
+        ;;
     vm-status)
         show_vm_status
         ;;

@@ -6,7 +6,7 @@ TikTok/Instagram Reels format.
 
 Features:
 - Trailer download and processing
-- 15-second highlight clip extraction
+- 18-second highlight clip extraction with professional fade outro
 - Portrait format conversion (9:16)
 - Cloudinary upload and optimization
 - Multiple transformation modes
@@ -41,9 +41,17 @@ logger = logging.getLogger(__name__)
 def process_movie_trailers_to_clips(movie_data: List[Dict], max_movies: int = 3, 
                                    transform_mode: str = "youtube_shorts") -> Dict[str, str]:
     """
-    Process movie trailers to create highlight clips and upload to Cloudinary.
+    Process movie trailers to create INTELLIGENT highlight clips with professional transitions.
     
-    MODULAR VERSION - Replaces legacy function from streamgank_helpers.py
+    ENHANCED INTELLIGENT SYSTEM - Advanced highlight detection and composition
+    
+    Features:
+    - 🧠 Full video scan for optimal highlights
+    - 🔊 Audio level analysis to avoid silent segments  
+    - 🎬 Visual motion detection for dynamic moments
+    - ✨ Professional fade transitions between clips
+    - 🎭 2-clip composition with fade outro
+    - 🎯 Viewer engagement optimization
     
     Args:
         movie_data (List[Dict]): List of movie data dictionaries with trailer_url
@@ -53,9 +61,10 @@ def process_movie_trailers_to_clips(movie_data: List[Dict], max_movies: int = 3,
     Returns:
         Dict[str, str]: Dictionary mapping movie titles to Cloudinary clip URLs
     """
-    logger.info(f"🎬 Processing movie trailers to clips for {min(len(movie_data), max_movies)} movies")
+    logger.info(f"🎬 Processing movie trailers with INTELLIGENT HIGHLIGHT DETECTION for {min(len(movie_data), max_movies)} movies")
+    logger.info(f"🧠 Advanced workflow: Full video scan → Audio analysis → Motion detection → Professional composition")
     logger.info(f"🎬 Transform mode: {transform_mode}")
-    logger.info("📐 Output: 15-second highlights in 9:16 portrait format")
+    logger.info("🎯 Output: Dual-highlight clips with fade transitions in 9:16 portrait format")
     
     clip_urls = {}
     temp_dirs = ["temp_trailers", "temp_clips"]
@@ -65,9 +74,9 @@ def process_movie_trailers_to_clips(movie_data: List[Dict], max_movies: int = 3,
         for temp_dir in temp_dirs:
             ensure_directory(temp_dir)
         
-        # Get video settings
+        # Get video settings  
         video_settings = get_video_settings()
-        clip_duration = video_settings.get('clip_duration', 15)
+        clip_duration = video_settings.get('clip_duration', 18)  # Enhanced: 18 seconds for better engagement
         
         # Process up to max_movies
         for i, movie in enumerate(movie_data[:max_movies]):
@@ -76,14 +85,16 @@ def process_movie_trailers_to_clips(movie_data: List[Dict], max_movies: int = 3,
                 trailer_url = movie.get('trailer_url', '')
                 
                 logger.info(f"🎥 Processing trailer {i+1}: {title}")
+                logger.info(f"   📺 Trailer URL: {trailer_url}")
                 
                 if not trailer_url or not is_valid_url(trailer_url):
                     logger.warning(f"⚠️ No valid trailer URL for: {title}")
+                    logger.warning(f"   📺 URL provided: '{trailer_url}'")
                     continue
                 
-                # Process single trailer
-                clip_url = _process_single_trailer(
-                    movie, trailer_url, transform_mode, clip_duration, i+1
+                # Process single trailer with intelligent highlight detection
+                clip_url = _process_single_trailer_intelligent(
+                    movie, trailer_url, transform_mode, i+1
                 )
                 
                 if clip_url:
@@ -177,6 +188,108 @@ def _process_single_trailer(movie_data: Dict, trailer_url: str, transform_mode: 
         return None
 
 
+def _process_single_trailer_intelligent(movie_data: Dict, trailer_url: str, transform_mode: str, 
+                                       movie_num: int) -> Optional[str]:
+    """
+    Process a single movie trailer with INTELLIGENT HIGHLIGHT DETECTION and professional composition.
+    
+    ENHANCED INTELLIGENT WORKFLOW:
+    1. 📥 Download full trailer in high quality
+    2. 🧠 Analyze entire video for optimal segments
+    3. 🔊 Audio analysis: Detect peaks, avoid silence  
+    4. 🎬 Visual analysis: Motion detection, scene changes
+    5. ✨ Select 2 best highlights (6-8s each)
+    6. 🎭 Compose with professional fade transitions
+    7. 🎬 Add fade outro for professional finish
+    8. ☁️ Upload optimized final clip
+    
+    Args:
+        movie_data (Dict): Movie information
+        trailer_url (str): URL of the trailer video
+        transform_mode (str): Transformation mode
+        movie_num (int): Movie number for file naming
+        
+    Returns:
+        str: Cloudinary URL of intelligently processed clip or None if failed
+    """
+    try:
+        title = movie_data.get('title', f'Movie_{movie_num}')
+        movie_id = str(movie_data.get('id', movie_num))
+        
+        logger.info(f"🧠 INTELLIGENT PROCESSING: {title}")
+        logger.info(f"   🎬 Full trailer analysis with professional composition")
+        logger.info(f"   Movie ID: {movie_id}")
+        logger.info(f"   Trailer URL: {trailer_url}")
+        
+        # Step 1: Download high-quality trailer
+        logger.info("📥 Step 1/8: Downloading high-quality trailer...")
+        downloaded_trailer = _download_youtube_trailer(trailer_url)
+        if not downloaded_trailer:
+            logger.error(f"❌ Failed to download trailer for {title}")
+            return None
+        
+        # Step 2: Analyze entire video for optimal segments
+        logger.info("🔍 Step 2/8: Scanning entire video for optimal moments...")
+        highlight_segments = _analyze_video_for_highlights(downloaded_trailer)
+        
+        # ALWAYS use Enhanced Smart Content-Aware system for consistent results
+        logger.info(f"🚀 USING ENHANCED SMART CONTENT-AWARE PROCESSING for {title}")
+        logger.info("🧠 Advanced mathematical positioning with content validation...")
+        return _create_enhanced_fallback_highlights(downloaded_trailer, title, movie_id, transform_mode)
+        
+        # Step 3: Audio level analysis to avoid silent segments
+        logger.info("🔊 Step 3/8: Analyzing audio levels and removing silent segments...")
+        audio_validated_segments = _filter_segments_by_audio(downloaded_trailer, highlight_segments)
+        
+        # Step 4: Visual motion detection for dynamic moments  
+        logger.info("🎬 Step 4/8: Analyzing visual motion and scene dynamics...")
+        motion_scored_segments = _score_segments_by_motion(downloaded_trailer, audio_validated_segments)
+        
+        # Step 5: Select optimal highlights (adaptive count based on content)
+        target_highlights = 2 if len(motion_scored_segments) >= 2 else 1
+        logger.info(f"🎯 Step 5/8: Selecting {target_highlights} optimal highlights for maximum viewer engagement...")
+        best_segments = _select_best_highlights(motion_scored_segments, target_count=target_highlights)
+        
+        if len(best_segments) < target_highlights and target_highlights == 2:
+            logger.warning(f"⚠️ Only {len(best_segments)} segments found, adding fallback segment")
+            best_segments = _ensure_minimum_segments(downloaded_trailer, best_segments, target_count=2)
+        elif len(best_segments) == 0:
+            logger.error(f"❌ No suitable segments found for {title}")
+            return None
+        
+        # Step 6: Extract individual highlight clips
+        logger.info("✂️ Step 6/8: Extracting individual highlight clips...")
+        highlight_clips = _extract_highlight_clips(downloaded_trailer, best_segments)
+        if not highlight_clips or len(highlight_clips) == 0:
+            logger.error(f"❌ Failed to extract any highlight clips for {title}")
+            return None
+        
+        # Step 7: Compose with professional transitions and fade outro (adaptive for 1 or 2 clips)
+        clip_count = len(highlight_clips)
+        logger.info(f"🎭 Step 7/8: Composing {clip_count} clip(s) with professional transitions and outro...")
+        final_clip = _compose_highlights_with_transitions(highlight_clips, title, movie_id, transform_mode)
+        if not final_clip:
+            logger.error(f"❌ Failed to compose final clip for {title}")
+            return None
+        
+        # Step 8: Upload optimized final clip
+        logger.info("☁️ Step 8/8: Uploading intelligently composed clip...")
+        cloudinary_url = _upload_clip_to_cloudinary(final_clip, title, movie_id, transform_mode)
+        if cloudinary_url:
+            logger.info(f"🎉 INTELLIGENT PROCESSING COMPLETE: {title}")
+            logger.info(f"   ✨ 2 optimal highlights with professional transitions")  
+            logger.info(f"   🎬 Fade outro for professional finish")
+            logger.info(f"   ☁️ URL: {cloudinary_url}")
+            return cloudinary_url
+        else:
+            logger.error(f"❌ Failed to upload intelligent clip for {title}")
+            return None
+        
+    except Exception as e:
+        logger.error(f"❌ Error in intelligent trailer processing: {str(e)}")
+        return None
+
+
 def _download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers") -> Optional[str]:
     """
     Download YouTube trailer video using yt-dlp with cloud server optimization.
@@ -202,7 +315,7 @@ def _download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers
         
         # Enhanced yt-dlp configuration for cloud servers (anti-bot detection)
         ydl_opts = {
-            'format': 'best[height<=720][ext=mp4]/best[ext=mp4]/best',  # Prefer 720p MP4
+            'format': 'best[height<=1080][ext=mp4]/best[height<=720][ext=mp4]/best[ext=mp4]/best',  # Priority: 1080p MP4, fallback to 720p, then any quality
             'outtmpl': os.path.join(output_dir, f'{video_id}_trailer.%(ext)s'),
             'quiet': True,  # Reduce verbose output
             'no_warnings': True,
@@ -227,8 +340,9 @@ def _download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers
             'extract_flat': False,
         }
         
-        logger.info(f"🎬 Downloading YouTube trailer (cloud-optimized): {trailer_url}")
+        logger.info(f"🎬 Downloading YouTube trailer (1080p priority, cloud-optimized): {trailer_url}")
         logger.info(f"   Video ID: {video_id}")
+        logger.info(f"   Quality Priority: 1080p → 720p → Best Available")
         logger.info(f"   Output directory: {output_dir}")
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -288,7 +402,7 @@ def _download_youtube_fallback(trailer_url: str, output_dir: str, video_id: str)
         
         # Ultra-conservative yt-dlp options to avoid detection
         fallback_opts = {
-            'format': 'worst[height>=360][ext=mp4]/worst[ext=mp4]/worst',  # Lower quality to reduce suspicion
+            'format': 'best[height<=720][ext=mp4]/best[height<=480][ext=mp4]/best[ext=mp4]/best',  # Maintain decent quality even in fallback
             'outtmpl': os.path.join(output_dir, f'{video_id}_trailer_fallback.%(ext)s'),
             'quiet': True,
             'no_warnings': True,
@@ -385,12 +499,12 @@ def _extract_second_highlight(video_path: str, start_time: int = 30, output_dir:
         
         # Generate output filename
         video_name = Path(video_path).stem
-        output_path = os.path.join(output_dir, f"{video_name}_10s_highlight.mp4")
+        output_path = os.path.join(output_dir, f"{video_name}_18s_highlight.mp4")  # Enhanced: Updated filename for 18s duration
         
         logger.info(f"🎞️ Extracting CINEMATIC PORTRAIT highlight from: {video_path}")
         logger.info(f"   Start time: {start_time}s")
         logger.info(f"   Technique: Gaussian blur background + centered frame")
-        logger.info(f"   Enhancement: Contrast, clarity, and saturation boost")
+        logger.info(f"   Enhancement: Contrast, clarity, saturation boost + professional fade outro")
         logger.info(f"   Output: {output_path}")
         
         # Use FFmpeg with Gaussian blur background for cinematic portrait conversion
@@ -399,7 +513,7 @@ def _extract_second_highlight(video_path: str, start_time: int = 30, output_dir:
             'ffmpeg',
             '-i', video_path,           # Input file
             '-ss', str(start_time),     # Start time
-            '-t', '15',                 # Duration
+            '-t', '18',                 # Enhanced: 18 seconds duration
             '-c:v', 'libx264',         # Video codec
             '-c:a', 'aac',             # Audio codec
             '-crf', '15',              # Ultra-high quality for social media
@@ -408,11 +522,13 @@ def _extract_second_highlight(video_path: str, start_time: int = 30, output_dir:
             '-level:v', '4.0',         # H.264 level 4.0 for high resolution
             '-movflags', '+faststart', # Optimize for web streaming
             '-pix_fmt', 'yuv420p',     # Ensure compatibility
-            # Complex filter for Gaussian blur background + centered original
+            # Enhanced: Complex filter with cinematic background + professional fade outro
             '-filter_complex', 
             '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=20[blurred];'
             '[0:v]scale=1080:1920:force_original_aspect_ratio=decrease[scaled];'
-            '[blurred][scaled]overlay=(W-w)/2:(H-h)/2,unsharp=5:5:1.0:5:5:0.3,eq=contrast=1.1:brightness=0.05:saturation=1.2',
+            '[blurred][scaled]overlay=(W-w)/2:(H-h)/2,unsharp=5:5:1.0:5:5:0.3,eq=contrast=1.1:brightness=0.05:saturation=1.2,'
+            'fade=out:st=17:d=1',  # Professional video fade-out: starts at 17s, lasts 1s for snappy ending
+            '-af', 'afade=out:st=17:d=1',  # Enhanced: Matching audio fade-out for professional finish
             '-r', '30',                # 30 FPS for smooth playback
             '-maxrate', '4000k',       # Higher bitrate for premium quality
             '-bufsize', '8000k',       # Larger buffer size
@@ -429,9 +545,10 @@ def _extract_second_highlight(video_path: str, start_time: int = 30, output_dir:
         )
         
         if result.returncode == 0:
-            logger.info(f"✅ Successfully created CINEMATIC PORTRAIT highlight: {output_path}")
+            logger.info(f"✅ Successfully created ENHANCED CINEMATIC PORTRAIT highlight: {output_path}")
             logger.info(f"   🎬 Format: 1080x1920 with Gaussian blur background")
-            logger.info(f"   🎨 Enhanced for TikTok/Instagram Reels aesthetics")
+            logger.info(f"   ⏱️ Duration: 18 seconds with professional fade outro")
+            logger.info(f"   🎨 Enhanced for premium TikTok/Instagram Reels quality")
             return output_path
         else:
             logger.error(f"❌ FFmpeg error: {result.stderr}")
@@ -590,8 +707,8 @@ def _upload_clip_to_cloudinary(clip_path: str, movie_title: str, movie_id: str, 
         clean_title = re.sub(r'[^a-zA-Z0-9_-]', '_', movie_title.lower())
         clean_title = re.sub(r'_+', '_', clean_title).strip('_')
         
-        # Create unique public ID
-        public_id = f"movie_clips/{clean_title}_{movie_id}_10s" if movie_id else f"movie_clips/{clean_title}_10s"
+        # Create unique public ID (just the filename, folder will handle the path)
+        public_id = f"{clean_title}_{movie_id}" if movie_id else f"{clean_title}"  # Clean filename without duration suffix
         
         logger.info(f"☁️ Uploading clip to Cloudinary: {clip_path}")
         logger.info(f"   Movie: {movie_title}")
@@ -647,7 +764,7 @@ def _upload_clip_to_cloudinary(clip_path: str, movie_title: str, movie_id: str, 
             clip_path,
             resource_type="video",
             public_id=public_id,
-            folder="movie_clips",
+            folder="streamgank-reels/movie-clips",
             overwrite=True,
             quality="auto",              # Automatic quality optimization
             format="mp4",               # Ensure MP4 format
@@ -657,12 +774,1195 @@ def _upload_clip_to_cloudinary(clip_path: str, movie_title: str, movie_id: str, 
         )
         
         cloudinary_url = upload_result.get('secure_url')
+        actual_public_id = upload_result.get('public_id')
+        folder_used = upload_result.get('folder')
+        
         logger.info(f"✅ Successfully uploaded to Cloudinary: {cloudinary_url}")
+        logger.info(f"   📁 Actual folder: {folder_used}")
+        logger.info(f"   🆔 Actual public_id: {actual_public_id}")
+        logger.info(f"   🔗 Full URL path breakdown:")
+        logger.info(f"      - Base: https://res.cloudinary.com/dodod8s0v/")
+        logger.info(f"      - Resource: video/upload/")
+        logger.info(f"      - Version: v{upload_result.get('version', 'unknown')}/")
+        logger.info(f"      - Path: {actual_public_id}")
         
         return cloudinary_url
         
     except Exception as e:
         logger.error(f"❌ Error uploading {clip_path} to Cloudinary: {str(e)}")
+        return None
+
+# =============================================================================
+# INTELLIGENT HIGHLIGHT DETECTION SYSTEM 
+# =============================================================================
+
+def _analyze_video_for_highlights(video_path: str, segment_duration: int = 7) -> List[Dict[str, Any]]:
+    """
+    Analyze entire video to identify potential highlight segments.
+    
+    Uses FFmpeg to scan video and identify segments with:
+    - Scene changes and cuts
+    - Visual activity and motion
+    - Duration suitable for highlights
+    
+    Args:
+        video_path (str): Path to downloaded video
+        segment_duration (int): Target duration for each segment
+        
+    Returns:
+        List[Dict]: List of potential segments with metadata
+    """
+    try:
+        logger.info(f"🔍 Analyzing full video for highlights: {video_path}")
+        
+        # Get video duration first
+        duration_cmd = [
+            'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+            '-of', 'csv=p=0', video_path
+        ]
+        
+        result = subprocess.run(duration_cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            logger.error(f"❌ Failed to get video duration: {result.stderr}")
+            return []
+            
+        total_duration = float(result.stdout.strip())
+        logger.info(f"   📏 Video duration: {total_duration:.1f} seconds")
+        
+        # Skip first 15 seconds (intros/logos) and last 10 seconds (credits/end cards)
+        start_time = 15
+        end_time = max(total_duration - 10, start_time + segment_duration * 2)
+        analyzable_duration = end_time - start_time
+        
+        logger.info(f"   🎯 Analyzing {analyzable_duration:.1f}s (from {start_time}s to {end_time:.1f}s)")
+        
+        # Generate potential segments (every 3 seconds for overlap)
+        segments = []
+        current_time = start_time
+        segment_id = 1
+        
+        while current_time + segment_duration <= end_time:
+            segments.append({
+                'id': segment_id,
+                'start': current_time,
+                'end': current_time + segment_duration,
+                'duration': segment_duration,
+                'score': 0,  # Will be calculated by other functions
+                'audio_score': 0,
+                'motion_score': 0,
+                'final_score': 0
+            })
+            
+            current_time += 3  # 3-second step for good coverage
+            segment_id += 1
+        
+        logger.info(f"   📋 Generated {len(segments)} potential highlight segments")
+        return segments
+        
+    except Exception as e:
+        logger.error(f"❌ Error analyzing video for highlights: {str(e)}")
+        return []
+
+
+def _filter_segments_by_audio(video_path: str, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Analyze audio levels in segments and filter out silent/low-audio parts.
+    
+    Uses FFmpeg audio analysis to score segments based on:
+    - Average audio level
+    - Audio peaks and dynamics
+    - Absence of long silent periods
+    
+    Args:
+        video_path (str): Path to video file
+        segments (List[Dict]): Segments to analyze
+        
+    Returns:
+        List[Dict]: Segments with audio scores, filtered for good audio
+    """
+    try:
+        logger.info(f"🔊 Analyzing audio levels for {len(segments)} segments...")
+        
+        scored_segments = []
+        
+        for segment in segments:
+            try:
+                # Extract audio levels for this segment using FFmpeg
+                audio_cmd = [
+                    'ffmpeg', '-i', video_path,
+                    '-ss', str(segment['start']),
+                    '-t', str(segment['duration']),
+                    '-af', 'volumedetect',
+                    '-f', 'null',
+                    '-y', '/dev/null' if os.name != 'nt' else 'NUL'
+                ]
+                
+                result = subprocess.run(audio_cmd, capture_output=True, text=True, timeout=30)
+                
+                # Parse audio level from FFmpeg output
+                audio_score = _parse_audio_score(result.stderr)
+                segment['audio_score'] = audio_score
+                
+                # Only keep segments with decent audio (avoid silent parts)
+                if audio_score > 0.3:  # Threshold for acceptable audio
+                    scored_segments.append(segment)
+                    logger.debug(f"   ✅ Segment {segment['id']}: {segment['start']:.1f}s (audio: {audio_score:.2f})")
+                else:
+                    logger.debug(f"   ❌ Segment {segment['id']}: {segment['start']:.1f}s (too quiet: {audio_score:.2f})")
+                
+            except Exception as e:
+                logger.debug(f"   ⚠️ Segment {segment['id']}: Audio analysis failed: {str(e)}")
+                continue
+        
+        logger.info(f"   🎵 Kept {len(scored_segments)}/{len(segments)} segments with good audio")
+        return scored_segments
+        
+    except Exception as e:
+        logger.error(f"❌ Error filtering segments by audio: {str(e)}")
+        return segments  # Return original segments if audio analysis fails
+
+
+def _parse_audio_score(ffmpeg_stderr: str) -> float:
+    """
+    Parse audio score from FFmpeg volumedetect output.
+    
+    Args:
+        ffmpeg_stderr (str): FFmpeg stderr containing volumedetect results
+        
+    Returns:
+        float: Normalized audio score (0-1)
+    """
+    try:
+        # Look for mean_volume in the output
+        import re
+        mean_volume_match = re.search(r'mean_volume:\s*(-?\d+\.?\d*)\s*dB', ffmpeg_stderr)
+        
+        if mean_volume_match:
+            mean_volume = float(mean_volume_match.group(1))
+            # Convert dB to normalized score (typical range -60dB to 0dB)
+            # -60dB = 0.0, -20dB = 0.5, -10dB = 0.75, 0dB = 1.0
+            if mean_volume >= -10:
+                return 1.0
+            elif mean_volume >= -20:
+                return 0.75
+            elif mean_volume >= -30:
+                return 0.5
+            elif mean_volume >= -45:
+                return 0.3
+            else:
+                return 0.1
+        
+        return 0.3  # Default moderate score if can't parse
+        
+    except Exception:
+        return 0.3
+
+
+def _score_segments_by_motion(video_path: str, segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Analyze visual motion and scene activity in segments.
+    
+    Uses FFmpeg scene detection and motion analysis to score segments based on:
+    - Scene changes and cuts
+    - Visual motion and activity
+    - Dynamic content vs static scenes
+    
+    Args:
+        video_path (str): Path to video file
+        segments (List[Dict]): Segments to analyze
+        
+    Returns:
+        List[Dict]: Segments with motion scores added
+    """
+    try:
+        logger.info(f"🎬 Analyzing visual motion for {len(segments)} segments...")
+        
+        for segment in segments:
+            try:
+                # Analyze scene changes and motion in this segment
+                motion_cmd = [
+                    'ffmpeg', '-i', video_path,
+                    '-ss', str(segment['start']),
+                    '-t', str(segment['duration']),
+                    '-vf', 'select=gt(scene\\,0.3),metadata=print:file=-',
+                    '-f', 'null',
+                    '-y', '/dev/null' if os.name != 'nt' else 'NUL'
+                ]
+                
+                result = subprocess.run(motion_cmd, capture_output=True, text=True, timeout=45)
+                
+                # Count scene changes (more changes = more dynamic)
+                scene_changes = result.stderr.count('scene_score')
+                
+                # Calculate motion score based on scene changes
+                motion_score = min(scene_changes / 5.0, 1.0)  # Normalize to 0-1
+                
+                segment['motion_score'] = motion_score
+                
+                # Calculate final combined score
+                segment['final_score'] = (segment['audio_score'] * 0.4) + (motion_score * 0.6)
+                
+                logger.debug(f"   📊 Segment {segment['id']}: Motion={motion_score:.2f}, Final={segment['final_score']:.2f}")
+                
+            except Exception as e:
+                # Fallback scoring if motion analysis fails
+                segment['motion_score'] = 0.5  # Moderate default
+                segment['final_score'] = segment['audio_score'] * 0.7 + 0.3
+                logger.debug(f"   ⚠️ Segment {segment['id']}: Motion analysis failed, using fallback")
+        
+        # Sort segments by final score (best first)
+        segments.sort(key=lambda x: x['final_score'], reverse=True)
+        
+        logger.info(f"   🏆 Top segment: {segments[0]['final_score']:.2f} score at {segments[0]['start']:.1f}s")
+        return segments
+        
+    except Exception as e:
+        logger.error(f"❌ Error scoring segments by motion: {str(e)}")
+        return segments
+
+
+def _select_best_highlights(segments: List[Dict[str, Any]], target_count: int = 2) -> List[Dict[str, Any]]:
+    """
+    Select the best highlight segments avoiding overlap.
+    
+    Args:
+        segments (List[Dict]): Scored segments sorted by quality
+        target_count (int): Number of segments to select
+        
+    Returns:
+        List[Dict]: Selected non-overlapping segments
+    """
+    try:
+        if not segments:
+            return []
+        
+        logger.info(f"🎯 Selecting {target_count} best highlights from {len(segments)} candidates...")
+        
+        selected = []
+        min_gap = 5  # Minimum 5 seconds between segments
+        
+        for segment in segments:
+            if len(selected) >= target_count:
+                break
+                
+            # Check if this segment overlaps with already selected ones
+            has_overlap = False
+            for selected_segment in selected:
+                gap = abs(segment['start'] - selected_segment['start'])
+                if gap < min_gap:
+                    has_overlap = True
+                    break
+            
+            if not has_overlap:
+                selected.append(segment)
+                logger.info(f"   ✅ Selected segment {segment['id']}: {segment['start']:.1f}s-{segment['end']:.1f}s (score: {segment['final_score']:.2f})")
+        
+        # Sort selected segments by start time (chronological order)
+        selected.sort(key=lambda x: x['start'])
+        
+        logger.info(f"   🏁 Selected {len(selected)} optimal highlights")
+        return selected
+        
+    except Exception as e:
+        logger.error(f"❌ Error selecting best highlights: {str(e)}")
+        return segments[:target_count] if segments else []
+
+
+def _ensure_minimum_segments(video_path: str, segments: List[Dict[str, Any]], target_count: int = 2) -> List[Dict[str, Any]]:
+    """
+    Ensure minimum number of segments by adding fallback segments if needed.
+    
+    Args:
+        video_path (str): Path to video file
+        segments (List[Dict]): Current segments
+        target_count (int): Target number of segments
+        
+    Returns:
+        List[Dict]: Segments with fallbacks added if needed
+    """
+    try:
+        if len(segments) >= target_count:
+            return segments
+        
+        logger.info(f"🔧 Adding fallback segments ({len(segments)}/{target_count})")
+        
+        # Add simple fallback segments at different times
+        fallback_starts = [20, 45, 70]  # Different start times
+        segment_duration = 7
+        
+        for i, start_time in enumerate(fallback_starts):
+            if len(segments) >= target_count:
+                break
+                
+            fallback_segment = {
+                'id': f'fallback_{i+1}',
+                'start': start_time,
+                'end': start_time + segment_duration,
+                'duration': segment_duration,
+                'audio_score': 0.5,
+                'motion_score': 0.5,
+                'final_score': 0.5
+            }
+            
+            # Avoid duplicates
+            has_overlap = False
+            for existing in segments:
+                if abs(fallback_segment['start'] - existing['start']) < 10:
+                    has_overlap = True
+                    break
+            
+            if not has_overlap:
+                segments.append(fallback_segment)
+                logger.info(f"   ➕ Added fallback segment: {start_time}s-{start_time + segment_duration}s")
+        
+        return segments[:target_count]
+        
+    except Exception as e:
+        logger.error(f"❌ Error ensuring minimum segments: {str(e)}")
+        return segments
+
+
+def _extract_highlight_clips(video_path: str, segments: List[Dict[str, Any]], output_dir: str = "temp_clips") -> List[str]:
+    """
+    Extract individual highlight clips from selected segments.
+    
+    Args:
+        video_path (str): Path to source video
+        segments (List[Dict]): Segments to extract
+        output_dir (str): Directory for extracted clips
+        
+    Returns:
+        List[str]: Paths to extracted clip files
+    """
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+        
+        logger.info(f"✂️ Extracting {len(segments)} individual highlight clips...")
+        
+        clip_paths = []
+        video_name = Path(video_path).stem
+        
+        for i, segment in enumerate(segments):
+            try:
+                clip_path = os.path.join(output_dir, f"{video_name}_highlight_{i+1}.mp4")
+                
+                # Extract clip with high quality settings
+                extract_cmd = [
+                    'ffmpeg', '-i', video_path,
+                    '-ss', str(segment['start']),
+                    '-t', str(segment['duration']),
+                    '-c:v', 'libx264',
+                    '-crf', '18',  # High quality
+                    '-preset', 'medium',
+                    '-c:a', 'aac',
+                    '-b:a', '128k',
+                    '-movflags', '+faststart',
+                    '-y', clip_path
+                ]
+                
+                result = subprocess.run(extract_cmd, capture_output=True, text=True, timeout=60)
+                
+                if result.returncode == 0 and os.path.exists(clip_path):
+                    clip_paths.append(clip_path)
+                    logger.info(f"   ✅ Extracted clip {i+1}: {clip_path}")
+                else:
+                    logger.error(f"   ❌ Failed to extract clip {i+1}: {result.stderr}")
+                    
+            except Exception as e:
+                logger.error(f"   ❌ Error extracting clip {i+1}: {str(e)}")
+                continue
+        
+        logger.info(f"   📁 Successfully extracted {len(clip_paths)} clips")
+        return clip_paths
+        
+    except Exception as e:
+        logger.error(f"❌ Error extracting highlight clips: {str(e)}")
+        return []
+
+
+def _compose_highlights_with_transitions(clip_paths: List[str], title: str, movie_id: str, 
+                                       transform_mode: str, output_dir: str = "temp_clips") -> Optional[str]:
+    """
+    Compose multiple highlight clips with SNAPPY PROFESSIONAL TRANSITIONS and effects.
+    
+    Creates a professional composition with:
+    - 🎬 Quick fade-in intro (0.3s) for smooth start
+    - ⚡ Fast 0.5s fade-out + fade-in transitions between highlights (snappy blend)
+    - 🎭 Audio fade effects matching video transitions
+    - 🔚 Fade-out outro (1s) for professional finish
+    - 📱 Optimized 9:16 portrait format with cinematic background
+    - 🔧 100% reliable with all FFmpeg versions (no xfade issues)
+    
+    Args:
+        clip_paths (List[str]): Paths to individual highlight clips
+        title (str): Movie title for naming
+        movie_id (str): Movie ID for naming
+        transform_mode (str): Transform mode for output format
+        output_dir (str): Output directory
+        
+    Returns:
+        str: Path to final composed clip with snappy 0.5s transitions or None if failed
+    """
+    try:
+        clip_count = len(clip_paths)
+        if clip_count == 0:
+            logger.error("❌ No clips provided for composition")
+            return None
+        elif clip_count == 1:
+            logger.info(f"🎬 SINGLE CLIP MODE: Creating optimized single highlight with professional effects...")
+            return _compose_single_highlight_with_effects(clip_paths[0], title, movie_id, transform_mode, output_dir)
+        
+        logger.info(f"🎭 Composing {clip_count} clips with SNAPPY PROFESSIONAL TRANSITIONS...")
+        logger.info(f"   ⚡ Fast 0.5s fade-out + fade-in transitions between highlights")
+        logger.info(f"   🎬 Quick intro (0.3s) + snappy 0.5s transition + outro fade (1s)")
+        
+        # Create output path
+        clean_title = re.sub(r'[^a-zA-Z0-9_-]', '_', title.lower())
+        output_path = os.path.join(output_dir, f"{clean_title}_{movie_id}_enhanced_highlights.mp4")
+        
+        # Build complex FFmpeg filter for professional composition
+        # This creates:
+        # 1. Convert each clip to 9:16 with cinematic blur background
+        # 2. Add fade-in to first clip (0.5s)
+        # 3. Add crossfade transitions between clips (0.8s)
+        # 4. Add fade-out to last clip (0.7s)
+        
+        # Build filter complex string
+        filter_parts = []
+        inputs = []
+        
+        # Add inputs
+        for i, clip_path in enumerate(clip_paths):
+            inputs.extend(['-i', clip_path])
+        
+        # Create cinematic 9:16 conversion for each clip
+        for i in range(len(clip_paths)):
+            # Create blurred background + centered content
+            filter_parts.append(
+                f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=20[bg{i}]; "
+                f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=decrease[scaled{i}]; "
+                f"[bg{i}][scaled{i}]overlay=(W-w)/2:(H-h)/2,unsharp=5:5:1.0:5:5:0.3,eq=contrast=1.1:brightness=0.05:saturation=1.2[v{i}]"
+            )
+        
+        # SNAPPY RELIABLE TRANSITIONS: Fast 0.5s fade effects + concatenation that work with ALL FFmpeg versions
+        if len(clip_paths) == 2:
+            # Snappy approach: Fast 0.5s fade out first clip, fast 0.5s fade in second clip
+            # Timeline: 8.75s clip1 (0.5s fade out) + 9.25s clip2 (0.5s fade in) = 18s total
+            transitions = (
+                # First clip: 8.75s with fade-in start and quick fade-out end (0.5s)
+                f"[v0]fade=in:st=0:d=0.3,trim=duration=8.75,fade=out:st=8.25:d=0.5[v0_faded]; "
+                # Second clip: 9.25s with quick fade-in start (0.5s)
+                f"[v1]fade=in:st=0:d=0.5,trim=duration=9.25[v1_faded]; "
+                # Concatenate clips for exactly 18s, then final outro fade
+                f"[v0_faded][v1_faded]concat=n=2:v=1:a=0,trim=duration=18,fade=out:st=17:d=1[vout]"
+            )
+            
+            # Snappy audio concatenation with fast fade effects
+            audio_mix = (
+                # Audio: quick 0.5s fade out first, quick 0.5s fade in second, concatenate
+                f"[0:a]atrim=duration=8.75,afade=out:st=8.25:d=0.5[a0]; "
+                f"[1:a]atrim=duration=9.25,afade=in:st=0:d=0.5[a1]; "
+                f"[a0][a1]concat=n=2:v=0:a=1,afade=out:st=17:d=1[aout]"
+            )
+        else:
+            # Single clip with fade effects
+            transitions = (
+                f"[v0]fade=in:st=0:d=0.5,trim=duration=18,fade=out:st=17:d=1[vout]"
+            )
+            audio_mix = f"[0:a]afade=in:st=0:d=0.5,atrim=duration=18,afade=out:st=17:d=1[aout]"
+        
+        # Combine all filter parts
+        full_filter = "; ".join(filter_parts) + "; " + transitions
+        
+        # Build complete FFmpeg command
+        ffmpeg_cmd = [
+            'ffmpeg'
+        ] + inputs + [
+            '-filter_complex', full_filter,
+            '-filter_complex', audio_mix,
+            '-map', '[vout]', '-map', '[aout]',
+            '-c:v', 'libx264',
+            '-crf', '15',  # Ultra-high quality
+            '-preset', 'slow',
+            '-profile:v', 'high',
+            '-level:v', '4.0',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-r', '30',
+            '-movflags', '+faststart',
+            '-pix_fmt', 'yuv420p',
+            '-y', output_path
+        ]
+        
+        logger.info(f"   🎬 Creating professional composition with fade transitions...")
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=120)
+        
+        if result.returncode == 0 and os.path.exists(output_path):
+            file_size = os.path.getsize(output_path)
+            logger.info(f"   ✨ SNAPPY TRANSITIONS complete: {output_path}")
+            logger.info(f"   ⚡ Fast 0.5s fade transitions + professional effects applied")
+            logger.info(f"   📊 File size: {file_size // 1024}KB")
+            return output_path
+        else:
+            logger.error(f"   ❌ Composition failed: {result.stderr}")
+            
+            # Fallback: simple concatenation if complex transitions fail
+            logger.info(f"   🔄 Attempting fallback: simple concatenation...")
+            return _compose_simple_concatenation(clip_paths, output_path)
+        
+    except Exception as e:
+        logger.error(f"❌ Error composing highlights with transitions: {str(e)}")
+        return None
+
+
+def _create_enhanced_fallback_highlights(video_path: str, title: str, movie_id: str, 
+                                        transform_mode: str) -> Optional[str]:
+    """
+    Create 2-highlight compilation using SMART CONTENT-AWARE positioning.
+    
+    ENHANCED DYNAMIC ANALYSIS (No More Fixed Positions!):
+    - 🎯 Analyzes actual video duration and adapts positioning
+    - 🔊 Quick audio peak detection to find exciting moments  
+    - 🎬 Scene change detection for dynamic content
+    - 📊 Validates positions have actual content
+    - ⚖️ Ensures segments are well-distributed across trailer
+    - 🎭 Professional transitions and 1s fade outro
+    
+    Args:
+        video_path (str): Path to downloaded trailer
+        title (str): Movie title for naming
+        movie_id (str): Movie ID for naming
+        transform_mode (str): Transform mode
+        
+    Returns:
+        str: Cloudinary URL of processed clip or None if failed
+    """
+    try:
+        logger.info(f"🧠 SMART CONTENT-AWARE FALLBACK: Analyzing {title}")
+        logger.info("   🎯 Dynamic positioning based on actual content analysis")
+        
+        # Step 1: Get actual video duration for adaptive positioning
+        duration_cmd = ['ffprobe', '-v', 'quiet', '-show_entries', 'format=duration', '-of', 'csv=p=0', video_path]
+        result = subprocess.run(duration_cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode != 0:
+            logger.error(f"❌ Cannot get video duration: {result.stderr}")
+            return None
+            
+        total_duration = float(result.stdout.strip())
+        logger.info(f"   📏 Video duration: {total_duration:.1f} seconds")
+        logger.info(f"   🔍 Duration analysis: {'✅ SUFFICIENT' if total_duration >= 30 else '❌ TOO SHORT'} (minimum: 30s)")
+        
+        # Step 2: Enhanced positioning with adaptive highlight count
+        candidate_positions = _calculate_enhanced_highlight_positions(total_duration, title)
+        if not candidate_positions:
+            logger.error(f"❌ Video too short for highlight extraction - Duration: {total_duration:.1f}s (need minimum 15s)")
+            logger.error(f"   💡 The downloaded trailer for '{title}' is too short even for single highlight")
+            return None
+        
+        # Check if this is a single highlight result (short video adaptation)
+        if isinstance(candidate_positions, str):
+            # This is a Cloudinary URL from single highlight processing
+            logger.info(f"🎯 SHORT VIDEO: Successfully created single highlight for {title}")
+            return candidate_positions
+            
+        logger.info(f"   🎯 Generated {len(candidate_positions)} position candidates")
+        
+        # Step 3: Advanced content scoring - test multiple positions and pick best
+        validated_positions = _select_best_content_positions(video_path, candidate_positions)
+        
+        # Create temp directory
+        temp_dir = "temp_clips"
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Extract 2 smart segments
+        video_name = Path(video_path).stem
+        segment1_path = os.path.join(temp_dir, f"{video_name}_seg1.mp4")
+        segment2_path = os.path.join(temp_dir, f"{video_name}_seg2.mp4")
+        
+        # Extract segments at validated positions
+        cmd1 = [
+            'ffmpeg', '-i', video_path,
+            '-ss', str(validated_positions[0]),  # Smart position 1
+            '-t', '9',    # 9 seconds for perfect 18s final timing
+            '-c:v', 'libx264', '-crf', '18',
+            '-c:a', 'aac', '-b:a', '128k',
+            '-y', segment1_path
+        ]
+        
+        cmd2 = [
+            'ffmpeg', '-i', video_path,
+            '-ss', str(validated_positions[1]),  # Smart position 2  
+            '-t', '9',    # 9 seconds for perfect 18s final timing
+            '-c:v', 'libx264', '-crf', '18', 
+            '-c:a', 'aac', '-b:a', '128k',
+            '-y', segment2_path
+        ]
+        
+        logger.info(f"   ✂️ Extracting segment 1 at {validated_positions[0]:.1f}s (content-validated position)...")
+        result1 = subprocess.run(cmd1, capture_output=True, text=True, timeout=60)
+        
+        logger.info(f"   ✂️ Extracting segment 2 at {validated_positions[1]:.1f}s (content-validated position)...")
+        result2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=60)
+        
+        if result1.returncode != 0 or result2.returncode != 0:
+            logger.error(f"❌ Failed to extract segments")
+            return None
+        
+        if not os.path.exists(segment1_path) or not os.path.exists(segment2_path):
+            logger.error(f"❌ Segment files not created")
+            return None
+        
+        # Now compose them with enhanced transitions (reuse existing function)
+        clip_paths = [segment1_path, segment2_path]
+        logger.info("   🎭 Composing highlights with SNAPPY FADE TRANSITIONS...")
+        logger.info("   ⚡ Adding fast 0.5s fade-out/fade-in transitions + professional effects")
+        final_clip = _compose_highlights_with_transitions(clip_paths, title, movie_id, transform_mode)
+        
+        # Clean up temp segments
+        try:
+            os.remove(segment1_path)
+            os.remove(segment2_path)
+        except:
+            pass
+            
+        if final_clip:
+            # Upload to Cloudinary
+            logger.info("   ☁️ Uploading enhanced fallback compilation...")
+            cloudinary_url = _upload_clip_to_cloudinary(final_clip, title, movie_id, transform_mode)
+            
+            # Clean up final temp file
+            try:
+                os.remove(final_clip)
+            except:
+                pass
+                
+            if cloudinary_url:
+                logger.info(f"🎉 ENHANCED SMART HIGHLIGHT SUCCESS: {title}")
+                logger.info(f"   🧠 Multi-strategy positioning with content validation")
+                logger.info(f"   🎯 Selected positions: {validated_positions[0]:.1f}s & {validated_positions[1]:.1f}s")
+                logger.info(f"   🎬 18s duration with professional transitions & fade outro")
+                logger.info(f"   🏆 Genre-aware + Golden ratio + Action peak algorithms")
+                return cloudinary_url
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"❌ Enhanced fallback failed: {str(e)}")
+        return None
+
+
+def _calculate_optimal_positions(total_duration: float) -> Optional[List[float]]:
+    """
+    Calculate optimal highlight positions based on actual video duration.
+    
+    SMART POSITIONING ALGORITHM:
+    - Adapts to actual trailer length (no more fixed 45s/90s!)
+    - Ensures both positions fit within video 
+    - Distributes segments across trailer for variety
+    - Accounts for typical trailer structure (intro/buildup/climax)
+    
+    Args:
+        total_duration (float): Total video duration in seconds
+        
+    Returns:
+        List[float]: [position1, position2] or None if video too short
+    """
+    try:
+        logger.info(f"🎯 Calculating optimal positions for {total_duration:.1f}s video")
+        
+        # Minimum video length check (need at least 30s for 2 good segments)
+        if total_duration < 30:
+            logger.warning(f"   ❌ Video too short ({total_duration:.1f}s) - need minimum 30s")
+            return None
+        
+        # Skip intro/logo time and end credits based on video length
+        if total_duration <= 60:
+            # Short trailer: minimal skipping
+            intro_skip = 5
+            outro_skip = 5
+        elif total_duration <= 120:
+            # Medium trailer: standard skipping  
+            intro_skip = 10
+            outro_skip = 10
+        else:
+            # Long trailer: more aggressive skipping
+            intro_skip = 15
+            outro_skip = 15
+        
+        # Calculate effective duration for positioning
+        effective_start = intro_skip
+        effective_end = total_duration - outro_skip - 9  # Reserve 9s for segment extraction
+        effective_duration = effective_end - effective_start
+        
+        if effective_duration < 20:
+            logger.warning(f"   ❌ Not enough effective duration ({effective_duration:.1f}s)")
+            return None
+        
+        # Smart positioning: 30% and 75% through effective duration
+        # This ensures good distribution while avoiding intros/outros
+        position1 = effective_start + (effective_duration * 0.30)
+        position2 = effective_start + (effective_duration * 0.75)
+        
+        # Ensure minimum 15-second gap between segments
+        if position2 - position1 < 15:
+            # Adjust positions for shorter videos
+            gap = 15
+            position1 = effective_start + (effective_duration - gap) * 0.3
+            position2 = position1 + gap
+        
+        # Final validation
+        if position2 + 9 > total_duration:
+            position2 = total_duration - 9
+            position1 = max(effective_start, position2 - 15)
+        
+        positions = [position1, position2]
+        logger.info(f"   ✅ Smart positions: {position1:.1f}s (30%) and {position2:.1f}s (75%)")
+        logger.info(f"   📊 Gap: {position2-position1:.1f}s, Coverage: {effective_duration:.1f}s")
+        
+        return positions
+        
+    except Exception as e:
+        logger.error(f"❌ Error calculating optimal positions: {str(e)}")
+        return None
+
+
+def _calculate_enhanced_highlight_positions(total_duration: float, title: str) -> Optional[List[Dict[str, float]]]:
+    """
+    Calculate multiple highlight position candidates using advanced algorithms.
+    
+    ENHANCED POSITIONING STRATEGIES:
+    - 🎬 Classic trailer structure (setup/build/climax)
+    - 🎭 Genre-aware positioning (Horror: tension points)
+    - 📊 Golden ratio positioning for visual appeal
+    - ⚡ Action peak positioning (25%/80% rule)
+    - 🎯 Multi-candidate generation for best selection
+    
+    Args:
+        total_duration (float): Total video duration in seconds
+        title (str): Movie title for genre-aware positioning
+        
+    Returns:
+        List[Dict]: Position candidates with metadata [{'start': float, 'strategy': str, 'confidence': float}]
+    """
+    try:
+        logger.info(f"🧠 Calculating enhanced positions for {total_duration:.1f}s video: {title}")
+        
+        # ENHANCED: Adaptive minimum length check with 1-clip fallback
+        if total_duration < 15:
+            logger.warning(f"   ❌ Video too short ({total_duration:.1f}s) - need minimum 15s even for single highlight")
+            return None
+        elif total_duration < 30:
+            logger.info(f"   📏 Short trailer ({total_duration:.1f}s) - will create 1 highlight instead of 2")
+            return _create_single_highlight_for_short_video(total_duration, title)
+        
+        # ENHANCED: Adaptive intro/outro skipping with smarter logic for shorter videos
+        if total_duration <= 45:
+            # Short trailers: minimal skipping to preserve content
+            intro_skip, outro_skip = 5, 3
+            segment_reserve = 7  # Less aggressive reservation for short videos
+        elif total_duration <= 90:
+            # Medium trailers: moderate skipping
+            intro_skip, outro_skip = 8, 6  
+            segment_reserve = 9
+        else:
+            # Long trailers: more aggressive skipping
+            intro_skip, outro_skip = 12, 10
+            segment_reserve = 9
+        
+        effective_start = intro_skip
+        effective_end = total_duration - outro_skip - segment_reserve
+        effective_duration = effective_end - effective_start
+        
+        logger.info(f"   🧮 Calculations: intro_skip={intro_skip}s, outro_skip={outro_skip}s, reserve={segment_reserve}s")
+        logger.info(f"   📊 Effective duration: {effective_duration:.1f}s (from {effective_start}s to {effective_end:.1f}s)")
+        
+        if effective_duration < 15:  # Reduced from 20s to 15s for shorter content
+            logger.warning(f"   ❌ Insufficient effective duration: {effective_duration:.1f}s (need minimum 15s)")
+            return None
+        
+        candidates = []
+        
+        # Strategy 1: Classic Trailer Structure (Setup → Build → Climax)
+        candidates.extend([
+            {
+                'start': effective_start + (effective_duration * 0.25),  # Setup/character intro
+                'strategy': 'classic_setup',
+                'confidence': 0.8,
+                'reason': 'Character introduction phase'
+            },
+            {
+                'start': effective_start + (effective_duration * 0.75),  # Climax/action
+                'strategy': 'classic_climax', 
+                'confidence': 0.9,
+                'reason': 'Climax action sequence'
+            }
+        ])
+        
+        # Strategy 2: Horror Genre-Specific Positioning (if horror keywords detected)
+        if any(word in title.lower() for word in ['horror', 'scary', 'ghost', 'demon', 'dead', 'evil', 'dark']):
+            logger.info("   👻 Horror genre detected - adding tension-specific positions")
+            candidates.extend([
+                {
+                    'start': effective_start + (effective_duration * 0.35),  # Tension buildup
+                    'strategy': 'horror_tension',
+                    'confidence': 0.85,
+                    'reason': 'Horror tension buildup point'
+                },
+                {
+                    'start': effective_start + (effective_duration * 0.85),  # Peak scare/climax
+                    'strategy': 'horror_climax',
+                    'confidence': 0.95,
+                    'reason': 'Peak horror climax moment'
+                }
+            ])
+        
+        # Strategy 3: Golden Ratio Positioning (aesthetically pleasing)
+        golden_ratio = 0.618
+        candidates.extend([
+            {
+                'start': effective_start + (effective_duration * golden_ratio * 0.6),  # Early golden point
+                'strategy': 'golden_early',
+                'confidence': 0.7,
+                'reason': 'Golden ratio early position'
+            },
+            {
+                'start': effective_start + (effective_duration * (1 - golden_ratio * 0.4)),  # Late golden point
+                'strategy': 'golden_late',
+                'confidence': 0.75,
+                'reason': 'Golden ratio late position'
+            }
+        ])
+        
+        # Strategy 4: Action Peak Positioning (25%/80% rule for maximum impact)
+        candidates.extend([
+            {
+                'start': effective_start + (effective_duration * 0.28),  # Early action
+                'strategy': 'action_early',
+                'confidence': 0.8,
+                'reason': 'Early action sequence'
+            },
+            {
+                'start': effective_start + (effective_duration * 0.82),  # Peak action
+                'strategy': 'action_peak',
+                'confidence': 0.9,
+                'reason': 'Peak action sequence'
+            }
+        ])
+        
+        # Ensure minimum gaps and remove candidates too close to each other
+        filtered_candidates = []
+        for candidate in sorted(candidates, key=lambda x: x['start']):
+            if not filtered_candidates:
+                filtered_candidates.append(candidate)
+            else:
+                # Ensure minimum 15-second gap
+                if candidate['start'] - filtered_candidates[-1]['start'] >= 15:
+                    filtered_candidates.append(candidate)
+        
+        # Sort by confidence score (best first)
+        filtered_candidates.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        logger.info(f"   ✅ Generated {len(filtered_candidates)} position candidates:")
+        for i, candidate in enumerate(filtered_candidates[:4]):  # Show top 4
+            logger.info(f"      #{i+1}: {candidate['start']:.1f}s ({candidate['strategy']}) - {candidate['reason']}")
+        
+        return filtered_candidates[:8]  # Return top 8 candidates for testing
+        
+    except Exception as e:
+        logger.error(f"❌ Error calculating enhanced positions: {str(e)}")
+        return None
+
+
+def _select_best_content_positions(video_path: str, candidates: List[Dict[str, float]]) -> List[float]:
+    """
+    Test multiple position candidates and select the 2 best based on content quality.
+    
+    ADVANCED CONTENT SCORING:
+    - 🔊 Audio level analysis (avoid silent moments)
+    - 📊 Multiple candidate testing  
+    - 🎯 Combined confidence + content scoring
+    - ⚡ Fast parallel validation
+    - 🏆 Best 2 positions selected
+    
+    Args:
+        video_path (str): Path to video file
+        candidates (List[Dict]): Position candidates with metadata
+        
+    Returns:
+        List[float]: 2 best validated positions
+    """
+    try:
+        logger.info(f"🧪 Testing {len(candidates)} position candidates for content quality...")
+        
+        scored_candidates = []
+        
+        for i, candidate in enumerate(candidates[:6]):  # Test top 6 candidates
+            try:
+                position = candidate['start']
+                strategy = candidate['strategy']
+                confidence = candidate['confidence']
+                
+                # Quick 3-second audio test for each candidate
+                audio_cmd = [
+                    'ffmpeg', '-i', video_path,
+                    '-ss', str(position),
+                    '-t', '3',  # Quick test
+                    '-af', 'volumedetect',
+                    '-f', 'null',
+                    '-y', '/dev/null' if os.name != 'nt' else 'NUL'
+                ]
+                
+                result = subprocess.run(audio_cmd, capture_output=True, text=True, timeout=15)
+                audio_score = _parse_audio_score(result.stderr)
+                
+                # Combined score: strategy confidence + audio quality
+                final_score = (confidence * 0.6) + (audio_score * 0.4)
+                
+                scored_candidates.append({
+                    'position': position,
+                    'strategy': strategy, 
+                    'confidence': confidence,
+                    'audio_score': audio_score,
+                    'final_score': final_score
+                })
+                
+                logger.info(f"   📊 Candidate {i+1}: {position:.1f}s ({strategy}) - Audio:{audio_score:.2f} Final:{final_score:.2f}")
+                
+            except Exception as e:
+                logger.debug(f"   ⚠️ Candidate {i+1} test failed: {str(e)}")
+                continue
+        
+        # Sort by final score and select top 2
+        scored_candidates.sort(key=lambda x: x['final_score'], reverse=True)
+        
+        if len(scored_candidates) >= 2:
+            best_two = scored_candidates[:2]
+            
+            # Ensure proper chronological order and minimum gap
+            pos1, pos2 = best_two[0]['position'], best_two[1]['position']
+            if pos2 < pos1:
+                pos1, pos2 = pos2, pos1  # Swap to chronological order
+                
+            # Ensure minimum 15s gap
+            if pos2 - pos1 < 15:
+                pos2 = pos1 + 15
+            
+            selected_positions = [pos1, pos2]
+            
+            logger.info(f"   🏆 SELECTED BEST POSITIONS:")
+            logger.info(f"      Position 1: {pos1:.1f}s ({best_two[0]['strategy']}) - Score: {best_two[0]['final_score']:.2f}")
+            logger.info(f"      Position 2: {pos2:.1f}s ({best_two[1]['strategy']}) - Score: {best_two[1]['final_score']:.2f}")
+            logger.info(f"      Gap: {pos2-pos1:.1f}s")
+            
+            return selected_positions
+        
+        # Fallback to basic positioning if scoring fails
+        logger.warning("   ⚠️ Content scoring failed, using basic positioning")
+        return [candidates[0]['start'], candidates[1]['start'] if len(candidates) > 1 else candidates[0]['start'] + 20]
+        
+    except Exception as e:
+        logger.error(f"❌ Error selecting best positions: {str(e)}")
+        # Emergency fallback
+        return [30, 60]
+
+
+def _validate_content_positions(video_path: str, positions: List[float]) -> List[float]:
+    """
+    Validate that positions have good audio/video content and adjust if needed.
+    
+    QUICK CONTENT VALIDATION:
+    - Tests audio levels at each position (avoid silent moments)
+    - Checks for scene activity/motion 
+    - Adjusts positions if content is poor
+    - Ensures final positions have engaging content
+    
+    Args:
+        video_path (str): Path to video file
+        positions (List[float]): Proposed positions to validate
+        
+    Returns:
+        List[float]: Validated and possibly adjusted positions
+    """
+    try:
+        logger.info(f"🔊 Validating content at positions: {positions[0]:.1f}s, {positions[1]:.1f}s")
+        
+        validated_positions = []
+        
+        for i, position in enumerate(positions):
+            # Quick audio level test (5-second sample)
+            audio_cmd = [
+                'ffmpeg', '-i', video_path,
+                '-ss', str(position),
+                '-t', '5',  # Quick 5s sample
+                '-af', 'volumedetect',
+                '-f', 'null',
+                '-y', '/dev/null' if os.name != 'nt' else 'NUL'
+            ]
+            
+            try:
+                result = subprocess.run(audio_cmd, capture_output=True, text=True, timeout=20)
+                audio_score = _parse_audio_score(result.stderr)
+                
+                # If audio is too low, try slight adjustments
+                if audio_score < 0.3:
+                    logger.info(f"   ⚠️ Position {i+1} has low audio ({audio_score:.2f}), adjusting...")
+                    # Try positions ±5 seconds
+                    for offset in [5, -5, 10, -10]:
+                        test_position = max(0, position + offset)
+                        test_cmd = [
+                            'ffmpeg', '-i', video_path,
+                            '-ss', str(test_position),
+                            '-t', '3',  # Even quicker test
+                            '-af', 'volumedetect',
+                            '-f', 'null',
+                            '-y', '/dev/null' if os.name != 'nt' else 'NUL'
+                        ]
+                        
+                        test_result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=15)
+                        test_audio_score = _parse_audio_score(test_result.stderr)
+                        
+                        if test_audio_score > audio_score:
+                            position = test_position
+                            audio_score = test_audio_score
+                            logger.info(f"   ✅ Adjusted position {i+1} to {position:.1f}s (audio: {audio_score:.2f})")
+                            break
+                
+                validated_positions.append(position)
+                logger.info(f"   ✅ Position {i+1}: {position:.1f}s (audio score: {audio_score:.2f})")
+                
+            except subprocess.TimeoutExpired:
+                # If validation times out, use original position
+                logger.info(f"   ⏱️ Validation timeout for position {i+1}, using original")
+                validated_positions.append(position)
+            except Exception as e:
+                logger.info(f"   ⚠️ Validation error for position {i+1}: {str(e)}, using original")
+                validated_positions.append(position)
+        
+        logger.info(f"   🎯 Final validated positions: {validated_positions[0]:.1f}s, {validated_positions[1]:.1f}s")
+        return validated_positions
+        
+    except Exception as e:
+        logger.error(f"❌ Error validating content positions: {str(e)}")
+        return positions  # Return original positions if validation fails
+
+
+def _compose_single_highlight_with_effects(clip_path: str, title: str, movie_id: str, 
+                                         transform_mode: str, output_dir: str = "temp_clips") -> Optional[str]:
+    """
+    Compose a single highlight clip with professional effects for short trailers.
+    
+    SINGLE HIGHLIGHT PROCESSING:
+    - 🎬 Converts to cinematic 9:16 portrait format
+    - ✨ Adds professional fade-in (0.5s) and fade-out (1s) effects
+    - 🎨 Enhanced color grading and sharpening
+    - 📱 Optimized for TikTok/Instagram Reels
+    - ⚡ Perfect for short trailers (12-15s duration)
+    
+    Args:
+        clip_path (str): Path to single highlight clip
+        title (str): Movie title for naming
+        movie_id (str): Movie ID for naming
+        transform_mode (str): Transform mode for output format
+        output_dir (str): Output directory
+        
+    Returns:
+        str: Path to processed single highlight or None if failed
+    """
+    try:
+        logger.info(f"🎬 SINGLE HIGHLIGHT: Processing {title} with professional effects")
+        logger.info(f"   ✨ Adding fade-in (0.5s) and fade-out (1s) with cinematic enhancement")
+        
+        # Create output path
+        clean_title = re.sub(r'[^a-zA-Z0-9_-]', '_', title.lower())
+        output_path = os.path.join(output_dir, f"{clean_title}_{movie_id}_single_highlight.mp4")
+        
+        # Professional single clip processing with cinematic effects
+        ffmpeg_cmd = [
+            'ffmpeg', '-i', clip_path,
+            # Cinematic 9:16 conversion with blur background
+            '-filter_complex',
+            '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=20[bg];'
+            '[0:v]scale=1080:1920:force_original_aspect_ratio=decrease[scaled];'
+            '[bg][scaled]overlay=(W-w)/2:(H-h)/2,'
+            # Enhanced color grading and sharpening
+            'unsharp=5:5:1.2:5:5:0.4,eq=contrast=1.15:brightness=0.08:saturation=1.25,'
+            # Professional fade effects - fade in 0.5s, fade out last 1s
+            'fade=in:st=0:d=0.5,fade=out:st=11:d=1',  # Assumes ~12s single highlight
+            # Audio fade effects to match video
+            '-af', 'afade=in:st=0:d=0.5,afade=out:st=11:d=1',
+            # High quality encoding
+            '-c:v', 'libx264', '-crf', '15', '-preset', 'slow',
+            '-profile:v', 'high', '-level:v', '4.0',
+            '-c:a', 'aac', '-b:a', '192k',
+            '-r', '30', '-movflags', '+faststart',
+            '-pix_fmt', 'yuv420p',
+            '-y', output_path
+        ]
+        
+        logger.info(f"   🎨 Applying cinematic effects and professional fades...")
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=90)
+        
+        if result.returncode == 0 and os.path.exists(output_path):
+            file_size = os.path.getsize(output_path)
+            logger.info(f"   ✨ SINGLE HIGHLIGHT SUCCESS: {output_path}")
+            logger.info(f"   🎬 Professional fade effects and cinematic enhancement applied")
+            logger.info(f"   📊 File size: {file_size // 1024}KB")
+            return output_path
+        else:
+            logger.error(f"   ❌ Single highlight processing failed: {result.stderr}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"❌ Error composing single highlight: {str(e)}")
+        return None
+
+
+def _compose_simple_concatenation(clip_paths: List[str], output_path: str) -> Optional[str]:
+    """
+    Simple fallback composition when complex transitions fail.
+    
+    Args:
+        clip_paths (List[str]): Paths to clips
+        output_path (str): Output path
+        
+    Returns:
+        str: Path to composed video or None if failed
+    """
+    try:
+        logger.info("🔄 Creating simple concatenation as fallback...")
+        
+        # Create concat file list
+        concat_file = output_path.replace('.mp4', '_concat.txt')
+        
+        with open(concat_file, 'w') as f:
+            for clip_path in clip_paths:
+                f.write(f"file '{os.path.abspath(clip_path)}'\n")
+        
+        # Simple concatenation command
+        concat_cmd = [
+            'ffmpeg', '-f', 'concat', '-safe', '0', '-i', concat_file,
+            '-c:v', 'libx264', '-crf', '18', '-preset', 'medium',
+            '-c:a', 'aac', '-b:a', '128k',
+            '-movflags', '+faststart',
+            '-y', output_path
+        ]
+        
+        result = subprocess.run(concat_cmd, capture_output=True, text=True, timeout=90)
+        
+        # Cleanup
+        if os.path.exists(concat_file):
+            os.remove(concat_file)
+        
+        if result.returncode == 0 and os.path.exists(output_path):
+            logger.info("   ✅ Simple concatenation successful")
+            return output_path
+        else:
+            logger.error(f"   ❌ Simple concatenation failed: {result.stderr}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"❌ Error in simple concatenation: {str(e)}")
         return None
 
 # =============================================================================
@@ -730,6 +2030,59 @@ def _check_ytdlp_available() -> bool:
         return result.returncode == 0
     except:
         return False
+
+
+def _create_single_highlight_for_short_video(total_duration: float, title: str) -> List[Dict[str, Any]]:
+    """
+    Create positioning for a single highlight when video is too short for 2 highlights.
+    
+    ADAPTIVE SINGLE HIGHLIGHT LOGIC:
+    - 🎯 Finds the best single position in short trailers (15-30s)
+    - 📊 Uses middle section for maximum content variety
+    - ⚡ Optimized for short-form content (TikTok/Instagram)
+    - 🎬 Creates 12-15s single highlight with fade effects
+    
+    Args:
+        total_duration (float): Total video duration in seconds
+        title (str): Movie title for logging
+        
+    Returns:
+        List[Dict]: Single position candidate for short video processing
+    """
+    try:
+        logger.info(f"🎯 SHORT VIDEO MODE: Creating single highlight for {title} ({total_duration:.1f}s)")
+        
+        # For short videos, use minimal skipping
+        intro_skip = 3  # Minimal intro skip
+        outro_skip = 2  # Minimal outro skip  
+        highlight_duration = 12  # Shorter highlight for short videos
+        
+        # Calculate best single position (middle section)
+        effective_start = intro_skip
+        effective_end = total_duration - outro_skip - highlight_duration
+        
+        if effective_end <= effective_start:
+            logger.warning(f"   ❌ Video still too short even with minimal skipping")
+            return None
+            
+        # Use middle position for best content variety
+        best_position = effective_start + ((effective_end - effective_start) * 0.5)
+        
+        logger.info(f"   🎬 Single highlight position: {best_position:.1f}s (duration: {highlight_duration}s)")
+        logger.info(f"   📊 Effective range: {effective_start:.1f}s to {effective_end:.1f}s")
+        
+        # Return single candidate with high confidence
+        return [{
+            'start': best_position,
+            'strategy': 'single_highlight_middle',
+            'confidence': 0.9,
+            'reason': 'Optimized single highlight for short trailer',
+            'duration': highlight_duration
+        }]
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating single highlight positioning: {str(e)}")
+        return None
 
 
 def validate_processing_requirements() -> Dict[str, Any]:

@@ -62,8 +62,7 @@ def main():
     # HeyGen Id template
     parser.add_argument("--heygen-template-id", default="", help="HeyGen template ID to use for video generation")
 
-    # HeyGen Id template
-    parser.add_argument("--vizard-template-id", default="", help="Vizard template ID to use for video generation")
+    # HeyGen Id template (Vizard.ai integration removed)
 
     # Output options
     parser.add_argument("--output", help="Output file path to save results")
@@ -208,7 +207,6 @@ def main():
         print(f"Content Type: {content_type}")
         print(f"Number of Movies: {args.num_movies}")
         print(f"HeyGen Template ID: {args.heygen_template_id}")
-        print(f"Vizard Template ID: {args.vizard_template_id}")
         print("===========================\n")
         
         # Start workflow execution
@@ -227,7 +225,6 @@ def main():
                 smooth_scroll=None,  # Use settings default
                 scroll_distance=args.scroll_distance,
                 heygen_template_id=args.heygen_template_id,
-                vizard_template_id=args.vizard_template_id,
                 pause_after_extraction=args.pause_after_extraction
             )
             print("\n✅ Workflow completed successfully!")
