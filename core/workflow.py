@@ -292,8 +292,8 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing asset data from test_output
         cached_assets_data = load_test_data('assets', country, genre, platform)
         
-        # if cached_assets_data and should_use_cache():
-        if False: # false for now to avoid regenerating assets this is for testing only please dont remove this line
+        if cached_assets_data and should_use_cache():
+        # if False: # TESTING FIXED FADE EFFECTS + DUAL ZERO-SILENCE SYSTEM
             print("   📂 Using cached asset data from test_output...")
             
             enhanced_posters = cached_assets_data.get('enhanced_posters', {})
