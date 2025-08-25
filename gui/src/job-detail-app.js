@@ -427,35 +427,165 @@ export class JobDetailApp {
     }
 
     /**
-     * Update video result section
+     * Update video result section - Always shows video section, displays either processing status or completed video
      */
     updateVideoResult() {
         const videoCard = document.getElementById('video-result-card');
         const videoContent = document.getElementById('video-content');
+        
+        // Video preview section (replaces live logs completely)
+        const videoPreviewSection = document.getElementById('video-preview-section');
+        const videoPreviewContent = document.getElementById('video-preview-content');
+        const videoSectionTitle = document.getElementById('video-section-title');
+        const videoStatusBadge = document.getElementById('video-status-badge');
+        const currentProcessingStep = document.getElementById('current-processing-step');
+
+        // Always show the video section
+        if (videoPreviewSection) {
+            videoPreviewSection.classList.remove('d-none');
+        }
 
         if (this.jobData.status === 'completed' && this.jobData.videoUrl) {
-            videoContent.innerHTML = `
-                <div class="mb-3">
-                    <video controls class="w-100 rounded" style="max-height: 300px;">
-                        <source src="${this.jobData.videoUrl}" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
-                </div>
-                <div class="d-grid gap-2">
-                    <a href="${this.jobData.videoUrl}" target="_blank" class="btn btn-success">
-                        <i class="fas fa-external-link-alt me-1"></i> Open in New Tab
-                    </a>
-                    <a href="${this.jobData.videoUrl}" download class="btn btn-outline-light">
-                        <i class="fas fa-download me-1"></i> Download Video
-                    </a>
-                    <button class="btn btn-outline-info" onclick="jobDetailApp.copyVideoUrl()">
-                        <i class="fas fa-copy me-1"></i> Copy URL
-                    </button>
-                </div>
-            `;
-            videoCard.classList.remove('d-none');
+            // Video is completed - show video player and download options
+            if (videoSectionTitle) videoSectionTitle.textContent = 'Video Preview';
+            if (videoStatusBadge) {
+                videoStatusBadge.textContent = 'Completed';
+                videoStatusBadge.className = 'badge bg-success ms-2';
+            }
+
+            if (videoPreviewContent) {
+                videoPreviewContent.innerHTML = `
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="mb-3">
+                                <video controls class="w-100 rounded" style="max-height: 400px;">
+                                    <source src="${this.jobData.videoUrl}" type="video/mp4">
+                                    Your browser does not support the video tag.
+                                </video>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="d-grid gap-2">
+                                <a href="${this.jobData.videoUrl}" target="_blank" class="btn btn-success">
+                                    <i class="fas fa-external-link-alt me-1"></i> Open in New Tab
+                                </a>
+                                <a href="${this.jobData.videoUrl}" download class="btn btn-outline-light">
+                                    <i class="fas fa-download me-1"></i> Download Video
+                                </a>
+                                <button class="btn btn-outline-info" onclick="jobDetailApp.copyVideoUrl()">
+                                    <i class="fas fa-copy me-1"></i> Copy URL
+                                </button>
+                            </div>
+                            <div class="mt-3">
+                                <h6 class="text-light mb-2">
+                                    <i class="fas fa-info-circle me-1"></i> Video Details
+                                </h6>
+                                <div class="text-muted small">
+                                    <div><strong>Status:</strong> Ready</div>
+                                    <div><strong>Duration:</strong> ${this.calculateDuration()}</div>
+                                    <div><strong>Completed:</strong> ${new Date(this.jobData.completedAt || Date.now()).toLocaleString()}</div>
+                                    ${this.jobData.creatomateId ? `<div><strong>Render ID:</strong> ${this.jobData.creatomateId}</div>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Also populate the old video result card (if still used elsewhere)
+            if (videoContent) {
+                videoContent.innerHTML = `
+                    <div class="mb-3">
+                        <video controls class="w-100 rounded" style="max-height: 300px;">
+                            <source src="${this.jobData.videoUrl}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <a href="${this.jobData.videoUrl}" target="_blank" class="btn btn-success">
+                            <i class="fas fa-external-link-alt me-1"></i> Open in New Tab
+                        </a>
+                        <a href="${this.jobData.videoUrl}" download class="btn btn-outline-light">
+                            <i class="fas fa-download me-1"></i> Download Video
+                        </a>
+                        <button class="btn btn-outline-info" onclick="jobDetailApp.copyVideoUrl()">
+                            <i class="fas fa-copy me-1"></i> Copy URL
+                        </button>
+                    </div>
+                `;
+                videoCard.classList.remove('d-none');
+            }
         } else {
-            videoCard.classList.add('d-none');
+            // Video not ready - show processing status
+            const status = this.jobData.status || 'pending';
+            const currentStep = this.jobData.currentStep || 'Initializing...';
+            
+            if (videoSectionTitle) videoSectionTitle.textContent = 'Video Processing';
+            if (videoStatusBadge) {
+                if (status === 'failed') {
+                    videoStatusBadge.textContent = 'Failed';
+                    videoStatusBadge.className = 'badge bg-danger ms-2';
+                } else if (status === 'cancelled') {
+                    videoStatusBadge.textContent = 'Cancelled';
+                    videoStatusBadge.className = 'badge bg-secondary ms-2';
+                } else if (status === 'active' || status === 'processing') {
+                    videoStatusBadge.textContent = 'Processing';
+                    videoStatusBadge.className = 'badge bg-info ms-2';
+                } else {
+                    videoStatusBadge.textContent = 'Pending';
+                    videoStatusBadge.className = 'badge bg-warning ms-2';
+                }
+            }
+
+            if (currentProcessingStep) {
+                currentProcessingStep.textContent = currentStep;
+            }
+
+            if (videoPreviewContent) {
+                let statusIcon = 'fas fa-circle-notch fa-spin';
+                let statusTitle = 'Video Processing in Progress';
+                let statusMessage = 'Your video is being generated. This usually takes 2-5 minutes.';
+                
+                if (status === 'failed') {
+                    statusIcon = 'fas fa-exclamation-triangle text-danger';
+                    statusTitle = 'Video Processing Failed';
+                    statusMessage = 'There was an error generating your video. Please try again.';
+                } else if (status === 'cancelled') {
+                    statusIcon = 'fas fa-ban text-secondary';
+                    statusTitle = 'Video Processing Cancelled';
+                    statusMessage = 'Video generation was cancelled by user request.';
+                } else if (status === 'pending') {
+                    statusIcon = 'fas fa-clock text-warning';
+                    statusTitle = 'Video Processing Queued';
+                    statusMessage = 'Your video is in the queue and will start processing shortly.';
+                }
+
+                videoPreviewContent.innerHTML = `
+                    <div id="processing-status" class="text-center py-4">
+                        <div class="mb-3">
+                            <i class="${statusIcon}" style="font-size: 3rem;"></i>
+                        </div>
+                        <h6 class="text-light mb-2">${statusTitle}</h6>
+                        <p class="text-muted">${statusMessage}</p>
+                        <div class="mt-3">
+                            <small class="text-muted">Current step: <span id="current-processing-step">${currentStep}</span></small>
+                        </div>
+                        ${status === 'active' || status === 'processing' ? `
+                        <div class="mt-3">
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     style="width: ${this.jobData.progress || 0}%"></div>
+                            </div>
+                            <small class="text-muted mt-1 d-block">${this.jobData.progress || 0}% complete</small>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            if (videoCard) {
+                videoCard.classList.add('d-none');
+            }
         }
     }
 
@@ -487,8 +617,8 @@ export class JobDetailApp {
             // No polling for active jobs - webhooks provide all updates
         }, 600000); // Check every 10 minutes ONLY for final video URL
 
-        // Start fetching real job logs from the server (also reduced frequency)
-        this.startLogUpdates();
+        // Log updates disabled - using video preview section instead
+        // this.startLogUpdates();
     }
 
     /**

@@ -1103,19 +1103,67 @@ app.post('/api/job/:jobId/complete', async (req, res) => {
         job.progress = 100;
         job.completedAt = new Date().toISOString();
         job.currentStep = 'Video rendering completed!';
+        job.videoDisplayed = true; // Mark that video should be displayed
 
         await queueManager.updateJob(job);
+
+        // Send video completion notification to connected clients
+        broadcastVideoCompletion(job);
 
         res.json({
             success: true,
             message: 'Job updated with video URL',
-            job: job
+            job: job,
+            videoUrl: videoUrl,
+            displayVideo: true
         });
     } catch (error) {
         console.error('❌ Failed to update job:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to update job',
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to get video completion status for display
+app.get('/api/job/:jobId/video-status', async (req, res) => {
+    try {
+        const jobId = req.params.jobId;
+        const job = await queueManager.getJob(jobId);
+        
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: 'Job not found'
+            });
+        }
+
+        const isVideoReady = job.status === 'completed' && job.videoUrl;
+        
+        res.json({
+            success: true,
+            jobId: job.id,
+            status: job.status,
+            progress: job.progress,
+            videoUrl: job.videoUrl || null,
+            videoReady: isVideoReady,
+            completedAt: job.completedAt,
+            currentStep: job.currentStep,
+            displayVideo: isVideoReady && job.videoDisplayed,
+            videoDetails: isVideoReady ? {
+                url: job.videoUrl,
+                completedAt: job.completedAt,
+                creatomateId: job.creatomateId,
+                duration: job.duration || 'Unknown'
+            } : null
+        });
+    } catch (error) {
+        console.error('❌ Failed to get video status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get video status',
             error: error.message
         });
     }
@@ -1725,6 +1773,51 @@ async function startServer() {
     } catch (error) {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
+    }
+}
+
+// Broadcast video completion to all connected clients
+function broadcastVideoCompletion(job) {
+    console.log(`🎬 Broadcasting video completion for job ${job.id}`);
+    
+    const completionData = {
+        type: 'videoCompleted',
+        jobId: job.id,
+        videoUrl: job.videoUrl,
+        completedAt: job.completedAt,
+        jobData: {
+            id: job.id,
+            status: job.status,
+            progress: job.progress,
+            videoUrl: job.videoUrl,
+            currentStep: job.currentStep,
+            completedAt: job.completedAt,
+            creatomateId: job.creatomateId
+        }
+    };
+    
+    // Broadcast to all SSE clients
+    const clientsToRemove = [];
+    for (const client of sseClients) {
+        try {
+            if (client.res && client.res.writable) {
+                client.res.write(`data: ${JSON.stringify(completionData)}\n\n`);
+                client.lastUpdate = Date.now();
+            } else {
+                clientsToRemove.push(client);
+            }
+        } catch (error) {
+            console.error('❌ Error broadcasting video completion:', error);
+            clientsToRemove.push(client);
+        }
+    }
+    
+    // Clean up broken connections
+    clientsToRemove.forEach(client => sseClients.delete(client));
+    
+    // Also send webhook notification if configured
+    if (webhookManager) {
+        webhookManager.sendWebhook('video.completed', completionData);
     }
 }
 
