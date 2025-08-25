@@ -1,0 +1,19 @@
+{
+  "enhanced_posters": {
+    "Deadpool": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755859492/streamgank/posters/enhanced_deadpool_1.jpg",
+    "John Wick": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755859497/streamgank/posters/enhanced_john_wick_2.jpg",
+    "Mission: Impossible - Fallout": "https://res.cloudinary.com/dodod8s0v/image/upload/v1756102743/streamgank/posters/enhanced_mission_impossible_-_fallout_3.jpg"
+  },
+  "dynamic_clips": [
+    "https://res.cloudinary.com/dodod8s0v/video/upload/v1756106766/vizard_ai_clips/vizard_ai_clips/Vizard_%20Vizard%20Clip%201_clip.mp4",
+    "https://res.cloudinary.com/dodod8s0v/video/upload/v1756106784/vizard_ai_clips/vizard_ai_clips/Vizard_%20Vizard%20Clip%202_clip.mp4",
+    "https://res.cloudinary.com/dodod8s0v/video/upload/v1756106799/vizard_ai_clips/vizard_ai_clips/Vizard_%20Vizard%20Clip%203_clip.mp4"
+  ],
+  "parameters": {
+    "country": "US",
+    "genre": "Action",
+    "platform": "Netflix",
+    "content_type": "movie",
+    "num_movies": 3
+  }
+}

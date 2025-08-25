@@ -6,9 +6,19 @@ Main Entry Point
 MODULAR SYSTEM - NO LEGACY DEPENDENCIES
 
 Usage:
-    python main.py --country US --platform Netflix --genre Horror --content-type Film --heygen-template-id 138e73db86d440d1b8079c1bb30979fb
-    python main.py --country FR --platform Netflix --genre Horreur --content-type Film --heygen-template-id 138e73db86d440d1b8079c1bb30979fb
-
+    # Full workflow with Vizard AI (default)
+    python main.py --country US --platform Netflix --genre Action --content-type movie
+    
+    # Specify HeyGen template ID
+    python main.py --country US --platform Netflix --genre Horror --content-type movie --heygen-template-id a0ea1bf3a7da4030ae21eaf4a175cc0d
+    
+    # Use pre-existing Vizard clips metadata
+    python main.py --country US --platform Netflix --genre Action --content-type movie --vizard-metadata path/to/vizard_clips_metadata.json
+    
+    # Disable Vizard AI (not recommended)
+    python main.py --country US --platform Netflix --genre Action --content-type movie --no-vizard-ai
+    
+    # System utility commands
     python main.py --check-env
     python main.py --check-creatomate <render_id>
     python main.py --wait-creatomate <render_id>
@@ -71,6 +81,11 @@ def main():
     parser.add_argument("--scroll-distance", type=float, 
                        default=1.5, 
                        help="Scroll distance as viewport multiplier (default: 1.5)")
+                       
+    # Clip processing options
+    parser.add_argument("--no-vizard-ai", action="store_true", help="Disable Vizard AI for automatic highlight extraction")
+    parser.add_argument("--vizard-metadata", help="Path to Vizard clips metadata JSON file for manual integration")
+
     
     args = parser.parse_args()
     
@@ -205,8 +220,14 @@ def main():
         print(f"Content Type: {content_type}")
         print(f"Number of Movies: {args.num_movies}")
         print(f"HeyGen Template ID: {args.heygen_template_id}")
-        print("===========================\n")
-        
+        print(f"Use Vizard AI: {not args.no_vizard_ai}")
+        print("===========================")
+
+        # Set environment variables if provided
+        if args.vizard_metadata and os.path.exists(args.vizard_metadata):
+            os.environ['VIZARD_CLIPS_METADATA'] = args.vizard_metadata
+            print(f"📂 Using Vizard clips metadata from: {args.vizard_metadata}")
+            
         # Start workflow execution
         print(f"Parameters: {args.num_movies} movies, {country}, {genre}, {platform}, {content_type}")
         print("Starting end-to-end workflow...\n")
@@ -218,12 +239,11 @@ def main():
                 genre=genre,
                 platform=platform,
                 content_type=content_type,
-                output=args.output,
-                skip_scroll_video=args.skip_scroll_video,
-                smooth_scroll=None,  # Use settings default
+                skip_heygen=False,
+                smooth_scroll=True,
                 scroll_distance=args.scroll_distance,
                 heygen_template_id=args.heygen_template_id,
-                pause_after_extraction=args.pause_after_extraction
+                use_vizard_ai=not args.no_vizard_ai
             )
             print("\n✅ Workflow completed successfully!")
             

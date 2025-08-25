@@ -1,0 +1,33 @@
+{
+  "final_movie_clips": [
+    "test_vizard_clips/Test_Movie_highlight_1_1756028052.mp4",
+    "test_vizard_clips/Test_Movie_highlight_1_1756028978.mp4",
+    "test_vizard_clips/Test_Movie_highlight_1_1756030417.mp4"
+  ],
+  "dynamic_clips": {
+    "Test_Movie_1": "test_vizard_clips/Test_Movie_highlight_1_1756028052.mp4",
+    "Test_Movie_2": "test_vizard_clips/Test_Movie_highlight_1_1756028978.mp4",
+    "Test_Movie_3": "test_vizard_clips/Test_Movie_highlight_1_1756030417.mp4"
+  },
+  "vizard_ai_clips": [
+    {
+      "local_path": "test_vizard_clips/Test_Movie_highlight_1_1756028052.mp4",
+      "url": null,
+      "name": "Movie_highlight_1",
+      "index": 0
+    },
+    {
+      "local_path": "test_vizard_clips/Test_Movie_highlight_1_1756028978.mp4",
+      "url": null,
+      "name": "Movie_highlight_2",
+      "index": 1
+    },
+    {
+      "local_path": "test_vizard_clips/Test_Movie_highlight_1_1756030417.mp4",
+      "url": null,
+      "name": "Movie_highlight_3",
+      "index": 2
+    }
+  ],
+  "timestamp": 1756104157
+}

@@ -1,0 +1,24 @@
+{
+  "highlight_clips": [
+    {
+      "local_path": "test_vizard_clips/Test_Movie_highlight_1_1756028052.mp4",
+      "url": null,
+      "name": "Movie_highlight_1",
+      "index": 0
+    },
+    {
+      "local_path": "test_vizard_clips/Test_Movie_highlight_1_1756028978.mp4",
+      "url": null,
+      "name": "Movie_highlight_2",
+      "index": 1
+    },
+    {
+      "local_path": "test_vizard_clips/Test_Movie_highlight_1_1756030417.mp4",
+      "url": null,
+      "name": "Movie_highlight_3",
+      "index": 2
+    }
+  ],
+  "timestamp": 1756104827,
+  "clip_count": 3
+}

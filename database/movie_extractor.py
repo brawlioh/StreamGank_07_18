@@ -49,6 +49,13 @@ def extract_movie_data(num_movies: int = 3,
     logger.info(f"🎬 Extracting {num_movies} movies from database")
     logger.info(f"   Filters: country={country}, genre={genre}, platform={platform}, content_type={content_type}")
     
+    # Check if we're in test mode and should use mock data
+    import os
+    app_env = os.getenv('APP_ENV', 'local').lower()
+    if app_env == 'test':
+        logger.info(f"🧪 TEST ENVIRONMENT DETECTED: Using simulated movie data instead of database query")
+        return simulate_movie_data(num_movies=num_movies, genre=genre)
+    
     # Validate input parameters
     validation_result = validate_extraction_params(num_movies, country, genre, platform, content_type)
     if not validation_result['is_valid']:
@@ -183,27 +190,30 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
 # SIMULATION AND FALLBACK DATA
 # =============================================================================
 
-def simulate_movie_data(num_movies: int = 3, genre: Optional[str] = None) -> List[Dict[str, Any]]:
+def simulate_movie_data(num_movies: int = 3, genre: Optional[str] = None, platform: Optional[str] = None, country: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Generate simulated movie data when database is unavailable.
     
     This function provides fallback data for testing and development
-    when the database connection is not available.
+    when the database connection is not available or for test environments.
     
     Args:
         num_movies (int): Number of movies to simulate
         genre (str): Genre preference for simulation (affects selection)
+        platform (str): Platform filter for simulation
+        country (str): Country filter for simulation
         
     Returns:
         list: List of simulated movie data dictionaries
     """
-    logger.warning(f"⚠️ Generating {num_movies} simulated movies (database unavailable)")
+    logger.warning(f"⚠️ Generating {num_movies} simulated movies for testing")
     
-    # Base movie templates organized by genre
+    # Base movie templates organized by genre with real trailer URLs
     movie_templates = {
         'Horror': [
             {
                 "id": 1001,
+                "movie_id": 9012,
                 "title": "It",
                 "platform": "Netflix",
                 "year": "2017",
@@ -211,136 +221,220 @@ def simulate_movie_data(num_movies: int = 3, genre: Optional[str] = None) -> Lis
                 "imdb_score": 7.3,
                 "imdb_votes": 500000,
                 "runtime": "135 min",
-                "trailer_url": "https://www.youtube.com/watch?v=FnCdOQsX5kc",
-                "poster_url": "https://streamgank.com/images/it.jpg",
-                "cloudinary_poster_url": "",
-                "streaming_url": "https://netflix.com/title/80017573",
+                "trailer_url": "https://www.youtube.com/watch?v=hAUTdjf9rko",
+                "poster_url": "https://m.media-amazon.com/images/M/MV5BZDVkZmI0YzAtNzdjYi00ZjhhLWE1ODEtMWMzMWMzNDA0NmQ4XkEyXkFqcGdeQXVyNzYzODM3Mzg@._V1_.jpg",
+                "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/it_poster.jpg",
+                "streaming_url": "https://netflix.com/title/80117715",
                 "genres": ["Horror", "Mystery & Thriller"],
-                "content_type": "Film"
+                "content_type": "movie",
+                "country": "US"
             },
             {
                 "id": 1002,
+                "movie_id": 9013,
                 "title": "The Conjuring",
-                "platform": "Max",
+                "platform": "Netflix",
                 "year": "2013",
                 "imdb": "7.5/10 (450000 votes)",
                 "imdb_score": 7.5,
                 "imdb_votes": 450000,
                 "runtime": "112 min",
                 "trailer_url": "https://www.youtube.com/watch?v=k10ETZ41q5o",
-                "poster_url": "https://streamgank.com/images/conjuring.jpg",
-                "cloudinary_poster_url": "",
-                "streaming_url": "https://max.com/movies/the-conjuring",
+                "poster_url": "https://m.media-amazon.com/images/M/MV5BMTM3NjA1NDMyMV5BMl5BanBnXkFtZTcwMDQzNDMzOQ@@._V1_.jpg",
+                "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/conjuring_poster.jpg",
+                "streaming_url": "https://netflix.com/title/70251894",
                 "genres": ["Horror", "Mystery & Thriller"],
-                "content_type": "Film"
+                "content_type": "movie",
+                "country": "US"
             },
             {
                 "id": 1003,
-                "title": "Stranger Things",
+                "movie_id": 9014,
+                "title": "A Quiet Place",
                 "platform": "Netflix",
-                "year": "2016",
-                "imdb": "8.7/10 (1000000 votes)",
-                "imdb_score": 8.7,
-                "imdb_votes": 1000000,
-                "runtime": "51 min",
-                "trailer_url": "https://www.youtube.com/watch?v=b9EkMc79ZSU",
-                "poster_url": "https://streamgank.com/images/strangerthings.jpg",
-                "cloudinary_poster_url": "",
-                "streaming_url": "https://netflix.com/title/80057281",
-                "genres": ["Horror", "Sci-Fi", "Drama"],
-                "content_type": "Série"
-            }
-        ],
-        'Comedy': [
-            {
-                "id": 2001,
-                "title": "The Office",
-                "platform": "Netflix",
-                "year": "2005",
-                "imdb": "9.0/10 (600000 votes)",
-                "imdb_score": 9.0,
-                "imdb_votes": 600000,
-                "runtime": "22 min",
-                "trailer_url": "https://www.youtube.com/watch?v=LHOtME2DL4g",
-                "poster_url": "https://streamgank.com/images/office.jpg",
-                "cloudinary_poster_url": "",
-                "streaming_url": "https://netflix.com/title/70136120",
-                "genres": ["Comedy"],
-                "content_type": "Série"
-            },
-            {
-                "id": 2002,
-                "title": "Deadpool",
-                "platform": "Disney+",
-                "year": "2016",
-                "imdb": "8.0/10 (850000 votes)",
-                "imdb_score": 8.0,
-                "imdb_votes": 850000,
-                "runtime": "108 min",
-                "trailer_url": "https://www.youtube.com/watch?v=9X-7GrS0KI4",
-                "poster_url": "https://streamgank.com/images/deadpool.jpg",
-                "cloudinary_poster_url": "",
-                "streaming_url": "https://disneyplus.com/movies/deadpool",
-                "genres": ["Comedy", "Action"],
-                "content_type": "Film"
+                "year": "2018",
+                "imdb": "7.5/10 (420000 votes)",
+                "imdb_score": 7.5,
+                "imdb_votes": 420000,
+                "runtime": "90 min",
+                "trailer_url": "https://www.youtube.com/watch?v=WR7cc5t7tv8",
+                "poster_url": "https://m.media-amazon.com/images/M/MV5BMjI0MDMzNTQ0M15BMl5BanBnXkFtZTgwMTM5NzM3NDM@._V1_.jpg",
+                "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/quiet_place_poster.jpg",
+                "streaming_url": "https://netflix.com/title/80245255",
+                "genres": ["Horror", "Sci-Fi", "Thriller"],
+                "content_type": "movie",
+                "country": "US"
             }
         ],
         'Action': [
             {
                 "id": 3001,
+                "movie_id": 9015,
                 "title": "Top Gun: Maverick",
-                "platform": "Prime Video",
+                "platform": "Netflix",
                 "year": "2022",
                 "imdb": "8.3/10 (700000 votes)",
                 "imdb_score": 8.3,
                 "imdb_votes": 700000,
                 "runtime": "130 min",
-                "trailer_url": "https://www.youtube.com/watch?v=qSqVVswa420",
-                "poster_url": "https://streamgank.com/images/topgun.jpg",
-                "cloudinary_poster_url": "",
-                "streaming_url": "https://amazon.com/dp/B09XVQCDNG",
+                "trailer_url": "https://www.youtube.com/watch?v=giXco2jaZ_4",
+                "poster_url": "https://m.media-amazon.com/images/M/MV5BZWYzOGEwNTgtNWU3NS00ZTQ0LWJkODUtMmVhMjIwMjA1ZmQwXkEyXkFqcGdeQXVyMjkwOTAyMDU@._V1_.jpg",
+                "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/topgun_poster.jpg",
+                "streaming_url": "https://netflix.com/title/81486921",
                 "genres": ["Action", "Drama"],
-                "content_type": "Film"
+                "content_type": "movie",
+                "country": "US"
+            },
+            {
+                "id": 3002,
+                "movie_id": 9016,
+                "title": "Mission: Impossible - Fallout",
+                "platform": "Netflix",
+                "year": "2018",
+                "imdb": "7.7/10 (320000 votes)",
+                "imdb_score": 7.7,
+                "imdb_votes": 320000,
+                "runtime": "147 min",
+                "trailer_url": "https://www.youtube.com/watch?v=wb49-oV0F78",
+                "poster_url": "https://m.media-amazon.com/images/M/MV5BNjRlZmM0ODktY2RjNS00ZDdjLWJhZGYtNDljNWZkMGM5MTg0XkEyXkFqcGdeQXVyNjAwMjI5MDk@._V1_.jpg",
+                "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/mission_impossible_poster.jpg",
+                "streaming_url": "https://netflix.com/title/80220939",
+                "genres": ["Action", "Adventure", "Thriller"],
+                "content_type": "movie",
+                "country": "US"
+            },
+            {
+                "id": 3003,
+                "movie_id": 9017,
+                "title": "John Wick",
+                "platform": "Netflix",
+                "year": "2014",
+                "imdb": "7.4/10 (580000 votes)",
+                "imdb_score": 7.4,
+                "imdb_votes": 580000,
+                "runtime": "101 min",
+                "trailer_url": "https://www.youtube.com/watch?v=2AUmvWm5ZDQ",
+                "poster_url": "https://m.media-amazon.com/images/M/MV5BMTU2NjA1ODgzMF5BMl5BanBnXkFtZTgwMTM2MTI4MjE@._V1_.jpg",
+                "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/john_wick_poster.jpg",
+                "streaming_url": "https://netflix.com/title/70298320",
+                "genres": ["Action", "Crime", "Thriller"],
+                "content_type": "movie",
+                "country": "US"
+            }
+        ],
+        'Comedy': [
+            {
+                "id": 2001,
+                "movie_id": 9018,
+                "title": "Superbad",
+                "platform": "Netflix",
+                "year": "2007",
+                "imdb": "7.6/10 (520000 votes)",
+                "imdb_score": 7.6,
+                "imdb_votes": 520000,
+                "runtime": "113 min",
+                "trailer_url": "https://www.youtube.com/watch?v=LvMydm49H3I",
+                "poster_url": "https://m.media-amazon.com/images/M/MV5BMTc0NjIyMjA2OF5BMl5BanBnXkFtZTcwMzIxNDE1MQ@@._V1_.jpg",
+                "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/superbad_poster.jpg",
+                "streaming_url": "https://netflix.com/title/70058023",
+                "genres": ["Comedy"],
+                "content_type": "movie",
+                "country": "US"
+            },
+            {
+                "id": 2002,
+                "movie_id": 9019,
+                "title": "Deadpool",
+                "platform": "Netflix",
+                "year": "2016",
+                "imdb": "8.0/10 (850000 votes)",
+                "imdb_score": 8.0,
+                "imdb_votes": 850000,
+                "runtime": "108 min",
+                "trailer_url": "https://www.youtube.com/watch?v=ONHBaC-pfsk",
+                "poster_url": "https://m.media-amazon.com/images/M/MV5BYzE5MjY1ZDgtMTkyNC00MTMyLThhMjAtZGI5OTE1NzFlZGJjXkEyXkFqcGdeQXVyNjU0OTQ0OTY@._V1_FMjpg_UX1000_.jpg",
+                "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/deadpool_poster.jpg",
+                "streaming_url": "https://netflix.com/title/80079752",
+                "genres": ["Comedy", "Action"],
+                "content_type": "movie",
+                "country": "US"
             }
         ]
     }
     
-    # Select movies based on genre preference
-    if genre and genre in movie_templates:
-        available_movies = movie_templates[genre].copy()
-        logger.info(f"🎭 Using genre-specific templates for: {genre}")
-    else:
-        # Combine all genres
-        available_movies = []
-        for genre_movies in movie_templates.values():
-            available_movies.extend(genre_movies)
-        logger.info(f"🎭 Using mixed genre templates")
+    # Apply filters to select appropriate movies
+    filtered_movies = []
+    
+    # Start with all movies
+    all_movies = []
+    for genre_movies in movie_templates.values():
+        all_movies.extend(genre_movies)
+    
+    # Apply filters sequentially if provided
+    movies_to_filter = all_movies
+    
+    if genre:
+        # Filter by genre
+        genre_lower = genre.lower()
+        movies_to_filter = [
+            movie for movie in movies_to_filter 
+            if any(g.lower() == genre_lower for g in movie.get('genres', []))
+        ]
+        logger.info(f"🎭 Applied genre filter: {genre} ({len(movies_to_filter)} movies match)")
+    
+    if platform:
+        # Filter by platform
+        platform_lower = platform.lower()
+        movies_to_filter = [
+            movie for movie in movies_to_filter
+            if movie.get('platform', '').lower() == platform_lower
+        ]
+        logger.info(f"📺 Applied platform filter: {platform} ({len(movies_to_filter)} movies match)")
+    
+    if country:
+        # Filter by country
+        country_upper = country.upper()
+        movies_to_filter = [
+            movie for movie in movies_to_filter
+            if movie.get('country', '').upper() == country_upper
+        ]
+        logger.info(f"🌎 Applied country filter: {country} ({len(movies_to_filter)} movies match)")
+    
+    filtered_movies = movies_to_filter
+    
+    # If we don't have enough movies after filtering, fall back to all movies
+    if len(filtered_movies) < num_movies:
+        logger.warning(f"⚠️ Not enough movies match filters ({len(filtered_movies)}), using broader selection")
+        filtered_movies = all_movies
     
     # Randomize and select requested number
-    random.shuffle(available_movies)
-    selected_movies = available_movies[:num_movies]
+    random.shuffle(filtered_movies)
+    selected_movies = filtered_movies[:num_movies]
     
-    # Fill with duplicates if not enough movies
+    # Fill with duplicates if still not enough movies
     while len(selected_movies) < num_movies:
-        if available_movies:
-            selected_movies.append(random.choice(available_movies))
+        if filtered_movies:
+            selected_movies.append(random.choice(filtered_movies))
         else:
             # Create generic movie if no templates
+            fake_id = 9000 + len(selected_movies)
             selected_movies.append({
-                "id": 9000 + len(selected_movies),
-                "title": f"Movie {len(selected_movies) + 1}",
-                "platform": "Netflix",
+                "id": fake_id,
+                "movie_id": fake_id,
+                "title": f"Test Movie {len(selected_movies) + 1}",
+                "platform": platform or "Netflix",
                 "year": "2023",
                 "imdb": "7.0/10 (100000 votes)",
                 "imdb_score": 7.0,
                 "imdb_votes": 100000,
                 "runtime": "120 min",
-                "trailer_url": "",
-                "poster_url": "",
-                "cloudinary_poster_url": "",
-                "streaming_url": "",
-                "genres": ["Drama"],
-                "content_type": "Film"
+                "trailer_url": "https://www.youtube.com/watch?v=giXco2jaZ_4",  # Using valid trailer URL
+                "poster_url": "https://m.media-amazon.com/images/M/MV5BZWYzOGEwNTgtNWU3NS00ZTQ0LWJkODUtMmVhMjIwMjA1ZmQwXkEyXkFqcGdeQXVyMjkwOTAyMDU@._V1_.jpg",
+                "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/generic_poster.jpg",
+                "streaming_url": "https://netflix.com/title/81000000",
+                "genres": [genre] if genre else ["Drama"],
+                "content_type": "movie",
+                "country": country or "US"
             })
     
     logger.info(f"✅ Generated {len(selected_movies)} simulated movies")

@@ -309,7 +309,7 @@ def download_youtube_trailer(trailer_url: str, output_dir: str = "temp_trailers"
         logger.error(f"❌ Error downloading YouTube trailer {trailer_url}: {str(e)}")
         return None
 
-def extract_second_highlight(video_path: str, start_time: int = 30, output_dir: str = "temp_clips") -> Optional[str]:
+     extract_second_highlight(video_path: str, start_time: int = 30, output_dir: str = "temp_clips") -> Optional[str]:
     """
     Extract a highlight clip from a video and convert to CINEMATIC PORTRAIT format (9:16)
     

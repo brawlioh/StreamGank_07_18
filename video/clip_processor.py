@@ -654,3 +654,61 @@ def validate_processing_requirements() -> Dict[str, Any]:
         validation['missing_requirements'].append(f'Cannot create temp directories: {str(e)}')
     
     return validation
+
+
+def prepare_clips_for_creatomate(clips_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Prepare movie clips data for Creatomate composition.
+    
+    This function takes the raw clip data and formats it correctly for use in
+    Creatomate video composition, ensuring all required fields are present.
+    
+    Args:
+        clips_data: List of movie clip data dictionaries
+        
+    Returns:
+        List[Dict[str, Any]]: Formatted clip data ready for Creatomate
+    """
+    if not clips_data:
+        logger.error("❌ No clip data provided for Creatomate preparation")
+        return []
+    
+    logger.info(f"🎬 Preparing {len(clips_data)} clips for Creatomate composition")
+    formatted_clips = []
+    
+    for i, clip in enumerate(clips_data):
+        try:
+            # Get clip data
+            clip_url = clip.get("clip_url", None)
+            title = clip.get("title", f"Movie {i+1}")
+            year = clip.get("year", "")
+            platform = clip.get("platform", "")
+            imdb_rating = clip.get("imdb", "")
+            movie_id = clip.get("id", f"movie_{i+1}")
+            
+            # Skip clips without URLs
+            if not clip_url:
+                logger.warning(f"⚠️ No clip URL for {title}, skipping")
+                continue
+            
+            # Create formatted clip data
+            formatted_clip = {
+                "id": movie_id,
+                "title": title,
+                "year": year,
+                "platform": platform,
+                "imdb_rating": str(imdb_rating) if imdb_rating else "",
+                "clip_url": clip_url,
+                "thumbnail": clip.get("thumbnail", ""),
+                "duration": clip.get("duration", 10)  # Default duration for testing
+            }
+            
+            logger.debug(f"✅ Prepared clip for {title}: {clip_url}")
+            formatted_clips.append(formatted_clip)
+            
+        except Exception as e:
+            logger.error(f"❌ Error preparing clip {i+1}: {str(e)}")
+            continue
+    
+    logger.info(f"✅ Successfully prepared {len(formatted_clips)} clips for Creatomate")
+    return formatted_clips

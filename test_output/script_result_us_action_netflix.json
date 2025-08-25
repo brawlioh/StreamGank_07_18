@@ -1,0 +1,105 @@
+{
+  "data": {
+    "combined_script": "Strap in for an adrenaline rush with StreamGanks top 3 heart-pounding Action flicks on Netflix that are setting the internet ablaze!\n\nStrap in for an adrenaline rush with StreamGanks top 3 heart-pounding Action flicks on Netflix that are setting the internet ablaze! Get ready for the ultimate adrenaline-inducing ride as Mission: Impossible - Fallout turns impossible into reality - only on Netflix!\n\nGet ready for Deadpool, the uproarious action-comedy thats redefining superhero movies on Netflix right now!\n\nGet ready for the heart-stopping ride of 2022, Top Gun: Maverick is on Netflix and its redefining Action!",
+    "script_file_path": "videos/combined_script.txt",
+    "individual_scripts": {
+      "movie1": {
+        "text": "Strap in for an adrenaline rush with StreamGanks top 3 heart-pounding Action flicks on Netflix that are setting the internet ablaze! Get ready for the ultimate adrenaline-inducing ride as Mission: Impossible - Fallout turns impossible into reality - only on Netflix!",
+        "path": "videos/script_movie1.txt"
+      },
+      "movie2": {
+        "text": "Get ready for Deadpool, the uproarious action-comedy thats redefining superhero movies on Netflix right now!",
+        "path": "videos/script_movie2.txt"
+      },
+      "movie3": {
+        "text": "Get ready for the heart-stopping ride of 2022, Top Gun: Maverick is on Netflix and its redefining Action!",
+        "path": "videos/script_movie3.txt"
+      }
+    },
+    "raw_movies": [
+      {
+        "id": 3002,
+        "movie_id": 9016,
+        "title": "Mission: Impossible - Fallout",
+        "platform": "Netflix",
+        "year": "2018",
+        "imdb": "7.7/10 (320000 votes)",
+        "imdb_score": 7.7,
+        "imdb_votes": 320000,
+        "runtime": "147 min",
+        "trailer_url": "https://www.youtube.com/watch?v=wb49-oV0F78",
+        "poster_url": "https://m.media-amazon.com/images/M/MV5BNjRlZmM0ODktY2RjNS00ZDdjLWJhZGYtNDljNWZkMGM5MTg0XkEyXkFqcGdeQXVyNjAwMjI5MDk@._V1_.jpg",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/mission_impossible_poster.jpg",
+        "streaming_url": "https://netflix.com/title/80220939",
+        "genres": [
+          "Action",
+          "Adventure",
+          "Thriller"
+        ],
+        "content_type": "movie",
+        "country": "US"
+      },
+      {
+        "id": 2002,
+        "movie_id": 9019,
+        "title": "Deadpool",
+        "platform": "Netflix",
+        "year": "2016",
+        "imdb": "8.0/10 (850000 votes)",
+        "imdb_score": 8.0,
+        "imdb_votes": 850000,
+        "runtime": "108 min",
+        "trailer_url": "https://www.youtube.com/watch?v=ONHBaC-pfsk",
+        "poster_url": "https://m.media-amazon.com/images/M/MV5BYzE5MjY1ZDgtMTkyNC00MTMyLThhMjAtZGI5OTE1NzFlZGJjXkEyXkFqcGdeQXVyNjU0OTQ0OTY@._V1_FMjpg_UX1000_.jpg",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/deadpool_poster.jpg",
+        "streaming_url": "https://netflix.com/title/80079752",
+        "genres": [
+          "Comedy",
+          "Action"
+        ],
+        "content_type": "movie",
+        "country": "US"
+      },
+      {
+        "id": 3001,
+        "movie_id": 9015,
+        "title": "Top Gun: Maverick",
+        "platform": "Netflix",
+        "year": "2022",
+        "imdb": "8.3/10 (700000 votes)",
+        "imdb_score": 8.3,
+        "imdb_votes": 700000,
+        "runtime": "130 min",
+        "trailer_url": "https://www.youtube.com/watch?v=giXco2jaZ_4",
+        "poster_url": "https://m.media-amazon.com/images/M/MV5BZWYzOGEwNTgtNWU3NS00ZTQ0LWJkODUtMmVhMjIwMjA1ZmQwXkEyXkFqcGdeQXVyMjkwOTAyMDU@._V1_.jpg",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1755529120/posters/topgun_poster.jpg",
+        "streaming_url": "https://netflix.com/title/81486921",
+        "genres": [
+          "Action",
+          "Drama"
+        ],
+        "content_type": "movie",
+        "country": "US"
+      }
+    ],
+    "parameters": {
+      "country": "US",
+      "genre": "Action",
+      "platform": "Netflix",
+      "content_type": "movie",
+      "num_movies": 3
+    },
+    "script_count": 3,
+    "generation_timestamp": 1755859359.3546948
+  },
+  "metadata": {
+    "data_type": "script_result",
+    "parameters": {
+      "country": "US",
+      "genre": "Action",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1755859359.3547242,
+    "saved_datetime": "2025-08-22 18:42:39"
+  }
+}

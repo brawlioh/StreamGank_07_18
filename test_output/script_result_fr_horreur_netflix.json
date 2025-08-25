@@ -1,18 +1,18 @@
 {
   "data": {
-    "combined_script": "Brace yourselves for StreamGanks top 3 spine-chilling Horreur movies on Netflix that are causing a global scream-fest!\n\nBrace yourselves for StreamGanks top 3 spine-chilling Horreur movies on Netflix that are causing a global scream-fest! Everyones talking about Stranger Things, the horror series that turned the world upside down - dare to join the Upside Down?\n\nGet ready for The Haunting of Hill House, the chilling Horreur masterpiece thats keeping everyone wide awake on Netflix!\n\nGet ready for Netflixs Love, Death & Robots — a rollercoaster ride of horror where love and death are the least of your worries!",
+    "combined_script": "Dare to dive into StreamGanks top 3 spine-chilling Horreur movies on Netflix that are setting the internet on fire!\n\nDare to dive into StreamGanks top 3 spine-chilling Horreur movies on Netflix that are setting the internet on fire! Everyones talking about Stranger Things and its bone-chilling Horreur; once you start, theres no turning back!\n\nGet ready for Netflixs most chilling nightmare, The Haunting of Hill House - its Horreur like youve never dared imagine!\n\nEveryones talking about the chilling moment when Love, Death & Robots redefines Horreur on Netflix, you wont dare to miss it!",
     "script_file_path": "videos/combined_script.txt",
     "individual_scripts": {
       "movie1": {
-        "text": "Brace yourselves for StreamGanks top 3 spine-chilling Horreur movies on Netflix that are causing a global scream-fest! Everyones talking about Stranger Things, the horror series that turned the world upside down - dare to join the Upside Down?",
+        "text": "Dare to dive into StreamGanks top 3 spine-chilling Horreur movies on Netflix that are setting the internet on fire! Everyones talking about Stranger Things and its bone-chilling Horreur; once you start, theres no turning back!",
         "path": "videos/script_movie1.txt"
       },
       "movie2": {
-        "text": "Get ready for The Haunting of Hill House, the chilling Horreur masterpiece thats keeping everyone wide awake on Netflix!",
+        "text": "Get ready for Netflixs most chilling nightmare, The Haunting of Hill House - its Horreur like youve never dared imagine!",
         "path": "videos/script_movie2.txt"
       },
       "movie3": {
-        "text": "Get ready for Netflixs Love, Death & Robots — a rollercoaster ride of horror where love and death are the least of your worries!",
+        "text": "Everyones talking about the chilling moment when Love, Death & Robots redefines Horreur on Netflix, you wont dare to miss it!",
         "path": "videos/script_movie3.txt"
       }
     },
@@ -21,9 +21,9 @@
         "id": 23090,
         "title": "Stranger Things",
         "year": 2016,
-        "imdb": "8.6/10 (1,473,294 votes)",
+        "imdb": "8.6/10 (1,476,935 votes)",
         "imdb_score": 8.6,
-        "imdb_votes": 1473294,
+        "imdb_votes": 1476935,
         "runtime": "61 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/166136683/s332/stranger-things.webp",
@@ -40,9 +40,9 @@
         "id": 14919,
         "title": "The Haunting of Hill House",
         "year": 2018,
-        "imdb": "8.5/10 (313,978 votes)",
+        "imdb": "8.5/10 (314,546 votes)",
         "imdb_score": 8.5,
-        "imdb_votes": 313978,
+        "imdb_votes": 314546,
         "runtime": "58 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/186888639/s332/the-haunting-of-hill-house.webp",
@@ -83,7 +83,7 @@
       "num_movies": 3
     },
     "script_count": 3,
-    "generation_timestamp": 1755174779.548883
+    "generation_timestamp": 1756038661.057035
   },
   "metadata": {
     "data_type": "script_result",
@@ -92,7 +92,7 @@
       "genre": "Horreur",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1755174779.54897,
-    "saved_datetime": "2025-08-14 20:32:59"
+    "saved_timestamp": 1756038661.057048,
+    "saved_datetime": "2025-08-24 20:31:01"
   }
 }

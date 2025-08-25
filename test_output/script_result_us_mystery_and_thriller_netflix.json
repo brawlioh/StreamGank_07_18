@@ -1,0 +1,98 @@
+{
+  "data": {
+    "combined_script": "Brace yourselves for the 3 most jaw-dropping Mystery & Thriller flicks on Netflix, handpicked by StreamGank - you wont believe whats coming!\n\nBrace yourselves for the 3 most jaw-dropping Mystery & Thriller flicks on Netflix, handpicked by StreamGank - you wont believe whats coming! Get ready for a chilling journey as The Irishman unveils a dark secret in the heart of Americas underworld on Netflix!\n\nGet ready for the most shocking twist in this 2015 mystery thriller masterpiece, The Hateful Eight, now on Netflix!\n\nGet ready for Society of the Snow, the chilling thriller thats taken Netflix by storm, unraveling mysteries as cold as their corpses!",
+    "script_file_path": "videos/combined_script.txt",
+    "individual_scripts": {
+      "movie1": {
+        "text": "Brace yourselves for the 3 most jaw-dropping Mystery & Thriller flicks on Netflix, handpicked by StreamGank - you wont believe whats coming! Get ready for a chilling journey as The Irishman unveils a dark secret in the heart of Americas underworld on Netflix!",
+        "path": "videos/script_movie1.txt"
+      },
+      "movie2": {
+        "text": "Get ready for the most shocking twist in this 2015 mystery thriller masterpiece, The Hateful Eight, now on Netflix!",
+        "path": "videos/script_movie2.txt"
+      },
+      "movie3": {
+        "text": "Get ready for Society of the Snow, the chilling thriller thats taken Netflix by storm, unraveling mysteries as cold as their corpses!",
+        "path": "videos/script_movie3.txt"
+      }
+    },
+    "raw_movies": [
+      {
+        "id": 14479,
+        "title": "The Irishman",
+        "year": 2019,
+        "imdb": "7.8/10 (458,359 votes)",
+        "imdb_score": 7.8,
+        "imdb_votes": 458359,
+        "runtime": "209 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/159326038/s332/the-irishman.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743362283/movie-posters/edc8a0ed5d3cc3ddbca8809d792e678b.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=WHXxVmeGQUc",
+        "streaming_url": "https://www.netflix.com/title/80175798",
+        "genres": [
+          "Mystery & Thriller"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 22524,
+        "title": "The Hateful Eight",
+        "year": 2015,
+        "imdb": "7.8/10 (671,161 votes)",
+        "imdb_score": 7.8,
+        "imdb_votes": 671161,
+        "runtime": "188 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/248818101/s332/the-hateful-eight.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743966281/movie-posters/647d4f047376fa598e48e4aab00f7ba7.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=nIOmotayDMY",
+        "streaming_url": "https://www.netflix.com/title/80064515",
+        "genres": [
+          "Mystery & Thriller"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 7296,
+        "title": "Society of the Snow",
+        "year": 2023,
+        "imdb": "7.8/10 (165,218 votes)",
+        "imdb_score": 7.8,
+        "imdb_votes": 165218,
+        "runtime": "144 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/309833971/s332/society-of-the-snow.avif",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1742896156/movie-posters/aa3083c82ae1c4c6f6ab55389a7dc7e4.avif",
+        "trailer_url": "https://www.youtube.com/watch?v=pDak4qLyF4Q",
+        "streaming_url": "https://www.netflix.com/title/81268316",
+        "genres": [
+          "Mystery & Thriller"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      }
+    ],
+    "parameters": {
+      "country": "US",
+      "genre": "Mystery & Thriller",
+      "platform": "Netflix",
+      "content_type": "Film",
+      "num_movies": 3
+    },
+    "script_count": 3,
+    "generation_timestamp": 1756033097.407986
+  },
+  "metadata": {
+    "data_type": "script_result",
+    "parameters": {
+      "country": "US",
+      "genre": "Mystery & Thriller",
+      "platform": "Netflix"
+    },
+    "saved_timestamp": 1756033097.4080708,
+    "saved_datetime": "2025-08-24 18:58:17"
+  }
+}

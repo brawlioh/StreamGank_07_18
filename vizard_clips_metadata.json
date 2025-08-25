@@ -1,0 +1,53 @@
+{
+  "clips": [
+    {
+      "path": "test_vizard_clips/Test_Movie_highlight_1_1756028052.mp4",
+      "name": "Movie_highlight_1",
+      "local_path": "test_vizard_clips/Test_Movie_highlight_1_1756028052.mp4",
+      "index": 0,
+      "url": null
+    },
+    {
+      "path": "test_vizard_clips/Test_Movie_highlight_1_1756028978.mp4",
+      "name": "Movie_highlight_2",
+      "local_path": "test_vizard_clips/Test_Movie_highlight_1_1756028978.mp4",
+      "index": 1,
+      "url": null
+    },
+    {
+      "path": "test_vizard_clips/Test_Movie_highlight_1_1756030417.mp4",
+      "name": "Movie_highlight_3",
+      "local_path": "test_vizard_clips/Test_Movie_highlight_1_1756030417.mp4",
+      "index": 2,
+      "url": null
+    },
+    {
+      "path": "test_vizard_clips/highlight_1.mp4",
+      "name": "Movie_highlight_4",
+      "local_path": "test_vizard_clips/highlight_1.mp4",
+      "index": 3,
+      "url": null
+    },
+    {
+      "path": "test_vizard_clips/highlight_2.mp4",
+      "name": "Movie_highlight_5",
+      "local_path": "test_vizard_clips/highlight_2.mp4",
+      "index": 4,
+      "url": null
+    },
+    {
+      "path": "test_vizard_clips/highlight_3.mp4",
+      "name": "Movie_highlight_6",
+      "local_path": "test_vizard_clips/highlight_3.mp4",
+      "index": 5,
+      "url": null
+    },
+    {
+      "path": "test_vizard_clips/sample_highlight_1.mp4",
+      "name": "Movie_highlight_7",
+      "local_path": "test_vizard_clips/sample_highlight_1.mp4",
+      "index": 6,
+      "url": null
+    }
+  ]
+}

@@ -549,3 +549,89 @@ def load_workflow_results(input_file: str) -> Optional[Dict[str, Any]]:
         return data.get('results', data)
     
     return data
+
+
+# =============================================================================
+# TEST DATA MANAGEMENT
+# =============================================================================
+
+def load_test_data(data_type: str, country: str, genre: str, platform: str) -> Optional[Dict[str, Any]]:
+    """
+    Load test data from JSON file based on parameters.
+    
+    Args:
+        data_type (str): Type of test data (scripts, assets, etc)
+        country (str): Country code
+        genre (str): Genre name
+        platform (str): Platform name
+        
+    Returns:
+        dict: Loaded test data or None if not found/error
+    """
+    try:
+        # Create standardized filename based on parameters
+        filename = f"assets_{country.lower()}_{genre.lower()}_{platform.lower()}.json"
+        file_path = Path("test_output") / filename
+        
+        if not file_path.exists():
+            logger.warning(f"Test data file not found: {file_path}")
+            return None
+        
+        data = safe_read_file(str(file_path))
+        logger.info(f"Loaded test data from {file_path}")
+        return data
+    except Exception as e:
+        logger.error(f"Error loading test data: {str(e)}")
+        return None
+
+
+def save_test_data(data: Dict[str, Any], data_type: str, country: str, 
+                 genre: str, platform: str) -> bool:
+    """
+    Save test data to JSON file.
+    
+    Args:
+        data (dict): Data to save
+        data_type (str): Type of test data (scripts, assets, etc)
+        country (str): Country code
+        genre (str): Genre name
+        platform (str): Platform name
+        
+    Returns:
+        bool: True if saved successfully
+    """
+    try:
+        # Create output directory if it doesn't exist
+        ensure_directory("test_output")
+        
+        # Create standardized filename based on parameters
+        filename = f"assets_{country.lower()}_{genre.lower()}_{platform.lower()}.json"
+        file_path = Path("test_output") / filename
+        
+        # Save data
+        result = safe_write_file(str(file_path), data)
+        
+        if result:
+            logger.info(f"Saved test data to {file_path}")
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error saving test data: {str(e)}")
+        return False
+
+
+def save_assets_result(assets_data: Dict[str, Any], country: str, 
+                     genre: str, platform: str) -> bool:
+    """
+    Save assets result data to standardized file.
+    
+    Args:
+        assets_data (dict): Assets data to save
+        country (str): Country code
+        genre (str): Genre name
+        platform (str): Platform name
+        
+    Returns:
+        bool: True if saved successfully
+    """
+    return save_test_data(assets_data, "assets", country, genre, platform)
