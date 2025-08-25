@@ -98,6 +98,9 @@ export class JobDetailApp {
             this.clearLogs();
         });
 
+        // Creatomate section event listeners
+        this.setupCreatomateEventListeners();
+
         // Auto-scroll toggle
         document.getElementById('auto-scroll-btn')?.addEventListener('click', (e) => {
             this.toggleAutoScroll(e.target);
@@ -118,6 +121,45 @@ export class JobDetailApp {
     }
 
     /**
+     * Set up event listeners for Creatomate section buttons
+     */
+    setupCreatomateEventListeners() {
+        // Use event delegation to handle dynamically created buttons
+        document.addEventListener('click', (e) => {
+            // Refresh Creatomate status button
+            if (e.target && (e.target.id === 'refresh-creatomate-btn' || e.target.closest('#refresh-creatomate-btn'))) {
+                e.preventDefault();
+                console.log('🔄 Manual refresh button clicked - checking Creatomate status');
+                this.checkCreatomateStatusAutomatically();
+            }
+
+            // Download video button
+            if (e.target && (e.target.id === 'download-video-btn' || e.target.closest('#download-video-btn'))) {
+                e.preventDefault();
+                this.downloadVideo();
+            }
+
+            // Copy video URL button
+            if (e.target && (e.target.id === 'copy-video-url-btn' || e.target.closest('#copy-video-url-btn'))) {
+                e.preventDefault();
+                this.copyVideoUrlFromCreatomate();
+            }
+
+            // Fullscreen preview button
+            if (e.target && (e.target.id === 'preview-fullscreen-btn' || e.target.closest('#preview-fullscreen-btn'))) {
+                e.preventDefault();
+                this.previewFullscreen();
+            }
+
+            // Retry button for errors
+            if (e.target && (e.target.id === 'retry-creatomate-btn' || e.target.closest('#retry-creatomate-btn'))) {
+                e.preventDefault();
+                this.checkCreatomateStatusAutomatically();
+            }
+        });
+    }
+
+    /**
      * Load job data from API
      */
     async loadJobData() {
@@ -132,6 +174,10 @@ export class JobDetailApp {
 
             this.jobData = response.job;
             this.lastRefreshTime = Date.now(); // Initialize refresh tracking
+
+            // NEW: Load persistent logs to determine current active step on page reload
+            await this.loadCurrentActiveStepFromLogs();
+
             this.updateUI();
 
             // Add page unload cleanup for SSE connections
@@ -162,6 +208,7 @@ export class JobDetailApp {
         this.updateActionButtons();
         this.updateErrorInfo();
         this.updateVideoResult();
+        this.updateCreatomateSection(); // New: Handle Creatomate video result section
     }
 
     /**
@@ -282,7 +329,7 @@ export class JobDetailApp {
 
                 // NEW: Use real-time webhook data to determine active step
                 const stepNumber = index + 1;
-                
+
                 if (this.currentActiveStep === stepNumber) {
                     // This step is currently active (received "started" webhook)
                     iconClass = 'active';
@@ -351,25 +398,7 @@ export class JobDetailApp {
             `);
         }
 
-        // Show monitoring button for jobs with Creatomate ID but no video URL
-        if ((status === 'completed' || status === 'rendering') && this.jobData.creatomateId && !this.jobData.videoUrl) {
-            if (this.jobData.workflowIncomplete) {
-                // Workflow was incomplete - show warning button with different action
-                buttons.push(`
-                    <button class="btn btn-outline-danger" onclick="jobDetailApp.showWorkflowWarning()">
-                        <i class="fas fa-exclamation-triangle me-1"></i> Workflow Issue
-                    </button>
-                `);
-            } else {
-                // Normal case - show monitoring button (works for both completed and rendering status)
-                const buttonText = status === 'rendering' ? 'Check Render Status' : 'Check Video Status';
-                buttons.push(`
-                    <button class="btn btn-outline-warning" onclick="jobDetailApp.monitorCreatomate()">
-                        <i class="fas fa-eye me-1"></i> ${buttonText}
-                    </button>
-                `);
-            }
-        }
+        // Removed Creatomate monitoring buttons - functionality moved to video section
 
         // Clean interface - log management buttons removed
 
@@ -384,12 +413,7 @@ export class JobDetailApp {
             `);
         }
 
-        // Always show refresh button
-        buttons.push(`
-            <button class="btn btn-outline-info" onclick="jobDetailApp.refreshJobData()">
-                <i class="fas fa-sync-alt me-1"></i> Refresh Status
-            </button>
-        `);
+        // Removed duplicate "Refresh Status" button - functionality moved to video section header
 
         actionsContainer.innerHTML = buttons.join('');
     }
@@ -443,6 +467,12 @@ export class JobDetailApp {
         // Always show the video section
         if (videoPreviewSection) {
             videoPreviewSection.classList.remove('d-none');
+        }
+
+        // Check if elements exist (they were removed from HTML)
+        if (!videoCard || !videoContent) {
+            console.log('📝 Video result elements not found - functionality moved to video section');
+            return;
         }
 
         if (this.jobData.status === 'completed' && this.jobData.videoUrl) {
@@ -587,6 +617,476 @@ export class JobDetailApp {
                 videoCard.classList.add('d-none');
             }
         }
+    }
+
+    /**
+     * Update Creatomate video result section
+     * Shows the new section below Process Timeline for Creatomate video status and result
+     */
+    updateCreatomateSection() {
+        const creatomateSection = document.getElementById('creatomate-section');
+        if (!creatomateSection) return;
+
+        // Check if workflow steps 1-7 are completed (creatomateId presence means step 7 is done)
+        // We don't need to wait for progress=100% or status='completed' because those wait for Creatomate
+        const workflowStepsComplete =
+            this.jobData.creatomateId && (this.jobData.stepDetails?.step_7 || this.jobData.progress >= 90);
+
+        console.log(
+            `🔍 Creatomate section check - CreatomateId: ${this.jobData.creatomateId}, Progress: ${this.jobData.progress}, StepDetails: ${JSON.stringify(this.jobData.stepDetails)}, WorkflowComplete: ${workflowStepsComplete}`
+        );
+
+        if (workflowStepsComplete && this.jobData.creatomateId) {
+            console.log(
+                `🎬 Workflow steps 1-7 completed, showing Creatomate section. ID: ${this.jobData.creatomateId}`
+            );
+
+            // Show the section
+            creatomateSection.classList.remove('d-none');
+
+            // Update Creatomate ID display
+            const creatomateIdElement = document.getElementById('creatomate-id');
+            if (creatomateIdElement) {
+                creatomateIdElement.textContent = this.jobData.creatomateId;
+            }
+
+            // Check if we already have video URL or need to fetch it
+            if (this.jobData.videoUrl) {
+                console.log('🎬 Video URL already available, showing video result directly');
+                this.showCreatomateVideoResult();
+            } else {
+                console.log('🔍 No video URL yet, checking Creatomate status automatically...');
+                // Always check Creatomate status to get the latest video info
+                this.checkCreatomateStatusAutomatically();
+            }
+        } else {
+            // Hide the section if conditions not met
+            creatomateSection.classList.add('d-none');
+            console.log('❌ Workflow not complete yet - hiding Creatomate section');
+        }
+    }
+
+    /**
+     * Automatically check Creatomate status when all steps are complete
+     */
+    async checkCreatomateStatusAutomatically() {
+        console.log('🔄 Automatically checking Creatomate status for ID:', this.jobData.creatomateId);
+
+        // Show rendering status initially
+        this.showCreatomateRenderingStatus();
+
+        try {
+            const response = await fetch(`/api/status/${this.jobData.creatomateId}`);
+            const result = await response.json();
+
+            console.log('📡 Creatomate API response:', result);
+
+            if (result.success) {
+                // Update status badge
+                this.updateCreatomateStatusBadge(result.status);
+
+                if (result.status === 'succeeded' && result.videoUrl) {
+                    console.log('✅ Video is ready!', result.videoUrl);
+
+                    // Update job data with video info
+                    this.jobData.videoUrl = result.videoUrl;
+                    this.jobData.creatomateStatus = result.status;
+
+                    // IMPORTANT: Update job status and progress when video is ready
+                    this.jobData.status = 'completed';
+                    this.jobData.progress = 100;
+                    this.jobData.currentStep = '✅ Video creation completed';
+
+                    console.log('💾 Updated job status to completed, progress to 100%');
+                    console.log('💾 Updated jobData.videoUrl to:', this.jobData.videoUrl);
+
+                    // Update UI elements immediately
+                    this.updateJobHeader();
+                    this.updateProgressSection();
+
+                    console.log('🎬 About to call showCreatomateVideoResult()');
+                    // Show video result
+                    this.showCreatomateVideoResult();
+                } else if (result.status === 'processing' || result.status === 'planned') {
+                    console.log('⏳ Video still rendering, status:', result.status);
+                    this.showCreatomateRenderingStatus(result.status);
+
+                    // Auto-refresh after 30 seconds
+                    setTimeout(() => {
+                        if (this.jobData.creatomateId && !this.jobData.videoUrl) {
+                            this.checkCreatomateStatusAutomatically();
+                        }
+                    }, 30000);
+                } else if (result.status === 'failed' || result.status === 'error') {
+                    console.log('❌ Video rendering failed');
+                    this.showCreatomateError('Video rendering failed');
+                } else {
+                    console.log('❓ Unknown status:', result.status);
+                    this.showCreatomateError(`Unknown status: ${result.status}`);
+                }
+            } else {
+                console.error('❌ Creatomate API error:', result.error);
+                this.showCreatomateError(result.error || 'Failed to check video status');
+            }
+        } catch (error) {
+            console.error('❌ Error checking Creatomate status:', error);
+            this.showCreatomateError(`Network error: ${error.message}`);
+        }
+    }
+
+    /**
+     * Show Creatomate video result when ready
+     */
+    showCreatomateVideoResult() {
+        console.log('🎬 showCreatomateVideoResult called with videoUrl:', this.jobData.videoUrl);
+
+        // Hide other status views
+        document.getElementById('rendering-status')?.classList.add('d-none');
+        document.getElementById('error-status')?.classList.add('d-none');
+        document.getElementById('creatomate-progress')?.classList.add('d-none');
+
+        // Show video result
+        const videoResult = document.getElementById('video-result');
+        if (videoResult && this.jobData.videoUrl) {
+            console.log('🎬 Video result div found, setting up player with URL:', this.jobData.videoUrl);
+
+            // CRITICAL: Show the video result div first
+            videoResult.classList.remove('d-none');
+            console.log('✅ Video result div is now visible');
+
+            // Update video source and ensure it loads properly
+            const resultVideo = document.getElementById('result-video');
+
+            console.log('🔍 Looking for video element with ID "result-video"');
+            console.log('🎬 Video element found:', !!resultVideo);
+            console.log('🎬 Current video URL in jobData:', this.jobData.videoUrl);
+
+            if (resultVideo) {
+                console.log('🎬 Video element found, setting up player with URL:', this.jobData.videoUrl);
+
+                // Set up video player with multiple fallback options
+                this.setupVideoPlayer(resultVideo, this.jobData.videoUrl);
+            } else {
+                console.error('❌ Video element not found with ID "result-video"!');
+
+                // Debug: List all video elements on page
+                const allVideos = document.querySelectorAll('video');
+                console.log(
+                    '🔍 Found',
+                    allVideos.length,
+                    'video elements on page:',
+                    Array.from(allVideos).map((v) => v.id || 'no-id')
+                );
+            }
+
+            // Update status badge to success
+            this.updateCreatomateStatusBadge('succeeded');
+
+            console.log('🎉 Video result displayed successfully!');
+        } else {
+            console.error('❌ Video result setup failed:', {
+                videoResult: !!videoResult,
+                videoUrl: this.jobData.videoUrl
+            });
+        }
+    }
+
+    /**
+     * Show rendering status while video is being processed
+     */
+    showCreatomateRenderingStatus(status = 'processing') {
+        // Hide other views
+        document.getElementById('video-result')?.classList.add('d-none');
+        document.getElementById('error-status')?.classList.add('d-none');
+
+        // Show progress indicator
+        const creatomateProgress = document.getElementById('creatomate-progress');
+        const renderingStatus = document.getElementById('rendering-status');
+
+        if (creatomateProgress) {
+            const statusText = document.getElementById('creatomate-status-text');
+            const progressBar = document.getElementById('creatomate-progress-bar');
+
+            if (statusText) {
+                const statusMessages = {
+                    planned: 'Video queued for rendering...',
+                    processing: 'Video is being rendered...',
+                    rendering: 'Video is being rendered...'
+                };
+                statusText.textContent = statusMessages[status] || 'Checking video status...';
+            }
+
+            if (progressBar) {
+                // Show indeterminate progress for processing
+                progressBar.style.width = status === 'processing' ? '75%' : '25%';
+                progressBar.classList.add('progress-bar-animated');
+            }
+
+            creatomateProgress.classList.remove('d-none');
+        }
+
+        if (renderingStatus) {
+            renderingStatus.classList.remove('d-none');
+        }
+    }
+
+    /**
+     * Show error status for Creatomate failures
+     */
+    showCreatomateError(errorMessage) {
+        // Hide other views
+        document.getElementById('video-result')?.classList.add('d-none');
+        document.getElementById('rendering-status')?.classList.add('d-none');
+        document.getElementById('creatomate-progress')?.classList.add('d-none');
+
+        // Show error status
+        const errorStatus = document.getElementById('error-status');
+        const errorMessageElement = document.getElementById('error-message');
+
+        if (errorStatus) {
+            if (errorMessageElement) {
+                errorMessageElement.textContent = errorMessage || 'An error occurred while processing the video';
+            }
+            errorStatus.classList.remove('d-none');
+        }
+
+        // Update status badge to failed
+        this.updateCreatomateStatusBadge('failed');
+    }
+
+    /**
+     * Update Creatomate status badge
+     */
+    updateCreatomateStatusBadge(status) {
+        const badge = document.getElementById('creatomate-status-badge');
+        if (badge) {
+            const statusMap = {
+                succeeded: { text: 'Ready', class: 'bg-success' },
+                processing: { text: 'Rendering', class: 'bg-warning' },
+                planned: { text: 'Queued', class: 'bg-info' },
+                failed: { text: 'Failed', class: 'bg-danger' },
+                error: { text: 'Error', class: 'bg-danger' }
+            };
+
+            const statusInfo = statusMap[status] || { text: status, class: 'bg-secondary' };
+            badge.textContent = statusInfo.text;
+            badge.className = `badge ${statusInfo.class} ms-2 fs-6`;
+        }
+    }
+
+    /**
+     * Download video from Creatomate result section
+     */
+    downloadVideo() {
+        if (this.jobData.videoUrl) {
+            console.log('📥 Downloading video from:', this.jobData.videoUrl);
+
+            // Create a temporary download link
+            const link = document.createElement('a');
+            link.href = this.jobData.videoUrl;
+            link.download = `streamgank_video_${this.jobData.id || 'unknown'}.mp4`;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            console.log('✅ Download initiated');
+        } else {
+            console.error('❌ No video URL available for download');
+        }
+    }
+
+    /**
+     * Copy video URL to clipboard from Creatomate section
+     */
+    async copyVideoUrlFromCreatomate() {
+        if (this.jobData.videoUrl) {
+            try {
+                await navigator.clipboard.writeText(this.jobData.videoUrl);
+                console.log('📋 Video URL copied to clipboard');
+
+                // Provide user feedback
+                const button = document.getElementById('copy-video-url-btn');
+                if (button) {
+                    const originalText = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                    button.classList.add('btn-success');
+                    button.classList.remove('btn-outline-info');
+
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                        button.classList.remove('btn-success');
+                        button.classList.add('btn-outline-info');
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('❌ Failed to copy URL:', error);
+                // Fallback for older browsers
+                this.fallbackCopyToClipboard(this.jobData.videoUrl);
+            }
+        } else {
+            console.error('❌ No video URL available to copy');
+        }
+    }
+
+    /**
+     * Open video in fullscreen preview
+     */
+    previewFullscreen() {
+        if (this.jobData.videoUrl) {
+            console.log('🖥️ Opening fullscreen preview');
+
+            const video = document.getElementById('result-video');
+            if (video) {
+                if (video.requestFullscreen) {
+                    video.requestFullscreen();
+                } else if (video.webkitRequestFullscreen) {
+                    video.webkitRequestFullscreen();
+                } else if (video.msRequestFullscreen) {
+                    video.msRequestFullscreen();
+                }
+
+                // Start playing the video in fullscreen
+                video.play().catch((e) => console.warn('Video autoplay prevented:', e));
+            }
+        } else {
+            console.error('❌ No video available for preview');
+        }
+    }
+
+    /**
+     * Fallback method to copy text to clipboard for older browsers
+     */
+    fallbackCopyToClipboard(text) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                console.log('📋 URL copied using fallback method');
+            }
+        } catch (err) {
+            console.error('❌ Fallback copy failed:', err);
+        }
+
+        document.body.removeChild(textArea);
+    }
+
+    /**
+     * Setup simple video player using <source> element
+     */
+    setupVideoPlayer(videoElement, videoUrl) {
+        console.log('🎬 Setting up video player with <source> element for:', videoUrl);
+        console.log('🎬 Video element found:', !!videoElement);
+        console.log('🎬 Video URL provided:', videoUrl);
+
+        if (!videoElement) {
+            console.error('❌ Video element is null or undefined!');
+            return;
+        }
+
+        if (!videoUrl) {
+            console.error('❌ Video URL is null or undefined!');
+            return;
+        }
+
+        // Show loading indicator
+        const videoLoading = document.getElementById('video-loading');
+        if (videoLoading) {
+            videoLoading.style.display = 'block';
+            console.log('🔄 Video loading indicator shown');
+        } else {
+            console.warn('⚠️ Video loading indicator not found');
+        }
+
+        // Show video element
+        videoElement.classList.remove('d-none');
+
+        // Find and set the source element
+        const videoSource = document.getElementById('video-source');
+        if (videoSource) {
+            videoSource.src = videoUrl;
+            videoSource.type = 'video/mp4';
+            console.log('🎬 Video source element found and src set to:', videoSource.src);
+            console.log('🎬 Video source element type:', videoSource.type);
+        } else {
+            console.warn('⚠️ Video source element not found, setting video src directly as fallback');
+            videoElement.src = videoUrl;
+        }
+
+        // Also set video element src as backup (both methods)
+        videoElement.src = videoUrl;
+        console.log('🎬 Video element src also set to:', videoElement.src);
+
+        // Add event listeners for debugging and UI updates
+        videoElement.addEventListener('loadstart', () => {
+            console.log('🔄 Video loading started');
+        });
+
+        videoElement.addEventListener('loadedmetadata', () => {
+            console.log('✅ Video metadata loaded');
+            console.log('📐 Video dimensions:', videoElement.videoWidth, 'x', videoElement.videoHeight);
+            console.log('⏱️ Video duration:', videoElement.duration, 'seconds');
+
+            // Hide loading indicator
+            if (videoLoading) {
+                videoLoading.style.display = 'none';
+            }
+        });
+
+        videoElement.addEventListener('canplay', () => {
+            console.log('✅ Video can start playing - success!');
+            console.log('📊 Video ready state:', videoElement.readyState);
+
+            // Hide loading indicator
+            if (videoLoading) {
+                videoLoading.style.display = 'none';
+            }
+        });
+
+        videoElement.addEventListener('error', (e) => {
+            console.error('❌ Video loading error:', e);
+            console.error('❌ Video error code:', videoElement.error?.code);
+            console.error('❌ Video error message:', videoElement.error?.message);
+
+            // Hide loading indicator and show error
+            if (videoLoading) {
+                videoLoading.innerHTML = `
+                    <div class="text-center">
+                        <i class="fas fa-exclamation-triangle text-warning mb-2" style="font-size: 2rem;"></i>
+                        <div class="text-light small">Error loading video</div>
+                        <div class="text-muted small">Code: ${videoElement.error?.code}</div>
+                    </div>
+                `;
+            }
+        });
+
+        videoElement.addEventListener('progress', () => {
+            console.log(
+                '📊 Video loading progress:',
+                videoElement.buffered.length > 0
+                    ? Math.round((videoElement.buffered.end(0) / videoElement.duration) * 100) + '%'
+                    : '0%'
+            );
+        });
+
+        // Force reload the video with source element
+        videoElement.load();
+
+        console.log('🎬 Video player configured with loading indicator and enhanced debugging');
+        console.log('🔍 Video element details:', {
+            src: videoElement.src,
+            currentSrc: videoElement.currentSrc,
+            readyState: videoElement.readyState,
+            networkState: videoElement.networkState
+        });
     }
 
     /**
@@ -1001,6 +1501,65 @@ export class JobDetailApp {
     }
 
     /**
+     * Load current active step from persistent logs (for page reload)
+     */
+    async loadCurrentActiveStepFromLogs() {
+        try {
+            console.log(`📋 Loading persistent logs to determine current active step for ${this.jobId}`);
+
+            const response = await fetch(`/api/queue/job/${this.jobId}/logs/persistent?limit=50`);
+            if (!response.ok) {
+                console.warn('⚠️ Could not load persistent logs, using job data only');
+                return;
+            }
+
+            const result = await response.json();
+            if (!result.success || !result.data.logs) {
+                console.warn('⚠️ No persistent logs available');
+                return;
+            }
+
+            const logs = result.data.logs;
+            console.log(`📋 Loaded ${logs.length} persistent log entries`);
+
+            // Find the most recent "started" event that doesn't have a corresponding "completed" event
+            let currentActiveStep = null;
+            const stepStatus = {}; // Track started/completed status for each step
+
+            // Process logs in chronological order to track step states
+            logs.forEach((log) => {
+                if (log.event_type === 'webhook_received' && log.details) {
+                    const step_number = log.details.step_number;
+                    const status = log.details.status;
+
+                    if (step_number >= 1 && step_number <= 7) {
+                        if (status === 'started') {
+                            stepStatus[step_number] = 'started';
+                            currentActiveStep = step_number; // This step is now active
+                        } else if (status === 'completed') {
+                            stepStatus[step_number] = 'completed';
+                            if (currentActiveStep === step_number) {
+                                currentActiveStep = null; // Step is no longer active
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Set the current active step based on log analysis
+            this.currentActiveStep = currentActiveStep;
+
+            if (currentActiveStep) {
+                console.log(`📍 Determined from logs: Step ${currentActiveStep} is currently active`);
+            } else {
+                console.log(`📍 No active step found in logs - workflow may be complete or not started`);
+            }
+        } catch (error) {
+            console.error('❌ Error loading persistent logs:', error);
+        }
+    }
+
+    /**
      * Initialize job-specific Server-Sent Events for real-time updates
      */
     initializeJobSSE() {
@@ -1058,14 +1617,14 @@ export class JobDetailApp {
             case 'step_update':
                 console.log(`📡 Real-time step update: Step ${data.step_number} ${data.status}`);
 
-                // Update job data with real-time info  
+                // Update job data with real-time info
                 if (this.jobData) {
                     // Handle both "started" and "completed" status
                     if (data.status === 'started') {
                         // Step is starting - track as currently active step
                         this.currentActiveStep = data.step_number;
                         this.jobData.currentStep = `Step ${data.step_number}/7: ${data.step_name} (Processing...)`;
-                        this.jobData.progress = Math.max((data.step_number - 1) / 7 * 100, 0);
+                        this.jobData.progress = Math.max(((data.step_number - 1) / 7) * 100, 0);
                         console.log(`📋 Step ${data.step_number} started: ${data.step_name}`);
                     } else if (data.status === 'completed') {
                         // Step completed - no longer active, update progress
@@ -1073,10 +1632,24 @@ export class JobDetailApp {
                             this.currentActiveStep = null; // Step no longer active
                         }
                         this.jobData.currentStep = `Step ${data.step_number}/7: ${data.step_name} ✅`;
-                        this.jobData.progress = Math.min(data.step_number / 7 * 100, 100);
+                        this.jobData.progress = Math.min((data.step_number / 7) * 100, 100);
                         console.log(`✅ Step ${data.step_number} completed: ${data.step_name}`);
+
+                        // 🎯 FIX: When step 7 completes, refresh job data to get Creatomate ID for video display
+                        if (data.step_number === 7) {
+                            console.log('🎬 Step 7 completed - refreshing job data to get Creatomate ID...');
+                            setTimeout(async () => {
+                                try {
+                                    await this.refreshJobData();
+                                    console.log('🎬 Job data refreshed after step 7 - triggering video display');
+                                    this.updateUI(); // This will trigger updateCreatomateSection with fresh data
+                                } catch (error) {
+                                    console.error('❌ Failed to refresh job data after step 7:', error);
+                                }
+                            }, 1000); // 1 second delay to ensure backend has updated with Creatomate ID
+                        }
                     }
-                    
+
                     // Update UI immediately
                     this.updateProgressSection();
                     this.updateTimeline();

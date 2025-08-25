@@ -73,6 +73,12 @@ class ProcessTable {
      * Load recent jobs from API
      */
     async loadRecentJobs() {
+        // ANTI-SPAM: Don't load if page is not visible
+        if (document.hidden) {
+            console.log('📋 ProcessTable: Skipping job load - page not visible (anti-spam)');
+            return;
+        }
+
         try {
             console.log('📋 ProcessTable: Loading jobs from /api/queue/jobs...');
             const response = await APIService.get('/api/queue/jobs');
@@ -538,10 +544,16 @@ class ProcessTable {
      * Start periodic updates for job status
      */
     startPeriodicUpdates() {
-        // PROFESSIONAL: Webhooks provide real-time updates, minimal polling as backup
+        // Clear any existing interval to prevent duplicates
+        this.stopPeriodicUpdates();
+
+        // ANTI-SPAM: Much longer intervals - webhooks provide real-time updates
         this.updateInterval = setInterval(() => {
+            console.log('📋 ProcessTable: Periodic backup refresh (anti-spam mode)');
             this.loadRecentJobs();
-        }, 300000); // 5 minutes backup only, webhooks do the real work
+        }, 600000); // 10 minutes backup only - webhooks do the real work
+
+        console.log('📋 ProcessTable: Started 10-minute backup polling (anti-spam)');
     }
 
     /**
@@ -573,4 +585,9 @@ class ProcessTable {
 }
 
 // Export singleton instance
-export default new ProcessTable();
+const processTableInstance = new ProcessTable();
+
+// Make globally available for immediate dashboard updates
+window.ProcessTable = processTableInstance;
+
+export default processTableInstance;

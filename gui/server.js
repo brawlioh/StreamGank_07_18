@@ -421,6 +421,31 @@ app.get('/api/status/:creatomateId', async (req, res) => {
         const statusResult = await checkCreatomateStatus(creatomateId);
 
         if (statusResult.success) {
+            // 🎯 FIX: Update job records when Creatomate video is ready
+            if (statusResult.status === 'succeeded' && statusResult.url) {
+                console.log(`✅ Creatomate render ${creatomateId} succeeded - updating job records...`);
+                try {
+                    const allJobs = await queueManager.getAllJobs();
+                    const jobsToUpdate = allJobs.filter((job) => job.creatomateId === creatomateId);
+                    console.log(`📋 Found ${jobsToUpdate.length} jobs to update with video URL`);
+
+                    for (const job of jobsToUpdate) {
+                        if (job.status === 'rendering' || (job.status === 'completed' && !job.videoUrl)) {
+                            console.log(`📝 Updating job ${job.id} status to completed`);
+                            job.status = 'completed';
+                            job.progress = 100;
+                            job.videoUrl = statusResult.url;
+                            job.currentStep = '✅ Video creation completed';
+                            job.completedAt = new Date().toISOString();
+                            await queueManager.updateJob(job); // Persist to Redis
+                            console.log(`✅ Job ${job.id} updated with video URL: ${statusResult.url}`);
+                        }
+                    }
+                } catch (updateError) {
+                    console.error('❌ Error updating job records:', updateError);
+                }
+            }
+
             res.json({
                 success: true,
                 creatomateId,

@@ -84,8 +84,8 @@ services:
                 reservations:
                     memory: 64M
                     cpus: "0.05"
-        # VM-optimized Redis configuration
-        command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --save 300 1 --tcp-keepalive 60
+        # VM-optimized Redis configuration with password authentication
+        command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --save 300 1 --tcp-keepalive 60 --requirepass ${REDIS_PASSWORD}
         volumes:
             - redis_data:/data
         networks:
@@ -96,7 +96,7 @@ services:
                 max-size: "10m"
                 max-file: "2"
         healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
+            test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
             interval: 30s
             timeout: 5s
             retries: 3
