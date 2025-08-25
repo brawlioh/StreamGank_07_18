@@ -1,0 +1,59 @@
+# Coverage configuration for StreamGank modular testing
+
+[run]
+# Source code to measure
+source = streamgank_modular
+
+# Include patterns
+include = 
+    streamgank_modular/*
+    
+# Exclude patterns
+omit =
+    streamgank_modular/tests/*
+    streamgank_modular/*/test_*
+    */__pycache__/*
+    */migrations/*
+    */venv/*
+    */env/*
+    setup.py
+
+# Branch coverage
+branch = True
+
+# Parallel execution support
+parallel = True
+
+[report]
+# Output options
+show_missing = True
+skip_covered = False
+skip_empty = False
+
+# Precision for percentages
+precision = 1
+
+# Exclude lines from coverage
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+
+# Fail under threshold
+fail_under = 75
+
+[html]
+# HTML report options
+directory = htmlcov
+title = StreamGang Modular Coverage Report
+
+[xml]
+# XML report for CI/CD
+output = coverage.xml
