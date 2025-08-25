@@ -20,7 +20,7 @@ from pathlib import Path
 from ai.robust_script_generator import generate_video_scripts
 from video.poster_generator import create_enhanced_movie_posters
 # Import clip processing (standard video processing without AI)
-from video.clip_processor import process_movie_trailers_to_clips
+from video.clip_processor import process_movie_trailers_to_clips, process_movie_trailers_to_clips_vizard
 
 # Import database functions
 from database.movie_extractor import extract_movie_data
@@ -421,20 +421,40 @@ def run_full_workflow(num_movies: int = 3,
             if not enhanced_posters or len(enhanced_posters) < 3:
                 raise Exception(f"Failed to create enhanced posters - got {len(enhanced_posters) if enhanced_posters else 0}, need 3")
             
-            # Process movie clips with Intelligent Highlight Detection
-            print("   🧠 Processing movie trailers with INTELLIGENT HIGHLIGHT DETECTION...")
-            print("   📥 Step 1: Downloading high-quality trailers")
-            print("   🔍 Step 2: Scanning entire video for optimal moments")
-            print("   🔊 Step 3: Audio analysis to avoid silent segments")
-            print("   🎬 Step 4: Visual motion detection for dynamic scenes")
-            print("   ✨ Step 5: Selecting 2 best highlights with professional transitions")
-            print("   🎭 Step 6: Composing with fade effects and outro")
-            print("   ☁️  Step 7: Uploading intelligently crafted clips to Cloudinary")
-            dynamic_clips = process_movie_trailers_to_clips(
+            # Process movie clips with Vizard AI (NEW IMPLEMENTATION)
+            print("   🤖 Processing movie trailers with VIZARD AI...")
+            print("   🎬 SYNCHRONOUS PROCESSING: Workflow will wait for completion (like HeyGen)")
+            print("   📝 Step 1: Creating Vizard projects for each movie trailer")
+            print("   ⏳ Step 2: Polling until code 2000 (processing complete) with videos")
+            print("   🏆 Step 3: Selecting clips with highest viral scores")
+            print("   📥 Step 4: Downloading clips from Vizard AI")
+            print("   ⏱️ Step 5: Checking duration and trimming to 20s if ≥30s")
+            print("   ☁️ Step 6: Uploading clips to Cloudinary (streamgank-reels/movie-clips)")
+            print("   📊 Step 7: Extracting clip metadata (duration, viral reason, etc.)")
+            print("   ✅ Step 8: Completing processing before moving to next workflow step")
+            print("")
+            print("   📡 Response Codes:")
+            print("     - Code 1000: Still processing (continue waiting)")
+            print("     - Code 2000: Processing complete (clips ready)")
+            print("   🔁 Retry Mechanism:")
+            print("     - 3 attempts per API query (prevents timeout errors)")
+            print("     - Smart retry for Code 2000 + empty videos (API glitch)")
+            print("     - Exponential backoff: 10s, 12s, 14s delays")
+            print("   ⚠️  IMPORTANT: This step blocks until ALL clips are ready!")
+            print("   ⏰ Maximum wait time per movie: 10 minutes")
+            print("")
+            
+            # Use Vizard AI to process the movie trailers (NEW IMPLEMENTATION)
+            dynamic_clips = process_movie_trailers_to_clips_vizard(
                 raw_movies, 
                 max_movies=3, 
                 transform_mode="youtube_shorts"
             )
+            # Old function (FALLBACK): dynamic_clips = process_movie_trailers_to_clips(
+            #     raw_movies, 
+            #     max_movies=3, 
+            #     transform_mode="youtube_shorts"
+            # )
             
             # Enhanced: Allow partial success with graceful handling
             if not dynamic_clips or len(dynamic_clips) == 0:

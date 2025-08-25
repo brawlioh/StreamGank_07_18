@@ -128,7 +128,7 @@ class VizardClient:
                 "videoType": 1,                      # Video type 1 as specified
                 "preferLength": [1],                 # Length code 1 for 15-20 second clips
                 "ratioOfClip": 1,                   # 9:16 vertical format (TikTok/Instagram)
-                "removeSilenceSwitch": 1,           # Remove silence and filler words
+                "removeSilenceSwitch": 0,           # Remove silence and filler words
                 "highlightSwitch": 1,               # Enable auto highlight keywords in subtitles
                 "maxClipNumber": 1,                 # Return only the best clip (speeds up processing)
                 "projectName": f"StreamGank - {movie_title}",

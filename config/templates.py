@@ -30,7 +30,7 @@ HEYGEN_TEMPLATES = {
     
     # Comedy Templates  
     'comedy': {
-        'id': '15d9eadcb46a45dbbca1834aa0a23ede',
+        'id': '9186cef35dde4505bdccb1ec5c312339',
         'name': 'Comedy Template', 
         'description': 'Optimized template for comedy and humorous content',
         'genres': ['Comedy', 'Comédie']
@@ -38,7 +38,7 @@ HEYGEN_TEMPLATES = {
     
     # Action Templates
     'action': {
-        'id': 'e44b139a1b94446a997a7f2ac5ac4178',
+        'id': 'e4549f9f3d5e43dbaac26146e32e2a1f',
         'name': 'Action Template',
         'description': 'High-energy template for action and adventure content',
         'genres': ['Action', 'Action & Adventure', 'Action & Aventure']

@@ -27,6 +27,7 @@ import re
 import math
 import logging
 import textwrap
+import time
 from typing import Dict, List, Optional, Any
 from io import BytesIO
 import requests
@@ -184,7 +185,7 @@ def format_votes(votes):
 # MAIN POSTER CREATION FUNCTIONS - LEGACY MIGRATED
 # =============================================================================
 
-def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank-reels/enhanced-poster-cover") -> Optional[str]:
+def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = None) -> Optional[str]:
     """
     Create an enhanced movie poster card with metadata overlay for TikTok/Instagram Reels
     
@@ -203,9 +204,15 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank
     Returns:
         str: Path to the enhanced poster image or None if failed
     """
+    import tempfile
     try:
-        # Create output directory
-        os.makedirs(output_dir, exist_ok=True)
+        # Use temporary directory instead of creating project folders
+        if output_dir is None:
+            output_dir = tempfile.mkdtemp()
+            temp_dir_created = True
+        else:
+            temp_dir_created = False
+            os.makedirs(output_dir, exist_ok=True)
         
         # Extract movie information
         title = movie_data.get('title', 'Unknown Movie')
@@ -345,24 +352,40 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank
         metadata_size = font_config.get('metadata', 36)  # Same as before
         small_size = font_config.get('rating', 32)       # Same as before
         
-        # Load fonts with BOLD title font using CONFIGURED SIZES
+        # Load fonts with BOLD title font using CONFIGURED SIZES - FIXED PATHS
         try:
-            title_font = ImageFont.truetype("arialbd.ttf", title_size)      # BOLD title font - LARGER
-            platform_font = ImageFont.truetype("arial.ttf", platform_size) # Platform badge - LARGER
-            metadata_font = ImageFont.truetype("arial.ttf", metadata_size) # Metadata values
-            small_font = ImageFont.truetype("arial.ttf", small_size)       # Labels
+            # Use full Windows paths (confirmed working)
+            title_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", title_size)      # BOLD title font - LARGER
+            platform_font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", platform_size) # Platform badge - LARGER  
+            metadata_font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", metadata_size) # Metadata values
+            small_font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", small_size)       # Labels
+            logger.info(f"   ✅ Windows fonts loaded successfully!")
+            logger.info(f"   📝 Title font: Bold Arial {title_size}px (LARGE TEXT FIXED)")
+            logger.info(f"   📝 Platform font: Arial {platform_size}px")
+            logger.info(f"   📝 Metadata font: Arial {metadata_size}px")
         except:
             try:
-                title_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", title_size)  # BOLD
-                platform_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", platform_size)
-                metadata_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", metadata_size)
-                small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", small_size)
+                # Try relative paths as backup
+                title_font = ImageFont.truetype("arialbd.ttf", title_size)
+                platform_font = ImageFont.truetype("arial.ttf", platform_size)
+                metadata_font = ImageFont.truetype("arial.ttf", metadata_size)
+                small_font = ImageFont.truetype("arial.ttf", small_size)
+                logger.info(f"   ✅ Relative path fonts loaded successfully (title={title_size}px)")
             except:
-                # Fallback to default with simulated bold effect
-                title_font = ImageFont.load_default()
-                platform_font = ImageFont.load_default()
-                metadata_font = ImageFont.load_default()
-                small_font = ImageFont.load_default()
+                try:
+                    # Try macOS paths
+                    title_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", title_size)
+                    platform_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", platform_size)
+                    metadata_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", metadata_size)
+                    small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", small_size)
+                    logger.info(f"   ✅ macOS fonts loaded successfully (title={title_size}px)")
+                except:
+                    # Use default fonts without logging warnings (this is normal fallback)
+                    logger.warning(f"   ⚠️ All font paths failed - using default fonts (text will be smaller)")
+                    title_font = ImageFont.load_default()
+                    platform_font = ImageFont.load_default() 
+                    metadata_font = ImageFont.load_default()
+                    small_font = ImageFont.load_default()
                 
         logger.info(f"   🔤 Font sizes: Title={title_size}, Platform={platform_size}, Metadata={metadata_size}, Small={small_size}")
         
@@ -548,6 +571,16 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank
         logger.info(f"   📐 Dimensions: {canvas_width}x{canvas_height} (9:16 portrait)")
         logger.info(f"   🖼️ Poster: Aspect ratio preserved, no distortion")
         
+        # Clean up temporary directory if we created it
+        if temp_dir_created and os.path.exists(output_dir):
+            try:
+                import shutil
+                # Don't delete yet - caller needs the file first
+                # Will be cleaned up after upload to Cloudinary
+                pass
+            except Exception as e:
+                logger.warning(f"⚠️ Could not clean temp directory: {str(e)}")
+        
         return output_path
         
     except Exception as e:
@@ -568,16 +601,24 @@ def create_enhanced_movie_posters(movie_data: List[Dict], max_movies: int = 3) -
         Dict[str, str]: Dictionary mapping movie titles to enhanced poster URLs
     """
     enhanced_poster_urls = {}
-    temp_dir = "streamgank-reels/enhanced-poster-cover"  # Save to streamgank-reels folder structure
+    import tempfile
     
     logger.info(f"🎨 Creating enhanced movie posters for {min(len(movie_data), max_movies)} movies")
     logger.info("🎬 Style: Professional TikTok/Instagram Reels format")
     logger.info("📐 Dimensions: 1080x1920 (9:16 portrait)")
-    logger.info(f"💾 Save Location: {temp_dir} (local) + streamgank-reels/enhanced-poster-cover/ (Cloudinary)")
+    logger.info(f"💾 Upload to: Cloudinary (streamgank-reels/enhanced-poster-cover/)")
+    
+    # For development mode - check if we should save assets
+    from utils.test_data_cache import should_save_results
+    save_for_dev = should_save_results()
+    
+    if save_for_dev:
+        logger.info(f"🔧 Development mode: Will save posters to test_output for future use")
     
     try:
-        # Create temporary directory
-        ensure_directory(temp_dir)
+        # Use temporary directory - no permanent folders in project
+        temp_dir = tempfile.mkdtemp()
+        poster_files_for_cleanup = []
         
         # Process up to max_movies
         for i, movie in enumerate(movie_data[:max_movies]):
@@ -590,6 +631,8 @@ def create_enhanced_movie_posters(movie_data: List[Dict], max_movies: int = 3) -
                 enhanced_path = create_enhanced_movie_poster(movie, temp_dir)
                 
                 if enhanced_path:
+                    poster_files_for_cleanup.append(enhanced_path)
+                    
                     # Upload to Cloudinary
                     enhanced_url = _upload_poster_to_cloudinary(enhanced_path, title, i+1)
                     
@@ -605,15 +648,44 @@ def create_enhanced_movie_posters(movie_data: List[Dict], max_movies: int = 3) -
                 logger.error(f"❌ Error processing poster for movie {i+1}: {str(e)}")
                 continue
         
-        # Note: Not cleaning up files as they're saved to permanent streamgank-reels folder
-        # cleanup_temp_files(temp_dir)  # Commented out - keeping enhanced posters permanently
+        # Save assets for development mode (proper way)
+        if save_for_dev and enhanced_poster_urls:
+            try:
+                from utils.test_data_cache import save_assets_result
+                # Save poster URLs and metadata for development caching
+                import time
+                asset_data = {
+                    'enhanced_posters': enhanced_poster_urls,
+                    'poster_count': len(enhanced_poster_urls),
+                    'timestamp': time.strftime("%Y%m%d_%H%M%S")
+                }
+                save_path = save_assets_result(asset_data, "US", "Unknown", "Unknown", "Unknown")
+                if save_path:
+                    logger.info(f"🔧 Development mode: Assets saved to {save_path}")
+            except Exception as save_error:
+                logger.warning(f"⚠️ Could not save assets for development: {str(save_error)}")
+        
+        # Clean up temporary files
+        try:
+            import shutil
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+                logger.debug(f"🧹 Cleaned up temporary directory: {temp_dir}")
+        except Exception as cleanup_error:
+            logger.warning(f"⚠️ Could not clean up temporary files: {str(cleanup_error)}")
         
         logger.info(f"🎨 Successfully created {len(enhanced_poster_urls)} enhanced posters")
         return enhanced_poster_urls
         
     except Exception as e:
         logger.error(f"❌ Error in create_enhanced_movie_posters: {str(e)}")
-        # cleanup_temp_files(temp_dir)  # Not cleaning up - permanent storage folder
+        # Clean up temporary files even on error
+        try:
+            import shutil
+            if 'temp_dir' in locals() and temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+        except:
+            pass
         return {}
 
 # =============================================================================
@@ -640,17 +712,19 @@ def _upload_poster_to_cloudinary(poster_path: str, title: str, movie_num: int) -
             logger.error("❌ Cloudinary configuration not available")
             return None
         
-        # Generate unique public ID
+        # Generate unique public ID with cache-busting
         safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_title = safe_title.replace(' ', '_').lower()[:30]  # Limit length
         
-        public_id = f"enhanced_{safe_title}_{movie_num}"  # Clean public ID without folder path
+        # Add cache-busting timestamp to ensure new poster with LARGE TEXT is uploaded
+        cache_buster = str(int(time.time()))[-6:]  # Last 6 digits of timestamp
+        public_id = f"enhanced_{safe_title}_{movie_num}_FIXED_v{cache_buster}"  # FIXED text size version
         
         # Upload to Cloudinary (using folder parameter like movie clips)
         result = cloudinary.uploader.upload(
             poster_path,
             public_id=public_id,
-            folder="streamgank-reels/enhanced-poster-cover",  # Separate folder parameter
+            folder="streamgank-reels/enhanced-poster-cover",  # Keep your existing folder structure
             resource_type="image",
             format="jpg",
             overwrite=True,  # Allow overwrite like movie clips

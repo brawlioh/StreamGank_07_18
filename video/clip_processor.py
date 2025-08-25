@@ -21,6 +21,8 @@ import logging
 import subprocess
 import tempfile
 import re
+import time
+import json
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 import requests
@@ -2764,3 +2766,530 @@ def validate_processing_requirements() -> Dict[str, Any]:
         validation['missing_requirements'].append(f'Cannot create temp directories: {str(e)}')
     
     return validation
+
+
+# =============================================================================
+# VIZARD AI TRAILER CLIP PROCESSING
+# =============================================================================
+
+def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: int = 3, 
+                                          transform_mode: str = "youtube_shorts") -> Dict[str, str]:
+    """
+    Process movie trailers using Vizard AI to create viral highlight clips.
+    
+    This function integrates with Vizard AI to automatically generate viral clips
+    from movie trailers using AI-powered highlight detection and viral scoring.
+    
+    SYNCHRONOUS PROCESSING - BLOCKS UNTIL COMPLETE (like HeyGen)
+    
+    Vizard API Response Codes:
+    - Code 1000: Still processing (continue waiting)
+    - Code 2000: Processing complete (videos array available)
+    
+    Features:
+    - 🤖 AI-powered viral clip generation using Vizard API
+    - 📊 Viral score-based clip selection (highest score wins)
+    - 🎬 Automatic highlight detection and editing
+    - 📱 Mobile-optimized clips with subtitles and headlines
+    - 📥 Downloads clips from Vizard AI servers
+    - ⏱️ Smart duration control (trims clips ≥30s to 20s max)
+    - ☁️ Uploads clips to Cloudinary (streamgank-reels/movie-clips)
+    - 📊 Clip duration extraction and metadata
+    - 🔄 Synchronous waiting (blocks like HeyGen workflow)
+    - 🔁 Robust retry mechanism: 3 tries per query + smart backoff for empty videos
+    
+    Args:
+        movie_data (List[Dict]): List of movie data dictionaries with trailer_url
+        max_movies (int): Maximum number of movies to process
+        transform_mode (str): Transformation mode (maintained for consistency)
+        
+    Returns:
+        Dict[str, str]: Dictionary mapping movie titles to Cloudinary clip URLs
+    """
+    logger.info(f"🤖 Processing movie trailers with Vizard AI for {min(len(movie_data), max_movies)} movies")
+    logger.info("🎯 Using AI-powered viral clip detection with automated highlighting")
+    
+    clip_urls = {}
+    api_config = get_api_config()
+    vizard_api_key = api_config.get('VIZARD_API_KEY')
+    
+    if not vizard_api_key:
+        logger.error("❌ VIZARD_API_KEY not found in environment variables")
+        raise Exception("VIZARD_API_KEY is required for Vizard AI processing")
+    
+    # Vizard API endpoints
+    create_project_url = "https://elb-api.vizard.ai/hvizard-server-front/open-api/v1/project/create"
+    
+    # Process up to max_movies
+    for i, movie in enumerate(movie_data[:max_movies]):
+        try:
+            title = movie.get('title', f'Movie_{i+1}')
+            trailer_url = movie.get('trailer_url', '')
+            
+            logger.info(f"🎬 Processing trailer {i+1}: {title}")
+            logger.info(f"   📺 Trailer URL: {trailer_url}")
+            
+            if not trailer_url or not is_valid_url(trailer_url):
+                logger.warning(f"⚠️ No valid trailer URL for: {title}")
+                logger.warning(f"   📺 URL provided: '{trailer_url}'")
+                continue
+            
+            # Step 1: Create Vizard project with trailer URL
+            logger.info(f"   🚀 Creating Vizard AI project for: {title}")
+            project_payload = {
+                "lang": "en",
+                "videoUrl": trailer_url,
+                "videoType": 2,
+                "ratioOfClip": 1,
+                "templateId": 69353061,
+                "removeSilenceSwitch": 0,
+                "maxClipNumber": 3,
+                "subtitleSwitch": 1,
+                "headlineSwitch": 1,
+                "ext": "mp4",
+                "highlightSwitch": 1,
+                "preferLength": [1]
+            }
+            
+            project_headers = {
+                "VIZARDAI_API_KEY": vizard_api_key,
+                "content-type": "application/json"
+            }
+            
+            # Create project
+            project_response = requests.post(create_project_url, json=project_payload, headers=project_headers)
+            
+            if project_response.status_code != 200:
+                logger.error(f"❌ Vizard project creation failed for {title}: {project_response.status_code}")
+                logger.error(f"   Response: {project_response.text}")
+                continue
+                
+            project_data = project_response.json()
+            
+            if project_data.get('code') != 2000:
+                logger.error(f"❌ Vizard API error for {title}: {project_data}")
+                continue
+                
+            project_id = project_data.get('projectId')
+            if not project_id:
+                logger.error(f"❌ No project ID returned for {title}")
+                continue
+                
+            logger.info(f"   ✅ Vizard project created: {project_id}")
+            
+            # Step 2: Wait for Vizard AI to complete processing (SYNCHRONOUS - like HeyGen)
+            query_url = f"https://elb-api.vizard.ai/hvizard-server-front/open-api/v1/project/query/{project_id}"
+            max_attempts = 60  # 10 minutes max wait time (10s intervals) - increased for video processing
+            attempt = 0
+            
+            logger.info(f"   ⏳ WAITING FOR VIZARD AI COMPLETION: {title}")
+            logger.info(f"   🎬 Processing will block until clips are ready (like HeyGen workflow)")
+            logger.info(f"   📡 Waiting for code 2000 (complete) with videos array")
+            logger.info(f"   ⏰ Maximum wait time: 10 minutes")
+            
+            clip_ready = False
+            start_time = time.time()
+            
+            while attempt < max_attempts and not clip_ready:
+                attempt += 1
+                
+                # Wait before checking (except first attempt)
+                if attempt > 1:
+                    wait_time = 10  # Consistent 10-second intervals for predictable timing
+                    logger.info(f"   ⏱️ Waiting 10s before next check... (attempt {attempt}/{max_attempts})")
+                    time.sleep(wait_time)
+                
+                # Retry mechanism for the API request itself (max 3 tries per polling attempt)
+                query_success = False
+                query_data = None
+                
+                for query_retry in range(1, 4):  # Maximum 3 tries per polling attempt
+                    try:
+                        # Query project status
+                        query_response = requests.get(query_url, headers=project_headers, timeout=30)
+                        
+                        if query_response.status_code == 200:
+                            query_data = query_response.json()
+                            query_success = True
+                            logger.debug(f"   📡 Query successful on retry {query_retry}/3 (attempt {attempt}/{max_attempts})")
+                            break
+                        else:
+                            logger.warning(f"   ⚠️ Query retry {query_retry}/3 failed: HTTP {query_response.status_code}")
+                            if query_retry < 3:
+                                logger.info(f"   🔄 Retrying query request in 3s...")
+                                time.sleep(3)  # Short delay between query retries
+                            
+                    except requests.exceptions.Timeout:
+                        logger.warning(f"   ⏰ Query timeout on retry {query_retry}/3")
+                        if query_retry < 3:
+                            time.sleep(3)  # Short delay before retry
+                    except requests.exceptions.RequestException as e:
+                        logger.warning(f"   ⚠️ Query request error on retry {query_retry}/3: {str(e)}")
+                        if query_retry < 3:
+                            time.sleep(3)  # Short delay before retry
+                
+                # If all query retries failed, skip this polling attempt
+                if not query_success or not query_data:
+                    logger.warning(f"   ❌ All 3 query retries failed for polling attempt {attempt}/{max_attempts}")
+                    continue
+                
+                try:
+                    response_code = query_data.get('code')
+                    elapsed_time = time.time() - start_time
+                    
+                    # Check Vizard response codes:
+                    # Code 1000 = Still processing (continue waiting)
+                    # Code 2000 = Processing complete (videos ready)
+                    if response_code == 1000:
+                        # Still processing - show progress and continue waiting
+                        logger.info(f"   ⏳ CODE 1000: Still processing... ({elapsed_time:.0f}s elapsed, attempt {attempt}/{max_attempts})")
+                        logger.info(f"   🤖 Vizard AI is analyzing and creating viral clips...")
+                        continue
+                    elif response_code == 2000:
+                        # Processing complete - check for videos
+                        videos = query_data.get('videos', [])
+                        
+                        if videos and len(videos) > 0:
+                            logger.info(f"   🎉 CODE 2000 RECEIVED! Processing complete for: {title}")
+                            logger.info(f"   📹 Found {len(videos)} clips in response")
+                            logger.info(f"   ⏰ Total processing time: {elapsed_time:.1f}s")
+                            
+                            # Validate that clips have valid URLs (ensure they're truly ready)
+                            valid_clips = [v for v in videos if v.get('videoUrl') and v.get('viralScore')]
+                            
+                            if not valid_clips:
+                                logger.warning(f"   ⚠️ Code 2000 received but clips missing URLs/scores - API issue")
+                                logger.error(f"   ❌ Invalid response format from Vizard API")
+                                break
+                            
+                            # Step 3: Select the clip with the highest viral score
+                            best_clip = max(valid_clips, key=lambda v: float(v.get('viralScore', 0)))
+                            
+                            video_url = best_clip.get('videoUrl')
+                            viral_score = best_clip.get('viralScore', 'N/A')
+                            duration_ms = best_clip.get('videoMsDuration', 0)
+                            duration_seconds = duration_ms / 1000 if duration_ms else 0
+                            clip_title = best_clip.get('title', f'Clip for {title}')
+                            viral_reason = best_clip.get('viralReason', 'AI-selected highlight')
+                            
+                            logger.info(f"   🏆 SELECTED BEST CLIP:")
+                            logger.info(f"     📊 Viral Score: {viral_score}")
+                            logger.info(f"     ⏱️ Duration: {duration_seconds:.1f}s")
+                            logger.info(f"     🎯 Title: {clip_title}")
+                            logger.info(f"     💡 Viral Reason: {viral_reason}")
+                            logger.info(f"     🔗 URL: {video_url}")
+                            
+                            if video_url:
+                                # Download Vizard clip and upload to Cloudinary (same path as old system)
+                                logger.info(f"   📥 Downloading Vizard clip for Cloudinary upload...")
+                                cloudinary_url = _download_and_upload_vizard_clip(
+                                    video_url, title, str(movie.get('id', i+1)), transform_mode
+                                )
+                                
+                                if cloudinary_url:
+                                    clip_urls[title] = cloudinary_url
+                                    # Store additional metadata as movie properties for later use
+                                    movie['clip_duration'] = duration_seconds
+                                    movie['clip_viral_score'] = viral_score
+                                    movie['clip_title'] = clip_title
+                                    movie['clip_viral_reason'] = viral_reason
+                                    
+                                    logger.info(f"   ✅ VIZARD PROCESSING COMPLETE: {title}")
+                                    logger.info(f"   ☁️ Cloudinary URL: {cloudinary_url}")
+                                    clip_ready = True
+                                else:
+                                    logger.error(f"   ❌ Failed to upload Vizard clip to Cloudinary")
+                                    break
+                            else:
+                                logger.error(f"   ❌ Code 2000 received but no video URL - API error")
+                                break
+                        else:
+                            # Code 2000 but no videos - retry with exponential backoff
+                            logger.warning(f"   ⚠️ Code 2000 received but no videos in response (attempt {attempt}/{max_attempts})")
+                            logger.warning(f"   🔄 This can happen occasionally with Vizard API - will retry...")
+                            
+                            # Add a retry mechanism for this specific case
+                            if attempt < max_attempts:
+                                retry_delay = min(20, 10 + (attempt * 2))  # Exponential backoff: 10s, 12s, 14s...
+                                logger.info(f"   ⏳ Waiting {retry_delay}s before retrying (empty videos array)...")
+                                time.sleep(retry_delay)
+                                continue
+                            else:
+                                logger.error(f"   ❌ Max attempts reached: Code 2000 but no videos after {max_attempts} tries")
+                                logger.error(f"   📊 Final response: {query_data}")
+                                break
+                    else:
+                        # Handle other response codes (errors)
+                        logger.warning(f"   ⚠️ Unexpected Vizard response code: {response_code}")
+                        if response_code in [4000, 4001, 4002]:
+                            logger.error(f"   ❌ API Error {response_code}: Check API key and project parameters")
+                            break
+                        else:
+                            logger.warning(f"   🔄 Unknown response code - continuing to wait...")
+                        
+                except requests.exceptions.Timeout:
+                    logger.warning(f"   ⚠️ Request timeout on attempt {attempt} - retrying...")
+                    continue
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"   ⚠️ Network error on attempt {attempt}: {str(e)}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"   ⚠️ Unexpected error on attempt {attempt}: {str(e)}")
+                    continue
+            
+            # Check if we successfully got the clip or timed out
+            if not clip_ready:
+                total_wait_time = time.time() - start_time
+                logger.error(f"   ❌ VIZARD TIMEOUT: {title}")
+                logger.error(f"   ⏰ Total wait time: {total_wait_time:.1f}s (max: 600s)")
+                logger.error(f"   🔄 Attempts made: {attempt}/{max_attempts}")
+                logger.error(f"   💡 This trailer may take longer to process or have issues")
+                # Continue to next movie instead of failing the entire batch
+                
+        except Exception as e:
+            logger.error(f"❌ Error processing trailer for movie {i+1} ({title}): {str(e)}")
+            continue
+    
+    # Report results
+    successful_count = len(clip_urls)
+    total_attempted = len(movie_data[:max_movies])
+    
+    if successful_count == total_attempted:
+        logger.info(f"🎉 All {successful_count} trailers processed successfully with Vizard AI!")
+    elif successful_count > 0:
+        logger.warning(f"⚠️ Partial success: {successful_count}/{total_attempted} trailers processed with Vizard AI")
+        logger.info(f"📊 Success rate: {(successful_count/total_attempted)*100:.1f}%")
+    else:
+        logger.error(f"❌ No trailers could be processed with Vizard AI ({total_attempted} attempted)")
+        logger.error("This could be due to:")
+        logger.error("• Invalid or inaccessible trailer URLs") 
+        logger.error("• Vizard AI API issues or rate limits")
+        logger.error("• Network connectivity problems")
+        logger.error("• Missing or invalid VIZARD_API_KEY")
+        
+        # Return empty dict but don't raise exception - let workflow decide
+        return {}
+
+    logger.info(f"🤖 VIZARD AI PROCESSING COMPLETE!")
+    logger.info(f"📊 Final Results Summary:")
+    logger.info(f"   ✅ Successfully processed: {successful_count}/{total_attempted} movies")
+    logger.info(f"   📈 Success rate: {(successful_count/total_attempted)*100:.1f}%")
+    logger.info(f"   🎬 Viral clips generated: {successful_count}")
+    logger.info(f"   ☁️ All clips uploaded to Cloudinary: streamgank-reels/movie-clips")
+    logger.info(f"   🔄 WORKFLOW READY TO PROCEED TO NEXT STEP")
+    
+    return clip_urls
+
+
+def _download_and_upload_vizard_clip(vizard_url: str, movie_title: str, movie_id: str, 
+                                    transform_mode: str = "youtube_shorts") -> Optional[str]:
+    """
+    Download a video clip from Vizard AI and upload it to Cloudinary.
+    
+    This function downloads the processed clip from Vizard AI and uploads it to our
+    Cloudinary storage using the same path as the existing clip processor.
+    
+    Args:
+        vizard_url (str): URL of the Vizard AI generated clip
+        movie_title (str): Movie title for naming
+        movie_id (str): Movie ID for unique identification
+        transform_mode (str): Cloudinary transformation mode
+        
+    Returns:
+        str: Cloudinary URL of uploaded clip or None if failed
+    """
+    temp_file = None
+    try:
+        logger.info(f"📥 Downloading Vizard clip: {movie_title}")
+        logger.info(f"   🔗 Source URL: {vizard_url}")
+        
+        # Create temporary file for download
+        temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
+        temp_file.close()
+        
+        # Download the video from Vizard AI
+        response = requests.get(vizard_url, stream=True, timeout=60)
+        response.raise_for_status()
+        
+        # Write video data to temp file
+        with open(temp_file.name, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        
+        file_size = os.path.getsize(temp_file.name)
+        logger.info(f"   📁 Downloaded: {file_size:,} bytes")
+        
+        # Check video duration and trim if necessary (30+ seconds → 20 seconds)
+        processed_file = _check_and_trim_clip_duration(temp_file.name, movie_title)
+        if not processed_file:
+            logger.error(f"   ❌ Failed to process clip duration for: {movie_title}")
+            return None
+        
+        # Clean the movie title to prevent Cloudinary errors with spaces/special characters
+        clean_movie_title = re.sub(r'[^a-zA-Z0-9_-]', '_', movie_title)
+        clean_movie_title = re.sub(r'_+', '_', clean_movie_title).strip('_')
+        
+        # Upload to Cloudinary using existing function (same path: streamgank-reels/movie-clips)
+        logger.info(f"   ☁️ Uploading to Cloudinary: streamgank-reels/movie-clips")
+        logger.info(f"   📝 Original title: '{movie_title}' → Clean title: '{clean_movie_title}'")
+        cloudinary_url = _upload_clip_to_cloudinary(processed_file, clean_movie_title, movie_id, transform_mode)
+        
+        if cloudinary_url:
+            logger.info(f"   ✅ Successfully uploaded to Cloudinary: {movie_title}")
+            logger.info(f"   🔗 Cloudinary URL: {cloudinary_url}")
+            return cloudinary_url
+        else:
+            logger.error(f"   ❌ Failed to upload {movie_title} to Cloudinary")
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Error downloading Vizard clip for {movie_title}: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ Error processing Vizard clip for {movie_title}: {str(e)}")
+        return None
+    finally:
+        # Clean up temporary files
+        if temp_file and os.path.exists(temp_file.name):
+            try:
+                os.unlink(temp_file.name)
+                logger.debug(f"   🧹 Cleaned up temp file: {temp_file.name}")
+            except Exception as e:
+                logger.warning(f"   ⚠️ Could not clean up temp file: {str(e)}")
+        
+        # Clean up processed file if it's different from temp_file
+        if 'processed_file' in locals() and processed_file and processed_file != temp_file.name and os.path.exists(processed_file):
+            try:
+                os.unlink(processed_file)
+                logger.debug(f"   🧹 Cleaned up processed file: {processed_file}")
+            except Exception as e:
+                logger.warning(f"   ⚠️ Could not clean up processed file: {str(e)}")
+
+
+def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duration: float = 20.0, 
+                                  trim_threshold: float = 30.0) -> Optional[str]:
+    """
+    Check video duration and trim if it exceeds the threshold.
+    
+    If the video is 30 seconds or longer, it will be trimmed to 20 seconds maximum.
+    This ensures optimal clip length for social media platforms.
+    
+    Args:
+        video_path (str): Path to the input video file
+        movie_title (str): Movie title for logging
+        max_duration (float): Maximum duration to trim to (seconds)
+        trim_threshold (float): Duration threshold to trigger trimming (seconds)
+        
+    Returns:
+        str: Path to processed video file (original or trimmed) or None if failed
+    """
+    try:
+        logger.info(f"   ⏱️ Checking clip duration for: {movie_title}")
+        
+        # Get video duration using FFprobe
+        duration = _get_video_duration(video_path)
+        if duration is None:
+            logger.warning(f"   ⚠️ Could not determine duration, using original clip: {movie_title}")
+            return video_path
+        
+        logger.info(f"   📊 Original duration: {duration:.1f}s")
+        
+        # Check if trimming is needed
+        if duration < trim_threshold:
+            logger.info(f"   ✅ Duration OK ({duration:.1f}s < {trim_threshold:.1f}s), no trimming needed")
+            return video_path
+        
+        # Trim video to max_duration
+        logger.info(f"   ✂️ Duration {duration:.1f}s >= {trim_threshold:.1f}s, trimming to {max_duration:.1f}s...")
+        
+        # Create output file path
+        base_name = os.path.splitext(video_path)[0]
+        trimmed_path = f"{base_name}_trimmed_{max_duration:.0f}s.mp4"
+        
+        # Use FFmpeg to trim video
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-i', video_path,
+            '-t', str(max_duration),  # Trim to max_duration seconds
+            '-c:v', 'libx264',  # Video codec
+            '-c:a', 'aac',      # Audio codec
+            '-preset', 'fast',  # Encoding speed
+            '-crf', '23',       # Quality (lower = better quality)
+            '-y',               # Overwrite output file
+            trimmed_path
+        ]
+        
+        # Execute FFmpeg command
+        result = subprocess.run(
+            ffmpeg_cmd,
+            capture_output=True,
+            text=True,
+            timeout=60  # 1 minute timeout
+        )
+        
+        if result.returncode == 0:
+            # Verify trimmed file exists and has reasonable size
+            if os.path.exists(trimmed_path):
+                trimmed_size = os.path.getsize(trimmed_path)
+                logger.info(f"   ✅ Successfully trimmed to {max_duration:.1f}s")
+                logger.info(f"   📁 Trimmed file size: {trimmed_size:,} bytes")
+                return trimmed_path
+            else:
+                logger.error(f"   ❌ Trimmed file not created: {trimmed_path}")
+                return video_path
+        else:
+            logger.error(f"   ❌ FFmpeg trimming failed for {movie_title}")
+            logger.error(f"   FFmpeg error: {result.stderr}")
+            logger.warning(f"   ⚠️ Using original clip without trimming")
+            return video_path
+            
+    except subprocess.TimeoutExpired:
+        logger.error(f"   ❌ FFmpeg trimming timeout for {movie_title}")
+        return video_path
+    except Exception as e:
+        logger.error(f"   ❌ Error checking/trimming duration for {movie_title}: {str(e)}")
+        return video_path
+
+
+def _get_video_duration(video_path: str) -> Optional[float]:
+    """
+    Get video duration in seconds using FFprobe.
+    
+    Args:
+        video_path (str): Path to the video file
+        
+    Returns:
+        float: Duration in seconds or None if failed
+    """
+    try:
+        # Use FFprobe to get duration
+        ffprobe_cmd = [
+            'ffprobe',
+            '-v', 'quiet',
+            '-print_format', 'json',
+            '-show_format',
+            video_path
+        ]
+        
+        result = subprocess.run(
+            ffprobe_cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0:
+            probe_data = json.loads(result.stdout)
+            duration = float(probe_data['format']['duration'])
+            return duration
+        else:
+            logger.warning(f"   ⚠️ FFprobe failed: {result.stderr}")
+            return None
+            
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError, ValueError) as e:
+        logger.warning(f"   ⚠️ Could not get duration: {str(e)}")
+        return None
+    except Exception as e:
+        logger.warning(f"   ⚠️ Duration check error: {str(e)}")
+        return None

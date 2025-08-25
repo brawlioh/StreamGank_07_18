@@ -905,6 +905,15 @@ app.post('/api/webhooks/step-update', async (req, res) => {
                 job.status = 'rendering'; // Set to rendering status for Creatomate monitoring
                 if (details?.creatomate_id) {
                     job.creatomateId = details.creatomate_id;
+
+                    // 🎬 CRITICAL FIX: Start Creatomate monitoring immediately after workflow completion
+                    console.log(`🎬 Workflow completed with Creatomate ID: ${details.creatomate_id}`);
+                    console.log(`🎬 Starting Creatomate monitoring for job ${job_id}...`);
+
+                    // Start monitoring in the next tick to ensure job is updated first
+                    setTimeout(() => {
+                        queueManager.startCreatomateMonitoring(job_id, details.creatomate_id);
+                    }, 100);
                 }
             } else if (step_name === 'Workflow Failed') {
                 job.currentStep = `❌ Workflow failed: ${details?.error || 'Unknown error'}`;

@@ -186,6 +186,19 @@ export class JobDetailApp {
             });
 
             console.log('✅ Job data loaded successfully');
+
+            // 🎬 AUTO-START MONITORING: Check if job needs Creatomate monitoring on page load
+            setTimeout(async () => {
+                if (
+                    this.jobData.creatomateId &&
+                    this.jobData.status !== 'rendering' &&
+                    this.jobData.status !== 'completed' &&
+                    !this.jobData.videoUrl
+                ) {
+                    console.log('🔍 AUTO-START: Job has creatomateId but no monitoring - starting automatically...');
+                    await this.startCreatomateMonitoring();
+                }
+            }, 1000); // Small delay to ensure UI is loaded
         } catch (error) {
             console.error('❌ Failed to load job data:', error);
             throw error;
@@ -1512,11 +1525,24 @@ export class JobDetailApp {
                                 try {
                                     await this.refreshJobData();
                                     console.log('🎬 Job data refreshed after step 7 - triggering video display');
+
+                                    // 🎬 BACKUP CHECK: If job has creatomateId but status is not 'rendering', start monitoring
+                                    if (
+                                        this.jobData.creatomateId &&
+                                        this.jobData.status !== 'rendering' &&
+                                        !this.jobData.videoUrl
+                                    ) {
+                                        console.log(
+                                            '🔍 BACKUP: Job has creatomateId but monitoring may not have started - triggering monitoring...'
+                                        );
+                                        await this.startCreatomateMonitoring();
+                                    }
+
                                     this.updateUI(); // This will trigger updateCreatomateSection with fresh data
                                 } catch (error) {
                                     console.error('❌ Failed to refresh job data after step 7:', error);
                                 }
-                            }, 1000); // 1 second delay to ensure backend has updated with Creatomate ID
+                            }, 2000); // Increased delay to 2 seconds to ensure webhook processing completes
                         }
                     }
 
@@ -1543,6 +1569,44 @@ export class JobDetailApp {
             this.jobSSE.close();
             this.jobSSE = null;
             console.log(`📡 Closed job SSE connection for ${this.jobId}`);
+        }
+    }
+
+    /**
+     * Start Creatomate monitoring for the current job (backup mechanism)
+     */
+    async startCreatomateMonitoring() {
+        if (!this.jobData.creatomateId) {
+            console.error('❌ Cannot start Creatomate monitoring: No creatomateId found');
+            return;
+        }
+
+        try {
+            console.log(`🎬 Starting Creatomate monitoring for job ${this.jobId} (ID: ${this.jobData.creatomateId})`);
+
+            const response = await fetch(`/api/queue/job/${this.jobId}/monitor-creatomate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('✅ Creatomate monitoring started successfully:', result);
+
+                // Update job status to rendering
+                if (this.jobData.status !== 'rendering') {
+                    this.jobData.status = 'rendering';
+                    this.jobData.currentStep = '🎬 Video rendering in progress with Creatomate...';
+                    this.updateUI();
+                }
+            } else {
+                const error = await response.json();
+                console.error('❌ Failed to start Creatomate monitoring:', error);
+            }
+        } catch (error) {
+            console.error('❌ Error starting Creatomate monitoring:', error);
         }
     }
 

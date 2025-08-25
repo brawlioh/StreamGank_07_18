@@ -274,7 +274,7 @@ class VideoQueueManager {
             creatomateId: null,
             videoUrl: null,
             retryCount: 0,
-            maxRetries: 3,
+            maxRetries: 1, // Reduced from 3 to prevent excessive retries
             error: null,
             progress: 0,
             currentStep: 'Queued for processing...'
@@ -834,6 +834,12 @@ class VideoQueueManager {
             job.currentStep = `❌ FAILED: ${job.error}`;
             job.failedAt = new Date().toISOString();
 
+            // Stop any active Creatomate monitoring for this job
+            if (this.activeMonitoring.has(job.id)) {
+                console.log(`🛑 Stopping Creatomate monitoring due to job failure: ${job.id}`);
+                this.finishMonitoring(job.id);
+            }
+
             // Clear any partial state for complete restart
             job.extractedMovies = null;
             job.extractedMoviesOutput = null;
@@ -1153,12 +1159,19 @@ class VideoQueueManager {
         }
 
         // ❌ NEVER RETRY - Critical Workflow Failures (until manual review)
-        if (error.includes('critical workflow') || error.includes('movie processing failed')) {
+        if (
+            error.includes('critical workflow') ||
+            error.includes('movie processing failed') ||
+            error.includes('database extraction failed') ||
+            error.includes('no movies found') ||
+            error.includes('workflow failed') ||
+            error.includes('script execution failed')
+        ) {
             return {
                 retry: false,
-                reason: 'Critical workflow failure needs investigation',
+                reason: 'Critical workflow failure - manual intervention required',
                 delaySeconds: 0,
-                solution: 'Check system logs and try different movie parameters'
+                solution: 'Check system logs, verify API keys, or try different movie parameters'
             };
         }
 
@@ -1193,7 +1206,7 @@ class VideoQueueManager {
         }
 
         // 🟡 SMART RETRY - Database/Content Issues (longer backoff)
-        if (error.includes('no movies found') || error.includes('not enough movies')) {
+        if (error.includes('not enough movies')) {
             return {
                 retry: currentRetryCount < Math.min(maxRetries, 1), // Only 1 retry
                 reason: 'Content issue - single retry with different filters suggested',
@@ -1863,6 +1876,12 @@ class VideoQueueManager {
             job.currentStep = 'Job cancelled by user';
             job.error = 'Process stopped by user request';
 
+            // Stop any active Creatomate monitoring for this cancelled job
+            if (this.activeMonitoring.has(jobId)) {
+                console.log(`🛑 Stopping Creatomate monitoring for cancelled job: ${jobId}`);
+                this.finishMonitoring(jobId);
+            }
+
             // Remove from processing queue if it's there
             await this.removeFromProcessingQueue(job);
 
@@ -2312,7 +2331,7 @@ class VideoQueueManager {
         this.activeMonitoring.add(jobId);
 
         let attempts = 0;
-        const maxAttempts = 15; // Reduced to 15 minutes max
+        const maxAttempts = 8; // Reduced from 15 to prevent excessive monitoring
         let checkInterval = 60000; // Start with 60 seconds
         const maxInterval = 180000; // Max 3 minutes between checks
         let lastLoggedStatus = null;
@@ -2325,6 +2344,19 @@ class VideoQueueManager {
 
         const checkStatus = async () => {
             attempts++;
+
+            // Check if job has failed before making API calls
+            try {
+                const currentJob = await this.getJob(jobId);
+                if (currentJob && currentJob.status === 'failed') {
+                    console.log(`🛑 Stopping Creatomate monitoring for failed job: ${jobId}`);
+                    this.finishMonitoring(jobId);
+                    return;
+                }
+            } catch (jobCheckError) {
+                // Continue monitoring if we can't check job status
+                console.warn(`⚠️ Could not verify job status for ${jobId}: ${jobCheckError.message}`);
+            }
 
             try {
                 const response = await this.checkCreatomateStatusDirect(creatomateId);

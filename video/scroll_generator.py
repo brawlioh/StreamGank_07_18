@@ -18,6 +18,7 @@ import logging
 import subprocess
 import random
 import math
+import re
 from typing import Optional, Dict, Any
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -105,9 +106,15 @@ def generate_scroll_video(country: str,
             
             # Upload to Cloudinary
             try:
+                # Clean genre and platform names to prevent Cloudinary errors
+                clean_genre = re.sub(r'[^a-zA-Z0-9_-]', '_', genre).replace(' ', '_').replace('&', 'and')
+                clean_platform = re.sub(r'[^a-zA-Z0-9_-]', '_', platform).replace(' ', '_').replace('&', 'and')
+                clean_title = f"scroll_{clean_genre}_{clean_platform}"
+                clean_title = re.sub(r'_+', '_', clean_title).strip('_')
+                
                 cloudinary_url = upload_clip_to_cloudinary(
                     video_path, 
-                    f"scroll_{genre}_{platform}",
+                    clean_title,
                     folder="streamgank_scroll_videos",
                     transform_mode="fit"
                 )

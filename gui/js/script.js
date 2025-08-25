@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'Réalisé en Europe': 'Made in Europe',
             'Science-Fiction': 'Science Fiction',
             'Sport & Fitness': 'Sport & Fitness',
-            Western: 'Western',
+            Western: 'Western'
         },
         US: {
             'Action & Adventure': 'Action & Adventure',
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'Science-Fiction': 'Science-Fiction',
             Sport: 'Sport',
             'War & Military': 'War & Military',
-            Western: 'Western',
+            Western: 'Western'
         },
         // For other countries, default to English genres
         GB: {
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', function () {
             Romance: 'Romance',
             SF: 'Science Fiction',
             Thriller: 'Thriller',
-            Western: 'Western',
+            Western: 'Western'
         },
         CA: {
             Action: 'Action',
@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
             Romance: 'Romance',
             SF: 'Science Fiction',
             Thriller: 'Thriller',
-            Western: 'Western',
+            Western: 'Western'
         },
         AU: {
             Action: 'Action',
@@ -158,8 +158,8 @@ document.addEventListener('DOMContentLoaded', function () {
             Romance: 'Romance',
             SF: 'Science Fiction',
             Thriller: 'Thriller',
-            Western: 'Western',
-        },
+            Western: 'Western'
+        }
     };
 
     // HeyGen Template configurations matching the backend
@@ -168,26 +168,26 @@ document.addEventListener('DOMContentLoaded', function () {
             id: 'ed21a309a5c84b0d873fde68642adea3',
             name: 'Horror/Thriller Cinematic',
             description: 'Specialized template for horror and thriller content',
-            genres: ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller', 'Mystère & Thriller'],
+            genres: ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller', 'Mystère & Thriller']
         },
         comedy: {
-            id: '15d9eadcb46a45dbbca1834aa0a23ede',
+            id: '9186cef35dde4505bdccb1ec5c312339',
             name: 'Comedy/Light Entertainment',
             description: 'Optimized template for comedy and humorous content',
-            genres: ['Comedy', 'Comédie', 'Comédie Romantique'],
+            genres: ['Comedy', 'Comédie', 'Comédie Romantique']
         },
         action: {
-            id: 'e44b139a1b94446a997a7f2ac5ac4178',
+            id: 'e4549f9f3d5e43dbaac26146e32e2a1f',
             name: 'Action/Adventure Dynamic',
             description: 'High-energy template for action and adventure content',
-            genres: ['Action', 'Action & Adventure', 'Action & Aventure'],
+            genres: ['Action', 'Action & Adventure', 'Action & Aventure']
         },
         default: {
             id: 'cc6718c5363e42b282a123f99b94b335',
             name: 'Universal Default',
             description: 'General-purpose template for all other content types',
-            genres: ['*'], // Wildcard for all other genres
-        },
+            genres: ['*'] // Wildcard for all other genres
+        }
     };
 
     // Platform value mapping (display name -> URL parameter value)
@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', function () {
         Hulu: 'hulu', // US only
         Max: 'max',
         Netflix: 'netflix',
-        Free: 'free',
+        Free: 'free'
     };
 
     // Genre value mapping (display name -> URL parameter value)
@@ -243,14 +243,14 @@ document.addEventListener('DOMContentLoaded', function () {
         'Science-Fiction': 'Science-Fiction',
         Sport: 'Sport',
         'War & Military': 'War+%26+Military',
-        Western: 'Western',
+        Western: 'Western'
     };
 
     // Content type mapping (HTML values -> StreamGank URL parameter values)
     const contentTypeMapping = {
         Film: 'Film', // Movies
         Serie: 'Série', // TV Shows - needs proper French accent for URL
-        all: 'all', // All content
+        all: 'all' // All content
     };
 
     // Function to update platforms based on selected country (user-defined data)
@@ -315,7 +315,7 @@ document.addEventListener('DOMContentLoaded', function () {
             console.log('🔄 Falling back to hardcoded platform data');
             const fallbackPlatforms = {
                 FR: ['Prime', 'Apple TV+', 'Disney+', 'Max', 'Netflix', 'Free'],
-                US: ['Prime', 'Apple TV+', 'Disney+', 'Hulu', 'Max', 'Netflix', 'Free'],
+                US: ['Prime', 'Apple TV+', 'Disney+', 'Hulu', 'Max', 'Netflix', 'Free']
             };
 
             const platforms = fallbackPlatforms[selectedCountry] || fallbackPlatforms['US'];
@@ -491,13 +491,19 @@ document.addEventListener('DOMContentLoaded', function () {
         previewTemplate.textContent = template ? template.text : 'Universal Default';
 
         if (contentType) {
-            previewType.textContent = contentType.id === 'all' ? 'All' : contentType.id === 'movie' ? 'Movies' : 'TV Shows';
+            previewType.textContent =
+                contentType.id === 'all' ? 'All' : contentType.id === 'movie' ? 'Movies' : 'TV Shows';
         } else {
             previewType.textContent = 'TV Shows'; // Default
         }
 
         // Build and update URL - pass genre.value (French key) for correct mapping
-        const url = buildStreamGankUrl(country.value, genre.value, platform.text, contentType ? contentType.value : 'Serie');
+        const url = buildStreamGankUrl(
+            country.value,
+            genre.value,
+            platform.text,
+            contentType ? contentType.value : 'Serie'
+        );
         previewUrl.textContent = url;
     }
 
@@ -538,9 +544,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch('/api/validate-url', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ url: url }),
+                body: JSON.stringify({ url: url })
             });
 
             if (!response.ok) {
@@ -552,11 +558,15 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (error) {
             // If validation fails, log warning but continue
             console.warn('URL validation failed, continuing with generation:', error);
-            addStatusMessage('warning', '⚠️', 'Could not pre-validate URL due to technical limitations, proceeding with generation...');
+            addStatusMessage(
+                'warning',
+                '⚠️',
+                'Could not pre-validate URL due to technical limitations, proceeding with generation...'
+            );
             addStatusMessage('info', 'ℹ️', 'If no movies are found, the process will stop with a clear error message.');
             return {
                 valid: true,
-                reason: 'Validation skipped - will check during generation',
+                reason: 'Validation skipped - will check during generation'
             };
         }
     }
@@ -572,8 +582,8 @@ document.addEventListener('DOMContentLoaded', function () {
             fetch(`/api/job/${window.currentJobId}/cancel`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                },
+                    'Content-Type': 'application/json'
+                }
             })
                 .then((response) => response.json())
                 .then((data) => {
@@ -633,7 +643,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Disable generate button and show stop button
         generateButton.disabled = true;
-        generateButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+        generateButton.innerHTML =
+            '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
         const stopBtn = document.getElementById('stop-process-btn');
         if (stopBtn) stopBtn.style.display = 'inline-block';
 
@@ -652,7 +663,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const genre_obj = genreSelect.options[genreSelect.selectedIndex];
         const contentType_obj = document.querySelector('input[name="contentType"]:checked') || { value: 'Serie' };
 
-        const targetUrl = buildStreamGankUrl(country_obj.value, genre_obj.text, platform_obj.text, contentType_obj.value);
+        const targetUrl = buildStreamGankUrl(
+            country_obj.value,
+            genre_obj.text,
+            platform_obj.text,
+            contentType_obj.value
+        );
 
         // Validate the URL before proceeding
         addStatusMessage('info', '🚀', 'Starting video generation process...');
@@ -662,7 +678,11 @@ document.addEventListener('DOMContentLoaded', function () {
             // Stop the process and show error
             addStatusMessage('error', '❌', `Process stopped: ${validation.reason}`);
             addStatusMessage('info', 'ℹ️', `Target URL: ${targetUrl}`);
-            addStatusMessage('info', '💡', 'Please try different parameters (genre, platform, or content type) to find available movies.');
+            addStatusMessage(
+                'info',
+                '💡',
+                'Please try different parameters (genre, platform, or content type) to find available movies.'
+            );
 
             // Re-enable generate button
             generateButton.disabled = false;
@@ -698,7 +718,7 @@ document.addEventListener('DOMContentLoaded', function () {
             { message: '⏳ Waiting for HeyGen video completion...', time: 10000 },
             { message: '✅ HeyGen video creation completed: 3 videos', time: 1000 },
             { message: '🎥 Creating final video with Creatomate...', time: 8000 },
-            { message: '✅ Video generation complete!', time: 1000, isSuccess: true },
+            { message: '✅ Video generation complete!', time: 1000, isSuccess: true }
         ];
 
         let progressValue = 0;
@@ -766,7 +786,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 videoUrl: data.videoUrl,
                 creatomateId: data.creatomateId,
                 jobId: data.jobId || window.currentJobId || generateTimestampId(),
-                timestamp: new Date().toISOString(),
+                timestamp: new Date().toISOString()
             });
 
             addStatusMessage('success', '🎉', 'Video rendering completed! Added to video gallery below.');
@@ -774,7 +794,11 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (showVideo) {
             // Video was supposed to be ready but no URL available
             renderingStatus.classList.add('d-none');
-            addStatusMessage('warning', '⚠️', 'Video generation completed but final video URL not available yet. Check status manually.');
+            addStatusMessage(
+                'warning',
+                '⚠️',
+                'Video generation completed but final video URL not available yet. Check status manually.'
+            );
         } else if (data && data.creatomateId) {
             // Video is being processed - show rendering status
             renderingStatus.classList.remove('d-none');
@@ -918,7 +942,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Add different message based on pause flag
             if (pauseAfterExtraction) {
-                addStatusMessage('info', '📋', 'Adding movie extraction job to queue (will pause after finding movies)...');
+                addStatusMessage(
+                    'info',
+                    '📋',
+                    'Adding movie extraction job to queue (will pause after finding movies)...'
+                );
             } else {
                 addStatusMessage('info', '📋', 'Adding video to Redis queue...');
             }
@@ -930,16 +958,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 genre: genre,
                 contentType: contentType,
                 template: template, // Include selected template ID
-                pauseAfterExtraction: pauseAfterExtraction, // Include pause flag
+                pauseAfterExtraction: pauseAfterExtraction // Include pause flag
             };
 
             // Call the API endpoint to add to queue
             const response = await fetch('/api/generate', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(requestData),
+                body: JSON.stringify(requestData)
             });
 
             if (!response.ok) {
@@ -953,7 +981,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 addStatusMessage('success', '✅', 'Video added to queue successfully!');
                 addStatusMessage('info', '🆔', `Job ID: ${data.jobId}`);
                 addStatusMessage('info', '📊', `Queue position: ${data.queuePosition}`);
-                addStatusMessage('info', '📈', `Queue stats - Pending: ${data.queueStatus.pending}, Processing: ${data.queueStatus.processing}`);
+                addStatusMessage(
+                    'info',
+                    '📈',
+                    `Queue stats - Pending: ${data.queueStatus.pending}, Processing: ${data.queueStatus.processing}`
+                );
 
                 // Store job ID for reference
                 window.currentJobId = data.jobId;
@@ -1008,7 +1040,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Show time elapsed
                 const timeElapsed = Math.floor((attempts * 30) / 60); // Convert to minutes
                 if (timeElapsed > 0) {
-                    addStatusMessage('info', '⏱️', `Rendering time: ${timeElapsed} minute${timeElapsed > 1 ? 's' : ''}`);
+                    addStatusMessage(
+                        'info',
+                        '⏱️',
+                        `Rendering time: ${timeElapsed} minute${timeElapsed > 1 ? 's' : ''}`
+                    );
                 }
 
                 const response = await fetch(`/api/status/${creatomateId}`);
@@ -1028,7 +1064,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     // Only show message if status changed
                     if (lastStatus !== 'pending') {
-                        addStatusMessage('info', '⏳', `Job is pending in queue (position: ${job.queuePosition || 'unknown'})`);
+                        addStatusMessage(
+                            'info',
+                            '⏳',
+                            `Job is pending in queue (position: ${job.queuePosition || 'unknown'})`
+                        );
                         lastStatus = 'pending';
                     }
                 } else if (job.status === 'processing') {
@@ -1117,7 +1157,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                 });
                             }
 
-                            addStatusMessage('success', '✅', 'You can now adjust filters and generate again, or continue with these movies');
+                            addStatusMessage(
+                                'success',
+                                '✅',
+                                'You can now adjust filters and generate again, or continue with these movies'
+                            );
                             lastStatus = 'completed';
                         }
 
@@ -1169,7 +1213,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 jobId: job.id,
                                 groupId: job.id,
                                 moviesCount: 3,
-                                videosCount: 3,
+                                videosCount: 3
                             },
                             false
                         ); // Don't show video yet
@@ -1178,7 +1222,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         addStatusMessage('info', '🎬', 'Step 7: Final video rendering started');
                         addStatusMessage('info', '🎞️', `Creatomate is now composing the final video...`);
                         addStatusMessage('info', '⚙️', `Render ID: ${job.creatomateId}`);
-                        addStatusMessage('info', '⏳', 'This process typically takes 2-5 minutes depending on video complexity');
+                        addStatusMessage(
+                            'info',
+                            '⏳',
+                            'This process typically takes 2-5 minutes depending on video complexity'
+                        );
 
                         // Start Creatomate monitoring
                         setTimeout(() => {
@@ -1186,7 +1234,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 jobId: job.id,
                                 groupId: job.id,
                                 moviesCount: 3,
-                                videosCount: 3,
+                                videosCount: 3
                             });
                         }, 5000);
 
@@ -1214,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 jobId: job.id,
                                 groupId: job.id,
                                 moviesCount: 3,
-                                videosCount: 3,
+                                videosCount: 3
                             },
                             true
                         ); // Show video immediately
@@ -1283,7 +1331,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             addStatusMessage('info', '📡', '• Check your internet connection');
                             addStatusMessage('info', '🔄', '• Try refreshing the page and retry');
                             addStatusMessage('success', '✅', 'Connection issues are usually temporary!');
-                        } else if (errorMessage.includes('🎬 Not enough movies available') || (errorMessage.includes('only') && errorMessage.includes('found with current filters'))) {
+                        } else if (
+                            errorMessage.includes('🎬 Not enough movies available') ||
+                            (errorMessage.includes('only') && errorMessage.includes('found with current filters'))
+                        ) {
                             addStatusMessage('warning', '🎬', 'Insufficient Movies Found');
 
                             // Extract and display the main error message
@@ -1301,7 +1352,11 @@ document.addEventListener('DOMContentLoaded', function () {
                             addStatusMessage('info', '📺', '• Try a different platform (Netflix, Prime, etc.)');
                             addStatusMessage('info', '🎥', '• Switch between Movies and TV Shows');
                             addStatusMessage('info', '🌍', '• Try a different country');
-                            addStatusMessage('success', '✅', 'You can immediately try new settings - the system is ready!');
+                            addStatusMessage(
+                                'success',
+                                '✅',
+                                'You can immediately try new settings - the system is ready!'
+                            );
                         } else {
                             // Generic error handling for other failures
                             addStatusMessage('error', '❌', 'Process Failed');
@@ -1311,7 +1366,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
 
                         if (job.retryCount < job.maxRetries) {
-                            addStatusMessage('info', '🔄', `Job will be retried (attempt ${job.retryCount + 1}/${job.maxRetries})`);
+                            addStatusMessage(
+                                'info',
+                                '🔄',
+                                `Job will be retried (attempt ${job.retryCount + 1}/${job.maxRetries})`
+                            );
                         }
 
                         lastStatus = 'failed';
@@ -1405,7 +1464,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Show time elapsed
                 const timeElapsed = Math.floor((attempts * 30) / 60); // Convert to minutes
                 if (timeElapsed > 0) {
-                    addStatusMessage('info', '⏱️', `Rendering time: ${timeElapsed} minute${timeElapsed > 1 ? 's' : ''}`);
+                    addStatusMessage(
+                        'info',
+                        '⏱️',
+                        `Rendering time: ${timeElapsed} minute${timeElapsed > 1 ? 's' : ''}`
+                    );
                 }
 
                 const response = await fetch(`/api/status/${creatomateId}`);
@@ -1443,7 +1506,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (!creatomateMessages.has('completed')) {
                             addStatusMessage('success', '🎉', 'Step 7: Video rendering completed successfully!');
                             addStatusMessage('success', '🎬', 'Final video is ready for viewing and download!');
-                            addStatusMessage('info', '💾', 'Video has been added to the gallery below with download link');
+                            addStatusMessage(
+                                'info',
+                                '💾',
+                                'Video has been added to the gallery below with download link'
+                            );
                             addStatusMessage('success', '📊', 'Progress: 100% - Complete workflow finished!');
                             creatomateMessages.add('completed');
                         }
@@ -1454,11 +1521,11 @@ document.addEventListener('DOMContentLoaded', function () {
                                 const updateResponse = await fetch(`/api/job/${initialData.jobId}/complete`, {
                                     method: 'POST',
                                     headers: {
-                                        'Content-Type': 'application/json',
+                                        'Content-Type': 'application/json'
                                     },
                                     body: JSON.stringify({
-                                        videoUrl: statusData.videoUrl,
-                                    }),
+                                        videoUrl: statusData.videoUrl
+                                    })
                                 });
 
                                 if (updateResponse.ok) {
@@ -1478,7 +1545,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         const finalData = {
                             ...initialData,
                             videoUrl: statusData.videoUrl,
-                            creatomateId: creatomateId,
+                            creatomateId: creatomateId
                         };
 
                         // Show the video immediately
@@ -1497,7 +1564,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         // Only show status every 3 attempts to reduce spam
                         if (attempts % 3 === 1 || attempts === 1) {
-                            addStatusMessage('info', '⏳', `Video status: ${statusText}... (${attempts}/${maxAttempts})`);
+                            addStatusMessage(
+                                'info',
+                                '⏳',
+                                `Video status: ${statusText}... (${attempts}/${maxAttempts})`
+                            );
                         }
 
                         // Update progress bar based on status
@@ -1512,7 +1583,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     } else {
                         // Max attempts reached
                         if (!creatomateMessages.has('timeout')) {
-                            addStatusMessage('warning', '⚠️', 'Video monitoring timeout. Use "Check Status" button to check manually.');
+                            addStatusMessage(
+                                'warning',
+                                '⚠️',
+                                'Video monitoring timeout. Use "Check Status" button to check manually.'
+                            );
                             creatomateMessages.add('timeout');
                         }
                         // Don't call finishGeneration here - keep the check status button available
@@ -1520,7 +1595,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     const errorKey = `status-check-failed-${statusData.message}`;
                     if (!creatomateMessages.has(errorKey)) {
-                        addStatusMessage('error', '❌', `Status check failed: ${statusData.message || 'Unknown error'}`);
+                        addStatusMessage(
+                            'error',
+                            '❌',
+                            `Status check failed: ${statusData.message || 'Unknown error'}`
+                        );
                         creatomateMessages.add(errorKey);
                     }
 
@@ -1621,7 +1700,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         name: stepName,
                         messages: [],
                         completed: false,
-                        timing: null,
+                        timing: null
                     };
                     steps.push(currentStep);
                 }
@@ -1640,17 +1719,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     currentStep.messages.push({
                         type: 'movie',
                         icon: '🎬',
-                        text: logText,
+                        text: logText
                     });
                 }
             }
             // Settings and cache messages
-            else if (logText.includes('Using settings') || logText.includes('smooth_scroll') || logText.includes('cached')) {
+            else if (
+                logText.includes('Using settings') ||
+                logText.includes('smooth_scroll') ||
+                logText.includes('cached')
+            ) {
                 if (currentStep) {
                     currentStep.messages.push({
                         type: 'info',
                         icon: logText.includes('cached') ? '💾' : '⚙️',
-                        text: logText,
+                        text: logText
                     });
                 }
             }
@@ -1660,7 +1743,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     currentStep.messages.push({
                         type: 'info',
                         icon: '✅',
-                        text: logText,
+                        text: logText
                     });
                 }
             }
@@ -1749,7 +1832,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Only log when there are actual new logs to process
             if (result.logs && result.logs.length > lastLogCount) {
-                console.log(`📝 New logs for ${jobId.slice(-8)}: ${result.logs.length} total (+${result.logs.length - lastLogCount} new)`);
+                console.log(
+                    `📝 New logs for ${jobId.slice(-8)}: ${result.logs.length} total (+${result.logs.length - lastLogCount} new)`
+                );
             }
 
             if (result.success && result.logs && result.logs.length > 0) {
@@ -1805,7 +1890,13 @@ document.addEventListener('DOMContentLoaded', function () {
         // Skip individual job progress messages on dashboard - only show on job detail page
         // BUT allow our formatted step messages through
         const isJobProgressMessage =
-            (message.includes('Job ID:') || message.includes('Queue position:') || message.includes('Starting job monitoring') || message.includes('Starting video generation') || message.includes('Queue stats') || message.includes('Processing job') || message.includes('Queue: Starting next job')) &&
+            (message.includes('Job ID:') ||
+                message.includes('Queue position:') ||
+                message.includes('Starting job monitoring') ||
+                message.includes('Starting video generation') ||
+                message.includes('Queue stats') ||
+                message.includes('Processing job') ||
+                message.includes('Queue: Starting next job')) &&
             !(
                 message.startsWith('Step ') || // Allow "Step X/Y:" messages through
                 message.includes('Database Extraction') ||
@@ -1836,12 +1927,27 @@ document.addEventListener('DOMContentLoaded', function () {
             messageElement.setAttribute('data-step', 'true');
         } else if (message.match(/^\d+\.\s+.+\(\d{4}\)/)) {
             messageElement.setAttribute('data-movie', 'true');
-        } else if (message.includes('Using settings') || message.includes('smooth_scroll') || message.includes('cached') || message.includes('Loaded')) {
+        } else if (
+            message.includes('Using settings') ||
+            message.includes('smooth_scroll') ||
+            message.includes('cached') ||
+            message.includes('Loaded')
+        ) {
             messageElement.setAttribute('data-settings', 'true');
         }
 
         // Add special styling for percentage progress messages
-        const isProgressMessage = message.includes('%') && (message.includes('Processing') || message.includes('Downloading') || message.includes('Uploading') || message.includes('Rendering') || message.includes('Generating') || message.includes('Converting') || message.includes('Extracting') || message.includes('Creating') || message.includes('Capturing'));
+        const isProgressMessage =
+            message.includes('%') &&
+            (message.includes('Processing') ||
+                message.includes('Downloading') ||
+                message.includes('Uploading') ||
+                message.includes('Rendering') ||
+                message.includes('Generating') ||
+                message.includes('Converting') ||
+                message.includes('Extracting') ||
+                message.includes('Creating') ||
+                message.includes('Capturing'));
 
         if (isProgressMessage) {
             messageElement.classList.add('progress-message');
@@ -1886,7 +1992,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         const finalData = {
                             videoUrl: statusData.videoUrl,
                             creatomateId: creatomateId,
-                            jobId: window.currentJobId || 'manual_check_' + Date.now(),
+                            jobId: window.currentJobId || 'manual_check_' + Date.now()
                         };
 
                         finishGeneration(finalData, true);
@@ -1916,12 +2022,13 @@ document.addEventListener('DOMContentLoaded', function () {
     loadVideoBtn.addEventListener('click', async function () {
         // For your current video - load it directly
         const currentVideoData = {
-            videoUrl: 'https://f002.backblazeb2.com/file/creatomate-c8xg3hsxdu/4a4588bd-d92a-46a1-924d-428d27710c19.mp4',
+            videoUrl:
+                'https://f002.backblazeb2.com/file/creatomate-c8xg3hsxdu/4a4588bd-d92a-46a1-924d-428d27710c19.mp4',
             creatomateId: '4a4588bd-d92a-46a1-924d-428d27710c19',
             jobId: 'demo_video_' + Date.now(),
             moviesCount: 3,
             videosCount: 3,
-            groupId: 'workflow_20250729_113801',
+            groupId: 'workflow_20250729_113801'
         };
 
         addStatusMessage('success', '🎬', 'Loading your completed video...');
@@ -1930,7 +2037,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Handle clear logs button
     clearLogsBtn.addEventListener('click', function () {
-        statusMessages.innerHTML = '<div class="status-message info"><span class="status-icon">🗑️</span><span class="status-text">Logs cleared.</span></div>';
+        statusMessages.innerHTML =
+            '<div class="status-message info"><span class="status-icon">🗑️</span><span class="status-text">Logs cleared.</span></div>';
         // Reset video ready message flag when clearing logs
         videoReadyMessageShown = false;
     });
@@ -1990,7 +2098,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Clear queue button event listener
     document.getElementById('clear-queue-btn').addEventListener('click', async function () {
-        if (confirm('Are you sure you want to clear all queues? This will remove all pending, processing, completed, and failed jobs.')) {
+        if (
+            confirm(
+                'Are you sure you want to clear all queues? This will remove all pending, processing, completed, and failed jobs.'
+            )
+        ) {
             try {
                 const response = await fetch('/api/queue/clear', { method: 'POST' });
                 const result = await response.json();
@@ -2024,10 +2136,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Update worker pool information
                 document.getElementById('queue-active-workers').textContent = stats.activeWorkers || 0;
-                document.getElementById('queue-available-workers').textContent = stats.availableWorkers || stats.maxWorkers || 3;
+                document.getElementById('queue-available-workers').textContent =
+                    stats.availableWorkers || stats.maxWorkers || 3;
                 document.getElementById('queue-max-workers').textContent = stats.maxWorkers || 3;
-                document.getElementById('queue-concurrent-enabled').textContent = stats.concurrentProcessing ? 'Yes' : 'No';
-                document.getElementById('queue-concurrent-enabled').className = `badge ${stats.concurrentProcessing ? 'bg-info' : 'bg-secondary'}`;
+                document.getElementById('queue-concurrent-enabled').textContent = stats.concurrentProcessing
+                    ? 'Yes'
+                    : 'No';
+                document.getElementById('queue-concurrent-enabled').className =
+                    `badge ${stats.concurrentProcessing ? 'bg-info' : 'bg-secondary'}`;
 
                 // Update professional process management interface (basic stats only - no individual job fetching)
                 updateProcessManagement(stats);
@@ -2074,7 +2190,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         startedAt: new Date().toISOString(),
                         parameters: { country: 'Processing...', platform: 'Active', genre: 'Job' },
                         currentStep: 'Processing in background...',
-                        workerId: 'Active',
+                        workerId: 'Active'
                     });
                 }
             });
@@ -2133,7 +2249,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Function to start monitoring individual process (DISABLED for dashboard - only used on individual job pages)
     function startProcessMonitoring(jobId) {
-        console.log(`🔍 Process monitoring disabled for dashboard - view individual job page for details: /job/${jobId}`);
+        console.log(
+            `🔍 Process monitoring disabled for dashboard - view individual job page for details: /job/${jobId}`
+        );
         // Individual job monitoring is now only done on dedicated job detail pages
         // Dashboard only shows basic Process Management table without API calls
     }
@@ -2270,7 +2388,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Search filter
             if (searchTerm) {
-                const searchableText = [process.id, process.workerId, process.parameters?.country, process.parameters?.platform, process.parameters?.genre, process.parameters?.contentType, process.currentStep].filter(Boolean).join(' ').toLowerCase();
+                const searchableText = [
+                    process.id,
+                    process.workerId,
+                    process.parameters?.country,
+                    process.parameters?.platform,
+                    process.parameters?.genre,
+                    process.parameters?.contentType,
+                    process.currentStep
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase();
 
                 if (!searchableText.includes(searchTerm)) {
                     return false;
@@ -2414,7 +2543,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Populate processData with recent jobs (including completed and failed)
                 recentJobs.forEach((job) => {
                     processData.set(job.id, job);
-                    console.log(`📋 Added job to processData: ${job.id.slice(-12)} | Status: ${job.status} | Country: ${job.parameters?.country}`);
+                    console.log(
+                        `📋 Added job to processData: ${job.id.slice(-12)} | Status: ${job.status} | Country: ${job.parameters?.country}`
+                    );
                 });
 
                 // Update the recent jobs list in empty state
@@ -2424,7 +2555,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         .slice(0, 5)
                         .map((job) => {
                             const shortId = job.id.slice(-12);
-                            const statusIcon = job.status === 'completed' ? '✅' : job.status === 'failed' ? '❌' : job.status === 'processing' ? '🔄' : '⏳';
+                            const statusIcon =
+                                job.status === 'completed'
+                                    ? '✅'
+                                    : job.status === 'failed'
+                                      ? '❌'
+                                      : job.status === 'processing'
+                                        ? '🔄'
+                                        : '⏳';
                             return `<span 
                             style="cursor: pointer; color: var(--primary-color); text-decoration: underline; margin-right: 1rem;" 
                             onclick="window.open('/job/${job.id}?id=${job.id}', '_blank')"

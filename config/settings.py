@@ -198,23 +198,34 @@ OPTIONAL_ENV_VARS = {
     'SUPABASE_URL': 'Supabase database URL',
     'SUPABASE_KEY': 'Supabase API key',
     'DATABASE_URL': 'Direct database connection URL',
-
+    'VIZARD_API_KEY': 'Vizard AI API key for viral clip generation'
 }
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
-def get_api_config(service: str) -> Dict[str, Any]:
+def get_api_config(service: str = None) -> Dict[str, Any]:
     """
-    Get API configuration for a specific service.
+    Get API configuration for a specific service or return environment variables.
     
     Args:
-        service (str): Service name ('openai', 'heygen', 'creatomate', 'cloudinary')
+        service (str, optional): Service name ('openai', 'heygen', 'creatomate', 'cloudinary')
+                               If None, returns dictionary with environment variables
         
     Returns:
-        dict: API configuration for the service
+        dict: API configuration for the service or environment variables
     """
+    if service is None:
+        # Return environment variables for API keys
+        return {
+            'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY'),
+            'HEYGEN_API_KEY': os.getenv('HEYGEN_API_KEY'), 
+            'CREATOMATE_API_KEY': os.getenv('CREATOMATE_API_KEY'),
+            'CLOUDINARY_URL': os.getenv('CLOUDINARY_URL'),
+            'VIZARD_API_KEY': os.getenv('VIZARD_API_KEY')  # Added Vizard API key
+        }
+    
     return API_SETTINGS.get(service, {})
 
 
