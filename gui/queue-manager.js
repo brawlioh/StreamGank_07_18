@@ -3,6 +3,7 @@ const { spawn, exec } = require('child_process');
 const path = require('path');
 const { promisify } = require('util');
 const axios = require('axios'); // For Creatomate API requests
+const { getFileLogger } = require('./utils/file_logger');
 
 /**
  * Redis-based Video Queue Manager
@@ -126,6 +127,9 @@ class VideoQueueManager {
 
         // Webhook manager reference (will be set by server.js)
         this.webhookManager = null;
+
+        // Initialize file logger for persistent logging
+        this.fileLogger = getFileLogger();
     }
 
     /**
@@ -587,10 +591,16 @@ class VideoQueueManager {
             this.addJobLog(job.id, `Job ${job.id} started with worker pool`, 'info');
             this.addJobLog(job.id, `Parameters: ${JSON.stringify(job.parameters)}`, 'info');
 
+            // Log job start to file logger
+            this.fileLogger.logJobStarted(job.id, job.workerId || 'default');
+
             await this.processJob(job);
         } catch (error) {
             console.error(`❌ Error in processJobAsync for job ${job.id}:`, error);
             this.addJobLog(job.id, `Job error: ${error.message}`, 'error');
+
+            // Log job failure to file logger
+            this.fileLogger.logJobFailed(job.id, error.message);
         } finally {
             // Always clean up job tracking
             this.activeJobs.delete(job.id);
@@ -601,6 +611,20 @@ class VideoQueueManager {
 
             // Add completion log
             this.addJobLog(job.id, 'Job processing completed and removed from active pool', 'info');
+
+            // Log job completion to file logger (if successful)
+            const finalJob = await this.getJob(job.id).catch(() => null);
+            if (finalJob && finalJob.status === 'completed') {
+                const duration =
+                    finalJob.completedAt && finalJob.startedAt
+                        ? (new Date(finalJob.completedAt) - new Date(finalJob.startedAt)) / 1000
+                        : null;
+                this.fileLogger.logJobCompleted(job.id, duration, {
+                    status: finalJob.status,
+                    videoUrl: finalJob.videoUrl,
+                    creatomateId: finalJob.creatomateId
+                });
+            }
 
             // Keep logs for 10 minutes after job completion
             setTimeout(
@@ -701,6 +725,9 @@ class VideoQueueManager {
 
                     // Send webhook notification for script completion (video still rendering)
                     this.sendWebhookNotification('job.script_completed', job);
+
+                    // Log Creatomate monitoring start
+                    this.fileLogger.logCreatomateMonitoring(job.id, job.creatomateId, 'monitoring_started');
 
                     // Start monitoring Creatomate render status ONLY after full workflow completion
                     console.log(`🎬 Starting Creatomate monitoring for job ${job.id} (Render ID: ${job.creatomateId})`);
@@ -2153,27 +2180,39 @@ class VideoQueueManager {
     addJobLog(jobId, message, type = 'info') {
         // PRODUCTION OPTIMIZED: Smart filtering - keep important step messages, filter noise
         const shouldSkipLog =
-            // Keep: [STEP X/Y] messages - users want to see progress
-            // Keep: ✅ STEP COMPLETED messages - users want to see completions
-            // Keep: Movies extracted from database - users want to see results
-            // Keep: 🎉 WORKFLOW COMPLETED - users want to see final results
+            // CLEAN TIMELINE VIEW: Only show essential workflow steps
+            // Filter out ALL detailed technical messages
 
-            // FILTER OUT: Technical noise and repetitive details
             message.includes('Parameters: {') ||
             message.includes('Job job_') ||
             message.includes('started with worker') ||
             message.includes('Queue position:') ||
             message.includes('Queue stats') ||
             message.includes('Processing job') ||
-            // Settings and cache noise (not interesting to users)
-            (message.includes('Using settings') && message.includes('smooth_scroll')) ||
+            message.includes('Using settings') ||
             message.includes('cached script') ||
             message.includes('cached asset') ||
-            (message.includes('Loaded') && message.includes('cached')) ||
-            // Repetitive processing messages
+            message.includes('Loaded') ||
+            message.includes('Found existing') ||
+            message.includes('Loading existing') ||
+            message.includes('completion and removed') ||
+            message.includes('Apps directory') ||
+            message.includes('Database connection') ||
+            message.includes('RedisService') ||
+            message.includes('processing completed') ||
+            // Filter out detailed technical messages
             (message.includes('Creating enhanced posters') && !message.includes('✅')) ||
             (message.includes('Generating scripts for') && !message.includes('[STEP')) ||
-            (message.includes('waiting for video completion') && !message.includes('STEP'));
+            (message.includes('waiting for video completion') && !message.includes('STEP')) ||
+            // CLEAN TIMELINE: Filter out "started" messages - only show "completed"
+            (message.includes('Step ') && message.includes('/7') && message.includes('started')) ||
+            (message.includes('🗃️ Step') && !message.includes('✅')) ||
+            (message.includes('🤖 Step') && !message.includes('✅')) ||
+            (message.includes('📦 Step') && !message.includes('✅')) ||
+            (message.includes('🎬 Step') && !message.includes('✅')) ||
+            (message.includes('⏳ Step') && !message.includes('✅')) ||
+            (message.includes('📊 Step') && !message.includes('✅')) ||
+            (message.includes('🎯 Step') && !message.includes('✅'));
 
         if (shouldSkipLog) {
             // Still log to console for debugging, but don't store for GUI
@@ -2199,7 +2238,16 @@ class VideoQueueManager {
             logs.splice(0, logs.length - 200);
         }
 
-        console.log(`📝 [${jobId.slice(-8)}] ${type.toUpperCase()}: ${message.trim()}`);
+        // Clean logging - only essential messages
+        if (
+            type === 'error' ||
+            message.includes('STEP') ||
+            message.includes('completed') ||
+            message.includes('Video is ready')
+        ) {
+            this.fileLogger.logJobEvent(jobId, 'job_log', message.trim(), { source: 'queue_manager' }, type);
+            console.log(`📝 [${jobId.slice(-8)}] ${type.toUpperCase()}: ${message.trim()}`);
+        }
     }
 
     /**
@@ -2433,6 +2481,9 @@ class VideoQueueManager {
             console.log(`🎬 Job ${jobId} updated with final video: ${videoUrl}`);
             this.addJobLog(jobId, `🎬 Video rendering completed: ${videoUrl}`, 'success');
             this.addJobLog(jobId, `✅ Final video is ready for viewing and download`, 'success');
+
+            // Log video completion to file logger
+            this.fileLogger.logCreatomateMonitoring(jobId, job.creatomateId || 'unknown', 'completed', { videoUrl });
         } catch (error) {
             console.error(`❌ Failed to update job ${jobId} with video:`, error.message);
         }

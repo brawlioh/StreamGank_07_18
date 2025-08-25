@@ -226,7 +226,7 @@ export class APIService {
      * @returns {Promise<Object>} Render status
      */
     async getCreatomateStatus(renderId) {
-        return this.post('/api/creatomate/status', { renderId });
+        return this.get(`/api/status/${renderId}`);
     }
 
     /**

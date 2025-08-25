@@ -15,6 +15,8 @@ export class JobDetailApp {
         this.autoScroll = true;
         this.isInitialized = false;
         this.lastRefreshTime = 0; // Track last refresh for smart intervals
+        this.jobSSE = null; // Job-specific SSE connection
+        this.currentActiveStep = null; // Track currently active step from webhooks
 
         // Timeline steps for video generation process - MATCHES ACTUAL WORKFLOW.PY
         this.processSteps = [
@@ -110,7 +112,7 @@ export class JobDetailApp {
 
         RealtimeService.addEventListener('jobLog', (event) => {
             if (event.detail.jobId === this.jobId) {
-                this.addLogEntry(event.detail);
+                // Log functionality removed
             }
         });
     }
@@ -131,6 +133,11 @@ export class JobDetailApp {
             this.jobData = response.job;
             this.lastRefreshTime = Date.now(); // Initialize refresh tracking
             this.updateUI();
+
+            // Add page unload cleanup for SSE connections
+            window.addEventListener('beforeunload', () => {
+                this.closeJobSSE();
+            });
 
             console.log('✅ Job data loaded successfully');
         } catch (error) {
@@ -273,14 +280,21 @@ export class JobDetailApp {
                 let iconClass = 'pending';
                 let timestamp = '';
 
-                // Determine step status based on job progress and status
-                if (status === 'failed' && this.getProgressForStep(step.id) <= currentProgress) {
+                // NEW: Use real-time webhook data to determine active step
+                const stepNumber = index + 1;
+                
+                if (this.currentActiveStep === stepNumber) {
+                    // This step is currently active (received "started" webhook)
+                    iconClass = 'active';
+                } else if (status === 'failed' && this.getProgressForStep(step.id) <= currentProgress) {
                     iconClass = 'failed';
-                } else if (this.getProgressForStep(step.id) <= currentProgress) {
+                } else if (this.getProgressForStep(step.id) < currentProgress) {
+                    // Step is completed (progress has moved past it)
                     iconClass = 'completed';
                     timestamp = this.getStepTimestamp(step.id);
-                } else if (this.getProgressForStep(step.id) <= currentProgress + 15) {
-                    iconClass = 'active';
+                } else {
+                    // Step is pending
+                    iconClass = 'pending';
                 }
 
                 return `
@@ -337,8 +351,8 @@ export class JobDetailApp {
             `);
         }
 
-        // Show monitoring button for completed jobs with Creatomate ID but no video URL
-        if (status === 'completed' && this.jobData.creatomateId && !this.jobData.videoUrl) {
+        // Show monitoring button for jobs with Creatomate ID but no video URL
+        if ((status === 'completed' || status === 'rendering') && this.jobData.creatomateId && !this.jobData.videoUrl) {
             if (this.jobData.workflowIncomplete) {
                 // Workflow was incomplete - show warning button with different action
                 buttons.push(`
@@ -347,14 +361,17 @@ export class JobDetailApp {
                     </button>
                 `);
             } else {
-                // Normal case - show monitoring button
+                // Normal case - show monitoring button (works for both completed and rendering status)
+                const buttonText = status === 'rendering' ? 'Check Render Status' : 'Check Video Status';
                 buttons.push(`
                     <button class="btn btn-outline-warning" onclick="jobDetailApp.monitorCreatomate()">
-                        <i class="fas fa-eye me-1"></i> Check Video Status
+                        <i class="fas fa-eye me-1"></i> ${buttonText}
                     </button>
                 `);
             }
         }
+
+        // Clean interface - log management buttons removed
 
         if (this.jobData.videoUrl) {
             buttons.push(`
@@ -448,39 +465,27 @@ export class JobDetailApp {
     startRealTimeUpdates() {
         console.log('🔄 Starting webhook-optimized updates (reduced polling)...');
 
-        // Initialize RealtimeService for real-time events
-        RealtimeService.init();
+        // Initialize job-specific real-time updates
+        this.initializeJobSSE();
 
         // WEBHOOK-OPTIMIZED: Much longer intervals since webhooks provide real-time updates
         this.refreshInterval = setInterval(() => {
-            // Stop refreshing if job is finished (but continue during rendering)
-            if (['completed', 'failed', 'cancelled'].includes(this.jobData?.status) && this.jobData?.videoUrl) {
-                // Only stop if truly completed (has video URL or is failed/cancelled)
-                console.log('🛑 Job finished, stopping polling');
+            // WEBHOOK-ONLY: Minimal polling - webhooks handle ALL real-time updates
+            // Only check for final video URL on completed jobs
+
+            if (['completed', 'rendering'].includes(this.jobData?.status) && !this.jobData?.videoUrl) {
+                // Check for final video URL once job is completed
+                this.refreshJobData();
+                console.log('🔄 Checking for final video URL');
+            } else if (this.jobData?.videoUrl || ['failed', 'cancelled'].includes(this.jobData?.status)) {
+                // Job fully complete or failed - stop all polling
+                console.log('🛑 Job complete, stopping all polling');
                 this.stopRealTimeUpdates();
                 return;
             }
 
-            // WEBHOOK-OPTIMIZED: Reduced polling since webhooks handle real-time updates
-            const isActive = this.jobData?.status === 'active' || this.jobData?.status === 'processing';
-            const isRendering = this.jobData?.status === 'rendering';
-
-            if (isActive || isRendering) {
-                // Active/rendering jobs: only refresh every 2 minutes (webhooks handle real-time)
-                const timeSinceLastUpdate = Date.now() - this.lastRefreshTime;
-                if (timeSinceLastUpdate > 120000) {
-                    // 2 minutes
-                    this.refreshJobData();
-                }
-            } else {
-                // Pending jobs: refresh every 5 minutes (webhooks handle transitions)
-                const timeSinceLastUpdate = Date.now() - this.lastRefreshTime;
-                if (timeSinceLastUpdate > 300000) {
-                    // 5 minutes
-                    this.refreshJobData();
-                }
-            }
-        }, 60000); // Check every 1 minute instead of 15 seconds (major reduction!)
+            // No polling for active jobs - webhooks provide all updates
+        }, 600000); // Check every 10 minutes ONLY for final video URL
 
         // Start fetching real job logs from the server (also reduced frequency)
         this.startLogUpdates();
@@ -501,54 +506,116 @@ export class JobDetailApp {
             this.logUpdateInterval = null;
             console.log('🛑 Stopped log update interval');
         }
+
+        // Close job-specific SSE connection
+        this.closeJobSSE();
     }
 
     /**
-     * Start real log updates from server
+     * Load essential logs once - webhooks handle real-time updates
      */
     startLogUpdates() {
-        // Initial log fetch
+        // Initial log fetch only - no more polling spam
+        console.log('📋 Loading initial logs - webhooks provide real-time updates');
         this.fetchRealLogs();
 
-        // WEBHOOK-OPTIMIZED: Poll for logs every 30 seconds (webhooks add logs in real-time)
-        this.logUpdateInterval = setInterval(() => {
-            if (this.jobData && ['active', 'pending', 'processing', 'rendering'].includes(this.jobData.status)) {
-                this.fetchRealLogs();
-            } else if (['completed', 'failed', 'cancelled'].includes(this.jobData?.status)) {
-                // Job finished - fetch final logs once and stop polling
-                this.fetchRealLogs();
-                clearInterval(this.logUpdateInterval);
-                console.log('🛑 Job finished, stopped log polling');
-            }
-        }, 30000); // 30 seconds instead of 2 seconds (major reduction!)
+        // NO POLLING INTERVAL - webhooks handle all real-time updates
+        // This eliminates request spam while maintaining real-time functionality through webhooks
     }
 
     /**
-     * Fetch real logs from server
+     * Fetch real logs from server (persistent + in-memory)
      */
     async fetchRealLogs() {
         try {
-            const response = await fetch(`/api/queue/job/${this.jobId}/logs`);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            // First try to get persistent logs (survives server restarts)
+            let persistentLogs = [];
+            try {
+                const persistentResponse = await fetch(`/api/queue/job/${this.jobId}/logs/persistent?limit=500`);
+                if (persistentResponse.ok) {
+                    const persistentResult = await persistentResponse.json();
+                    if (persistentResult.success && persistentResult.data.logs) {
+                        persistentLogs = persistentResult.data.logs;
+                        console.log(`📋 Loaded ${persistentLogs.length} persistent logs for job ${this.jobId}`);
+                    }
+                }
+            } catch (persistentError) {
+                console.warn('⚠️ Persistent logs not available:', persistentError.message);
             }
 
-            const result = await response.json();
-            if (result.success && result.data.logs) {
-                this.updateLogDisplay(result.data.logs);
+            // Then get in-memory logs (real-time updates)
+            let memoryLogs = [];
+            try {
+                const memoryResponse = await fetch(`/api/queue/job/${this.jobId}/logs`);
+                if (memoryResponse.ok) {
+                    const memoryResult = await memoryResponse.json();
+                    if (memoryResult.success && memoryResult.data.logs) {
+                        memoryLogs = memoryResult.data.logs;
+                        console.log(`📋 Loaded ${memoryLogs.length} in-memory logs for job ${this.jobId}`);
+                    }
+                }
+            } catch (memoryError) {
+                console.warn('⚠️ In-memory logs not available:', memoryError.message);
+            }
+
+            // Combine and filter for essential logs only (clean timeline view)
+            const allLogs = this.combineLogs(persistentLogs, memoryLogs);
+
+            // Filter to show only essential workflow messages (CLEAN TIMELINE)
+            const essentialLogs = allLogs.filter((log) => {
+                const message = log.message.toLowerCase();
+                return (
+                    message.includes('workflow initiated') ||
+                    // CLEAN TIMELINE: Only show "completed" steps, NOT "started"
+                    (message.includes('step') && message.includes('completed')) ||
+                    message.includes('workflow completed') ||
+                    message.includes('video is ready') ||
+                    message.includes('error') ||
+                    message.includes('failed')
+                );
+            });
+
+            if (essentialLogs.length > 0) {
+                this.updateLogDisplay(essentialLogs);
+            } else {
+                // Show clean message - focus on timeline
+                // Log functionality removed - showing timeline only
             }
         } catch (error) {
             console.error('❌ Failed to fetch job logs:', error);
-            // Only show error if we haven't shown logs yet
-            const logViewer = document.getElementById('log-viewer');
-            if (logViewer && logViewer.children.length <= 1) {
-                this.addLogEntry({
-                    timestamp: new Date(),
-                    level: 'error',
-                    message: `Failed to fetch logs: ${error.message}\n\nThis could be due to network issues or the job not being found. Try refreshing the page.`
+            // Log functionality removed - errors only in console
+        }
+    }
+
+    /**
+     * Combine persistent and in-memory logs, removing duplicates
+     */
+    combineLogs(persistentLogs, memoryLogs) {
+        const logMap = new Map();
+
+        // Add persistent logs first (they're the authoritative source)
+        persistentLogs.forEach((log) => {
+            const key = `${log.timestamp}_${log.message}_${log.level}`;
+            logMap.set(key, {
+                ...log,
+                source: 'persistent',
+                type: log.level || 'info' // Convert level to type for compatibility
+            });
+        });
+
+        // Add memory logs that aren't already in persistent logs
+        memoryLogs.forEach((log) => {
+            const key = `${log.timestamp}_${log.message}_${log.type}`;
+            if (!logMap.has(key)) {
+                logMap.set(key, {
+                    ...log,
+                    source: 'memory'
                 });
             }
-        }
+        });
+
+        // Convert back to array and sort by timestamp (newest first)
+        return Array.from(logMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     }
 
     /**
@@ -577,60 +644,16 @@ export class JobDetailApp {
             return;
         }
 
+        // Clean timeline view - no source indicators needed
+
         // Add all logs
         logs.forEach((logData) => {
-            this.addLogEntry({
-                timestamp: logData.timestamp,
-                level: logData.type || 'info',
-                message: logData.message
-            });
+            // Log functionality removed
         });
 
         // Auto-scroll to bottom if enabled
         if (this.autoScroll) {
             logViewer.scrollTop = logViewer.scrollHeight;
-        }
-    }
-
-    /**
-     * Add a professional log entry to the log viewer
-     */
-    addLogEntry(logData) {
-        const logViewer = document.getElementById('log-viewer');
-        if (!logViewer) return;
-
-        const timestamp = new Date(logData.timestamp || new Date()).toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
-
-        const level = logData.level || 'info';
-        const message = this.formatLogMessage(logData.message || '');
-        const icon = this.getLogIcon(level);
-
-        const logEntry = document.createElement('div');
-        logEntry.className = `log-entry level-${level}`;
-        logEntry.innerHTML = `
-            <div class="log-icon">
-                <i class="${icon}"></i>
-            </div>
-            <div class="log-timestamp">${timestamp}</div>
-            <div class="log-content">${message}</div>
-        `;
-
-        logViewer.appendChild(logEntry);
-
-        // Auto-scroll to bottom if enabled
-        if (this.autoScroll) {
-            logViewer.scrollTop = logViewer.scrollHeight;
-        }
-
-        // Keep only last 150 log entries for performance
-        const maxEntries = 150;
-        while (logViewer.children.length > maxEntries) {
-            logViewer.removeChild(logViewer.firstChild);
         }
     }
 
@@ -712,10 +735,7 @@ export class JobDetailApp {
             }
         } catch (error) {
             console.error('❌ Failed to refresh job data:', error);
-            this.addLogEntry({
-                level: 'error',
-                message: `Failed to refresh job data: ${error.message}`
-            });
+            // Log functionality removed - errors only in console
         }
     }
 
@@ -746,10 +766,7 @@ export class JobDetailApp {
         }
 
         // Add log entry about the update
-        this.addLogEntry({
-            level: 'info',
-            message: `Job status updated: ${updateData.status || 'Status change'}`
-        });
+        // Log functionality removed - status updates shown in timeline
     }
 
     /**
@@ -821,20 +838,14 @@ export class JobDetailApp {
             try {
                 const response = await APIService.cancelJob(this.jobId);
                 if (response.success) {
-                    this.addLogEntry({
-                        level: 'warning',
-                        message: 'Job cancellation requested'
-                    });
+                    // Job cancellation logged in console only
                     await this.refreshJobData();
                 } else {
                     throw new Error(response.message || 'Failed to cancel job');
                 }
             } catch (error) {
                 console.error('❌ Failed to cancel job:', error);
-                this.addLogEntry({
-                    level: 'error',
-                    message: `Failed to cancel job: ${error.message}`
-                });
+                // Error logged in console only
             }
         }
     }
@@ -847,21 +858,118 @@ export class JobDetailApp {
             try {
                 const response = await APIService.retryJob(this.jobId);
                 if (response.success) {
-                    this.addLogEntry({
-                        level: 'info',
-                        message: 'Job retry requested'
-                    });
+                    // Job retry logged in console only
                     await this.refreshJobData();
                 } else {
                     throw new Error(response.message || 'Failed to retry job');
                 }
             } catch (error) {
                 console.error('❌ Failed to retry job:', error);
-                this.addLogEntry({
-                    level: 'error',
-                    message: `Failed to retry job: ${error.message}`
-                });
+                // Error logged in console only
             }
+        }
+    }
+
+    /**
+     * Initialize job-specific Server-Sent Events for real-time updates
+     */
+    initializeJobSSE() {
+        if (this.jobSSE) {
+            return; // Already initialized
+        }
+
+        console.log(`📡 Connecting to job-specific real-time updates for ${this.jobId}`);
+
+        try {
+            this.jobSSE = new EventSource(`/api/job/${this.jobId}/stream`);
+
+            this.jobSSE.onopen = () => {
+                console.log(`📡 Real-time connection established for job ${this.jobId}`);
+            };
+
+            this.jobSSE.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    this.handleJobSSEMessage(data);
+                } catch (error) {
+                    console.error('❌ Failed to parse job SSE message:', error);
+                }
+            };
+
+            this.jobSSE.onerror = (error) => {
+                console.warn(`⚠️ Job SSE connection error for ${this.jobId}:`, error);
+                // Reconnect after a delay
+                setTimeout(() => {
+                    if (this.jobSSE && this.jobSSE.readyState === EventSource.CLOSED) {
+                        console.log(`🔄 Reconnecting job SSE for ${this.jobId}`);
+                        this.closeJobSSE();
+                        this.initializeJobSSE();
+                    }
+                }, 5000);
+            };
+        } catch (error) {
+            console.error(`❌ Failed to initialize job SSE for ${this.jobId}:`, error);
+        }
+    }
+
+    /**
+     * Handle job-specific SSE messages (real-time webhook updates)
+     */
+    handleJobSSEMessage(data) {
+        if (data.job_id !== this.jobId) {
+            return; // Not for this job
+        }
+
+        switch (data.type) {
+            case 'connected':
+                console.log(`✅ Job ${this.jobId} real-time updates connected`);
+                break;
+
+            case 'step_update':
+                console.log(`📡 Real-time step update: Step ${data.step_number} ${data.status}`);
+
+                // Update job data with real-time info  
+                if (this.jobData) {
+                    // Handle both "started" and "completed" status
+                    if (data.status === 'started') {
+                        // Step is starting - track as currently active step
+                        this.currentActiveStep = data.step_number;
+                        this.jobData.currentStep = `Step ${data.step_number}/7: ${data.step_name} (Processing...)`;
+                        this.jobData.progress = Math.max((data.step_number - 1) / 7 * 100, 0);
+                        console.log(`📋 Step ${data.step_number} started: ${data.step_name}`);
+                    } else if (data.status === 'completed') {
+                        // Step completed - no longer active, update progress
+                        if (this.currentActiveStep === data.step_number) {
+                            this.currentActiveStep = null; // Step no longer active
+                        }
+                        this.jobData.currentStep = `Step ${data.step_number}/7: ${data.step_name} ✅`;
+                        this.jobData.progress = Math.min(data.step_number / 7 * 100, 100);
+                        console.log(`✅ Step ${data.step_number} completed: ${data.step_name}`);
+                    }
+                    
+                    // Update UI immediately
+                    this.updateProgressSection();
+                    this.updateTimeline();
+                }
+                break;
+
+            case 'heartbeat':
+                // Keep connection alive - no action needed
+                break;
+
+            default:
+                console.log(`📡 Job SSE message:`, data);
+        }
+    }
+
+    /**
+     * Close job-specific SSE connection
+     */
+    closeJobSSE() {
+        if (this.jobSSE) {
+            this.jobSSE.close();
+            this.jobSSE = null;
+            console.log(`📡 Closed job SSE connection for ${this.jobId}`);
         }
     }
 
@@ -871,16 +979,10 @@ export class JobDetailApp {
     async copyVideoUrl() {
         try {
             await navigator.clipboard.writeText(this.jobData.videoUrl);
-            this.addLogEntry({
-                level: 'success',
-                message: 'Video URL copied to clipboard'
-            });
+            // Success logged in console only
         } catch (error) {
             console.error('Failed to copy URL:', error);
-            this.addLogEntry({
-                level: 'error',
-                message: 'Failed to copy URL to clipboard'
-            });
+            // Error logged in console only
         }
     }
 
@@ -889,54 +991,72 @@ export class JobDetailApp {
      */
     async monitorCreatomate() {
         try {
-            console.log(`🎬 Manual Creatomate monitoring trigger for job ${this.jobId}`);
+            console.log(`🎬 Direct Creatomate status check for job ${this.jobId}`);
+
+            if (!this.jobData.creatomateId) {
+                this.addLogEntry({
+                    level: 'error',
+                    message: 'No Creatomate ID found for this job'
+                });
+                return;
+            }
 
             this.addLogEntry({
                 level: 'info',
-                message: 'Checking video render status with Creatomate...'
+                message: `Checking render status for Creatomate ID: ${this.jobData.creatomateId}`
             });
 
-            const response = await fetch(`/api/queue/job/${this.jobId}/monitor-creatomate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
+            // Direct Creatomate API check
+            const response = await fetch(`/api/status/${this.jobData.creatomateId}`);
             const result = await response.json();
 
             if (result.success) {
-                this.addLogEntry({
-                    level: 'success',
-                    message: `Started monitoring Creatomate render ID: ${result.creatomateId}`
-                });
+                if (result.videoUrl && result.status === 'completed') {
+                    // Video is ready!
+                    this.addLogEntry({
+                        level: 'success',
+                        message: `🎉 Video is ready! URL: ${result.videoUrl}`
+                    });
 
-                this.addLogEntry({
-                    level: 'info',
-                    message:
-                        'Video status will be checked every 30 seconds. This page will update automatically when ready.'
-                });
+                    // Update job data to show video
+                    this.jobData.videoUrl = result.videoUrl;
+                    this.jobData.status = 'completed';
+                    this.jobData.progress = 100;
+                    this.jobData.currentStep = 'Video completed and ready for viewing!';
 
-                // Refresh job data to show new status
-                await this.refreshJobData();
+                    // Refresh the UI to show the video
+                    this.updateUI();
+                } else if (result.status) {
+                    // Still rendering
+                    const status = result.status.charAt(0).toUpperCase() + result.status.slice(1);
+                    this.addLogEntry({
+                        level: 'info',
+                        message: `Render status: ${status} - Video not ready yet`
+                    });
+
+                    if (result.status !== 'completed') {
+                        this.addLogEntry({
+                            level: 'info',
+                            message: 'Video is still rendering - check back in a few minutes'
+                        });
+                    }
+                } else {
+                    this.addLogEntry({
+                        level: 'warning',
+                        message: 'No status information available from Creatomate'
+                    });
+                }
             } else {
                 this.addLogEntry({
                     level: 'error',
-                    message: `Failed to start monitoring: ${result.message}`
+                    message: `Failed to check status: ${result.error || result.message}`
                 });
-
-                if (result.details) {
-                    this.addLogEntry({
-                        level: 'warning',
-                        message: result.details
-                    });
-                }
             }
         } catch (error) {
-            console.error('❌ Failed to trigger Creatomate monitoring:', error);
+            console.error('❌ Failed to check Creatomate status:', error);
             this.addLogEntry({
                 level: 'error',
-                message: `Failed to trigger monitoring: ${error.message}`
+                message: `Failed to check status: ${error.message}`
             });
         }
     }

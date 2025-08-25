@@ -3,6 +3,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const VideoQueueManager = require('./queue-manager');
 const WebhookManager = require('./webhook-manager');
+const { getFileLogger } = require('./utils/file_logger');
 
 // Enhanced in-memory cache to reduce Redis calls during heavy processing - PRODUCTION OPTIMIZED
 const jobCache = new Map();
@@ -38,6 +39,12 @@ const queueManager = new VideoQueueManager();
 
 // Initialize professional webhook manager for external integrations
 const webhookManager = new WebhookManager();
+
+// Initialize file logger for persistent logging
+const fileLogger = getFileLogger();
+
+// Initialize job-specific SSE clients tracking
+global.jobSSEClients = new Map(); // Map<job_id, Set<response_objects>>
 
 // Integrate webhook manager with queue processing
 queueManager.setWebhookManager(webhookManager);
@@ -855,6 +862,11 @@ app.post('/api/webhooks/step-update', async (req, res) => {
 
         console.log(`📡 Real-time webhook: Job ${job_id} - Step ${step_number} (${step_name}) ${status}`);
 
+        // Log only essential webhook events to reduce spam
+        if (step_number >= 1 && step_number <= 7) {
+            fileLogger.logWebhookReceived(job_id, step_number, step_name, status, details);
+        }
+
         // Update job with step progress
         const job = await queueManager.getJob(job_id);
         if (job) {
@@ -898,15 +910,33 @@ app.post('/api/webhooks/step-update', async (req, res) => {
 
             console.log(`✅ Real-time update: Job ${job_id} - ${job.progress}% - ${job.currentStep}`);
 
-            // Add real-time log entry for better user experience
-            if (step_number >= 1 && step_number <= 7) {
-                queueManager.addJobLog(job_id, `✅ Step ${step_number} completed: ${step_name}`, 'success');
-                if (details) {
-                    const detailStr = Object.entries(details)
-                        .map(([key, value]) => `${key}: ${value}`)
-                        .join(', ');
-                    queueManager.addJobLog(job_id, `📊 Step ${step_number} details: ${detailStr}`, 'info');
-                }
+            // Add essential real-time log entries only
+            if (step_number >= 1 && step_number <= 7 && status === 'completed') {
+                queueManager.addJobLog(job_id, `✅ Step ${step_number}/7 completed: ${step_name}`, 'success');
+            }
+
+            // REAL-TIME FRONTEND UPDATE: Send job update to connected SSE clients
+            if (global.jobSSEClients && global.jobSSEClients.has(job_id)) {
+                const sseClients = global.jobSSEClients.get(job_id);
+                const updateData = {
+                    type: 'step_update',
+                    job_id: job_id,
+                    step_number: step_number,
+                    step_name: step_name,
+                    status: status,
+                    progress: job.progress,
+                    currentStep: job.currentStep,
+                    timestamp: new Date().toISOString()
+                };
+
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent real-time update to job ${job_id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job_id} client:`, error.message);
+                    }
+                });
             }
         } else {
             console.warn(`⚠️ Webhook received for unknown job: ${job_id}`);
@@ -1164,6 +1194,198 @@ app.get('/api/queue/job/:jobId/logs', async (req, res) => {
             error: error.message
         });
     }
+});
+
+// API endpoint to get persistent file-based logs for a specific job
+app.get('/api/queue/job/:jobId/logs/persistent', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const { limit = 1000 } = req.query;
+
+        console.log(`📋 API: Getting persistent logs for job ${jobId}`);
+
+        // Get persistent logs from file logger
+        const logs = await fileLogger.readJobLogs(jobId, parseInt(limit));
+
+        res.json({
+            success: true,
+            data: {
+                jobId: jobId,
+                logs: logs,
+                count: logs.length,
+                source: 'file_logger',
+                lastUpdate: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error getting persistent job logs:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to search logs across all jobs
+app.get('/api/logs/search', async (req, res) => {
+    try {
+        const { jobId, eventType, level, messageContains, limit = 100 } = req.query;
+
+        console.log(`🔍 API: Searching logs with filters:`, { jobId, eventType, level, messageContains, limit });
+
+        const logs = await fileLogger.searchLogs({
+            jobId,
+            eventType,
+            level,
+            messageContains,
+            limit: parseInt(limit)
+        });
+
+        res.json({
+            success: true,
+            data: {
+                logs: logs,
+                count: logs.length,
+                filters: { jobId, eventType, level, messageContains, limit },
+                searchTime: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error searching logs:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to get logging system statistics
+app.get('/api/logs/stats', async (req, res) => {
+    try {
+        console.log('📊 API: Getting logging system statistics');
+
+        const stats = await fileLogger.getLogStats();
+
+        res.json({
+            success: true,
+            data: {
+                ...stats,
+                timestamp: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error getting log stats:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to archive job logs
+app.post('/api/queue/job/:jobId/logs/archive', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+
+        console.log(`📦 API: Archiving logs for job ${jobId}`);
+
+        const success = await fileLogger.archiveJobLogs(jobId);
+
+        if (success) {
+            res.json({
+                success: true,
+                message: `Logs for job ${jobId} archived successfully`,
+                jobId: jobId,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: `Failed to archive logs for job ${jobId}`,
+                jobId: jobId
+            });
+        }
+    } catch (error) {
+        console.error(`❌ Error archiving logs for job ${req.params.jobId}:`, error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            jobId: req.params.jobId
+        });
+    }
+});
+
+// SSE endpoint for job-specific real-time updates
+app.get('/api/job/:jobId/stream', (req, res) => {
+    const { jobId } = req.params;
+
+    console.log(`📡 SSE: Job ${jobId} client connected for real-time updates`);
+
+    // Set SSE headers
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // Initialize job SSE clients set if not exists
+    if (!global.jobSSEClients.has(jobId)) {
+        global.jobSSEClients.set(jobId, new Set());
+    }
+
+    // Add this client to the job's SSE clients
+    const jobClients = global.jobSSEClients.get(jobId);
+    jobClients.add(res);
+
+    // Send initial connection confirmation
+    res.write(
+        `data: ${JSON.stringify({
+            type: 'connected',
+            job_id: jobId,
+            message: 'Real-time job updates connected',
+            timestamp: new Date().toISOString()
+        })}\n\n`
+    );
+
+    // Heartbeat to keep connection alive
+    const heartbeat = setInterval(() => {
+        try {
+            res.write(
+                `data: ${JSON.stringify({
+                    type: 'heartbeat',
+                    job_id: jobId,
+                    timestamp: new Date().toISOString()
+                })}\n\n`
+            );
+        } catch (error) {
+            clearInterval(heartbeat);
+        }
+    }, 30000); // Every 30 seconds
+
+    // Clean up when client disconnects
+    req.on('close', () => {
+        console.log(`📡 SSE: Job ${jobId} client disconnected`);
+        clearInterval(heartbeat);
+
+        // Remove client from job clients set
+        if (global.jobSSEClients.has(jobId)) {
+            const jobClients = global.jobSSEClients.get(jobId);
+            jobClients.delete(res);
+
+            // Clean up empty job client sets
+            if (jobClients.size === 0) {
+                global.jobSSEClients.delete(jobId);
+                console.log(`📡 SSE: Removed empty client set for job ${jobId}`);
+            }
+        }
+    });
+
+    req.on('error', (error) => {
+        console.warn(`⚠️ SSE client error for job ${jobId}:`, error.message);
+        clearInterval(heartbeat);
+    });
 });
 
 // API endpoint to manually trigger Creatomate monitoring for a job

@@ -1,77 +1,77 @@
 {
   "data": {
-    "combined_script": "Dare to dive into StreamGanks top 3 bloodcurdling horror flicks on Netflix that are making viewers scream worldwide!\n\nDare to dive into StreamGanks top 3 bloodcurdling horror flicks on Netflix that are making viewers scream worldwide! Everyones too scared to watch Stranger Things, the nerve-chilling horror masterpiece that turned Netflix into your worst nightmare.\n\nEveryones too scared to watch The Haunting of Hill House, but those who dare are calling it the most bone-chilling Netflix series of 2018!\n\nEveryones too scared to watch Love, Death & Robots - this Netflix horror masterpiece will haunt your dreams forever!",
+    "combined_script": "Brace yourselves for StreamGanks most bone-chilling horror flicks on Netflix that have the internet screaming for more!\n\nBrace yourselves for StreamGanks most bone-chilling horror flicks on Netflix that have the internet screaming for more! Everyones too scared to watch Godzilla Minus One, the horror phenomenon thats making even the bravest Netflix viewers sleep with the lights on!\n\nEveryones too scared to watch the chilling, non-stop horrors awaiting them on the Train to Busan journey, are you brave enough?\n\nThis horror masterpiece, The Wailing, is the reason Netflix viewers are sleeping with their lights on tonight!",
     "script_file_path": "videos/combined_script.txt",
     "individual_scripts": {
       "movie1": {
-        "text": "Dare to dive into StreamGanks top 3 bloodcurdling horror flicks on Netflix that are making viewers scream worldwide! Everyones too scared to watch Stranger Things, the nerve-chilling horror masterpiece that turned Netflix into your worst nightmare.",
+        "text": "Brace yourselves for StreamGanks most bone-chilling horror flicks on Netflix that have the internet screaming for more! Everyones too scared to watch Godzilla Minus One, the horror phenomenon thats making even the bravest Netflix viewers sleep with the lights on!",
         "path": "videos/script_movie1.txt"
       },
       "movie2": {
-        "text": "Everyones too scared to watch The Haunting of Hill House, but those who dare are calling it the most bone-chilling Netflix series of 2018!",
+        "text": "Everyones too scared to watch the chilling, non-stop horrors awaiting them on the Train to Busan journey, are you brave enough?",
         "path": "videos/script_movie2.txt"
       },
       "movie3": {
-        "text": "Everyones too scared to watch Love, Death & Robots - this Netflix horror masterpiece will haunt your dreams forever!",
+        "text": "This horror masterpiece, The Wailing, is the reason Netflix viewers are sleeping with their lights on tonight!",
         "path": "videos/script_movie3.txt"
       }
     },
     "raw_movies": [
       {
-        "id": 22571,
-        "title": "Stranger Things",
+        "id": 7299,
+        "title": "Godzilla Minus One",
+        "year": 2023,
+        "imdb": "7.7/10 (176,508 votes)",
+        "imdb_score": 7.7,
+        "imdb_votes": 176508,
+        "runtime": "124 min",
+        "platform": "Netflix",
+        "poster_url": "https://images.justwatch.com/poster/307410526/s332/godzilla-minus-one.avif",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1742896159/movie-posters/cf5f1812aa28d27febf656e07e2282d2.avif",
+        "trailer_url": "https://www.youtube.com/watch?v=nAYKaslCXPc",
+        "streaming_url": "https://www.netflix.com/title/81767635",
+        "genres": [
+          "Horror"
+        ],
+        "content_type": "Film",
+        "country_code": "US"
+      },
+      {
+        "id": 33495,
+        "title": "Train to Busan",
         "year": 2016,
-        "imdb": "8.6/10 (1,476,935 votes)",
-        "imdb_score": 8.6,
-        "imdb_votes": 1476935,
-        "runtime": "61 min",
+        "imdb": "7.6/10 (291,444 votes)",
+        "imdb_score": 7.6,
+        "imdb_votes": 291444,
+        "runtime": "118 min",
         "platform": "Netflix",
-        "poster_url": "https://images.justwatch.com/poster/301444843/s332/stranger-things.webp",
-        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743966340/movie-posters/9c782ea5ca66b132afbe69bef55cf5dc.webp",
-        "trailer_url": "https://www.youtube.com/watch?v=5zhv01erNEQ",
-        "streaming_url": "https://www.netflix.com/title/80057281",
+        "poster_url": "https://images.justwatch.com/poster/164866704/s332/train-to-busan.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1751459107/movie-posters/f0f07f9e33ab865dc3edb66ded174009.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=1ovgxN2VWNc",
+        "streaming_url": "https://www.netflix.com/title/80117824",
         "genres": [
           "Horror"
         ],
-        "content_type": "Série",
+        "content_type": "Film",
         "country_code": "US"
       },
       {
-        "id": 14393,
-        "title": "The Haunting of Hill House",
-        "year": 2018,
-        "imdb": "8.5/10 (314,546 votes)",
-        "imdb_score": 8.5,
-        "imdb_votes": 314546,
-        "runtime": "58 min",
+        "id": 33496,
+        "title": "The Wailing",
+        "year": 2016,
+        "imdb": "7.4/10 (85,629 votes)",
+        "imdb_score": 7.4,
+        "imdb_votes": 85629,
+        "runtime": "156 min",
         "platform": "Netflix",
-        "poster_url": "https://images.justwatch.com/poster/82936641/s332/the-haunting-of-hill-house.webp",
-        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743362188/movie-posters/3ae97abe65ff947b5a31ee6cf42b387d.webp",
-        "trailer_url": "https://www.youtube.com/watch?v=VxEEGi9V0kI",
-        "streaming_url": "https://www.netflix.com/title/80189221",
+        "poster_url": "https://images.justwatch.com/poster/204249971/s332/the-wailing.webp",
+        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1751459109/movie-posters/2973b8a79b07ff67fb541dbe61480106.webp",
+        "trailer_url": "https://www.youtube.com/watch?v=43uAputjI4k",
+        "streaming_url": "https://www.netflix.com/title/80108974",
         "genres": [
           "Horror"
         ],
-        "content_type": "Série",
-        "country_code": "US"
-      },
-      {
-        "id": 14462,
-        "title": "Love, Death & Robots",
-        "year": 2019,
-        "imdb": "8.4/10 (203,042 votes)",
-        "imdb_score": 8.4,
-        "imdb_votes": 203042,
-        "runtime": "13 min",
-        "platform": "Netflix",
-        "poster_url": "https://images.justwatch.com/poster/118895539/s332/love-death-and-robots.webp",
-        "cloudinary_poster_url": "https://res.cloudinary.com/dodod8s0v/image/upload/v1743362266/movie-posters/fbbf68715f9c567d8995e2ca60c02612.webp",
-        "trailer_url": "https://www.youtube.com/watch?v=ghJkKclfpjY",
-        "streaming_url": "https://www.netflix.com/title/80174608",
-        "genres": [
-          "Horror"
-        ],
-        "content_type": "Série",
+        "content_type": "Film",
         "country_code": "US"
       }
     ],
@@ -79,11 +79,11 @@
       "country": "US",
       "genre": "Horror",
       "platform": "Netflix",
-      "content_type": "Série",
+      "content_type": "Film",
       "num_movies": 3
     },
     "script_count": 3,
-    "generation_timestamp": 1755947458.520171
+    "generation_timestamp": 1756119108.052557
   },
   "metadata": {
     "data_type": "script_result",
@@ -92,7 +92,7 @@
       "genre": "Horror",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1755947458.5203476,
-    "saved_datetime": "2025-08-23 11:10:58"
+    "saved_timestamp": 1756119108.0528247,
+    "saved_datetime": "2025-08-25 10:51:48"
   }
 }

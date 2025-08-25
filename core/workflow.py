@@ -12,6 +12,7 @@ EXACT SAME APPROACH AS LEGACY SYSTEM - PROVEN TO WORK
 import logging
 import time
 import json
+import os
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 
@@ -44,6 +45,9 @@ from utils.test_data_cache import (
 
 # Import webhook client for real-time step updates
 from utils.webhook_client import create_webhook_client
+
+# Import job logger for persistent logging
+from utils.job_logger import get_job_logger
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +146,19 @@ def run_full_workflow(num_movies: int = 3,
     # Initialize webhook client for real-time step updates
     webhook_client = create_webhook_client()
     
-    # Send workflow started notification
+    # Initialize job logger for persistent logging
+    job_logger = get_job_logger()
+    job_id = os.getenv('JOB_ID', f"workflow_{int(time.time())}")
+    
+    # Log workflow start
+    job_logger.log_job_event(job_id, "workflow_started", "Video generation workflow initiated", {
+        'parameters': workflow_results['parameters'],
+        'environment': app_env,
+        'cache_enabled': cache_enabled,
+        'save_enabled': save_enabled
+    })
+    
+    # Send webhook notification
     webhook_client.send_workflow_started(total_steps=7)
     
     try:
@@ -152,6 +168,26 @@ def run_full_workflow(num_movies: int = 3,
         print(f"\n[STEP 1/7] Database Extraction - Extracting {num_movies} movies from database")
         step_start = time.time()
         print(f"   Filters: {country}, {genre}, {platform}, {content_type}")
+        
+        # Send real-time webhook update for step start
+        webhook_client.send_step_update(
+            step_number=1,
+            step_name="Database Extraction",
+            status="started",
+            duration=0,
+            details={'country': country, 'genre': genre, 'platform': platform, 'num_movies': num_movies}
+        )
+        
+        # Log step start
+        job_logger.log_step_start(job_id, 1, "Database Extraction", {
+            'num_movies': num_movies,
+            'filters': {
+                'country': country,
+                'genre': genre,
+                'platform': platform,
+                'content_type': content_type
+            }
+        })
         
         raw_movies = extract_movie_data(
             num_movies=num_movies,
@@ -196,14 +232,22 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['raw_movies'] = raw_movies
         workflow_results['steps_completed'].append('database_extraction')
         
-        print(f"✅ STEP 1 COMPLETED - Found {len(raw_movies)} movies in {time.time() - step_start:.1f}s")
+        step_duration = time.time() - step_start
+        print(f"✅ STEP 1 COMPLETED - Found {len(raw_movies)} movies in {step_duration:.1f}s")
+        
+        # Log step completion
+        job_logger.log_step_complete(job_id, 1, "Database Extraction", step_duration, {
+            'movies_found': len(raw_movies),
+            'movies_data': [{'title': m.get('title'), 'imdb_score': m.get('imdb_score')} 
+                           for m in raw_movies[:3]]  # Log first 3 movies as sample
+        })
         
         # Send real-time webhook update
         webhook_client.send_step_update(
             step_number=1,
             step_name="Database Extraction",
             status="completed", 
-            duration=time.time() - step_start,
+            duration=step_duration,
             details={'movies_found': len(raw_movies)}
         )
         
@@ -242,6 +286,22 @@ def run_full_workflow(num_movies: int = 3,
         # =============================================================================
         print(f"\n[STEP 2/7] Script Generation - Generating scripts for {genre} content on {platform}")
         step_start = time.time()
+        
+        # Send real-time webhook update for step start
+        webhook_client.send_step_update(
+            step_number=2,
+            step_name="Script Generation",
+            status="started",
+            duration=0,
+            details={'genre': genre, 'platform': platform, 'num_movies': len(raw_movies)}
+        )
+        
+        # Log step start
+        job_logger.log_step_start(job_id, 2, "Script Generation", {
+            'genre': genre,
+            'platform': platform,
+            'cache_enabled': cache_enabled
+        })
         
         # Try to load existing script data from test_output
         cached_script_data = load_test_data('script_result', country, genre, platform)
@@ -299,14 +359,22 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['individual_scripts'] = individual_scripts
         workflow_results['steps_completed'].append('script_generation')
         
-        print(f"✅ STEP 2 COMPLETED - Using {len(individual_scripts)} scripts in {time.time() - step_start:.1f}s")
+        step_duration = time.time() - step_start
+        print(f"✅ STEP 2 COMPLETED - Using {len(individual_scripts)} scripts in {step_duration:.1f}s")
+        
+        # Log step completion
+        job_logger.log_step_complete(job_id, 2, "Script Generation", step_duration, {
+            'scripts_generated': len(individual_scripts),
+            'scripts_from_cache': should_use_cache() and cached_script_data is not None,
+            'combined_script_length': len(combined_script) if combined_script else 0
+        })
         
         # Send real-time webhook update
         webhook_client.send_step_update(
             step_number=2,
             step_name="Script Generation",
             status="completed",
-            duration=time.time() - step_start,
+            duration=step_duration,
             details={'scripts_generated': len(individual_scripts)}
         )
         
@@ -316,11 +384,26 @@ def run_full_workflow(num_movies: int = 3,
         print(f"\n[STEP 3/7] Asset Preparation - Creating enhanced posters and movie clips")
         step_start = time.time()
         
+        # Send real-time webhook update for step start
+        webhook_client.send_step_update(
+            step_number=3,
+            step_name="Asset Preparation",
+            status="started",
+            duration=0,
+            details={'num_movies': len(raw_movies), 'cache_enabled': cache_enabled}
+        )
+        
+        # Log step start
+        job_logger.log_step_start(job_id, 3, "Asset Preparation", {
+            'num_movies': len(raw_movies),
+            'cache_enabled': cache_enabled
+        })
+        
         # Try to load existing asset data from test_output
         cached_assets_data = load_test_data('assets', country, genre, platform)
         
-        # if cached_assets_data and should_use_cache():
-        if False: # TESTING POSTER UPLOAD TO streamgank-reels/enhanced-poster-cover
+        if cached_assets_data and should_use_cache():
+        # if False: # TESTING POSTER UPLOAD TO streamgank-reels/enhanced-poster-cover
             print("   📂 Using cached asset data from test_output...")
             
             enhanced_posters = cached_assets_data.get('enhanced_posters', {})
@@ -385,14 +468,22 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['dynamic_clips'] = dynamic_clips
         workflow_results['steps_completed'].append('asset_preparation')
         
-        print(f"✅ STEP 3 COMPLETED - Created {len(movie_covers)} posters and {len(movie_clips)} clips in {time.time() - step_start:.1f}s")
+        step_duration = time.time() - step_start
+        print(f"✅ STEP 3 COMPLETED - Created {len(movie_covers)} posters and {len(movie_clips)} clips in {step_duration:.1f}s")
+        
+        # Log step completion
+        job_logger.log_step_complete(job_id, 3, "Asset Preparation", step_duration, {
+            'posters_created': len(movie_covers),
+            'clips_processed': len(movie_clips),
+            'assets_from_cache': should_use_cache() and cached_assets_data is not None
+        })
         
         # Send real-time webhook update
         webhook_client.send_step_update(
             step_number=3,
             step_name="Asset Preparation",
             status="completed",
-            duration=time.time() - step_start,
+            duration=step_duration,
             details={
                 'posters_created': len(movie_covers),
                 'clips_processed': len(movie_clips)
@@ -404,6 +495,22 @@ def run_full_workflow(num_movies: int = 3,
         # =============================================================================
         print(f"\n[STEP 4/7] HeyGen Video Creation - Generating AI avatar videos")
         step_start = time.time()
+        
+        # Send real-time webhook update for step start
+        webhook_client.send_step_update(
+            step_number=4,
+            step_name="HeyGen Video Creation",
+            status="started",
+            duration=0,
+            details={'num_scripts': len(individual_scripts), 'heygen_template_id': heygen_template_id}
+        )
+        
+        # Log step start
+        job_logger.log_step_start(job_id, 4, "HeyGen Video Creation", {
+            'num_scripts': len(individual_scripts),
+            'heygen_template_id': heygen_template_id,
+            'cache_enabled': cache_enabled
+        })
         
         # Try to load existing HeyGen data from cache
         cached_heygen_data = load_test_data('heygen', country, genre, platform)
@@ -441,14 +548,22 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['heygen_video_ids'] = heygen_video_ids
         workflow_results['steps_completed'].append('heygen_creation')
         
-        print(f"✅ STEP 4 COMPLETED - {'Loaded' if should_use_cache() and cached_heygen_data else 'Created'} {len(heygen_video_ids)} HeyGen videos in {time.time() - step_start:.1f}s")
+        step_duration = time.time() - step_start
+        print(f"✅ STEP 4 COMPLETED - {'Loaded' if should_use_cache() and cached_heygen_data else 'Created'} {len(heygen_video_ids)} HeyGen videos in {step_duration:.1f}s")
+        
+        # Log step completion
+        job_logger.log_step_complete(job_id, 4, "HeyGen Video Creation", step_duration, {
+            'videos_created': len(heygen_video_ids),
+            'from_cache': should_use_cache() and cached_heygen_data is not None,
+            'template_id': heygen_template_id
+        })
         
         # Send real-time webhook update
         webhook_client.send_step_update(
             step_number=4,
             step_name="HeyGen Video Creation",
             status="completed",
-            duration=time.time() - step_start,
+            duration=step_duration,
             details={
                 'videos_created': len(heygen_video_ids),
                 'from_cache': should_use_cache() and cached_heygen_data is not None
@@ -460,6 +575,21 @@ def run_full_workflow(num_movies: int = 3,
         # =============================================================================
         print(f"\n[STEP 5/7] HeyGen Video Processing - Waiting for video completion")
         step_start = time.time()
+        
+        # Send real-time webhook update for step start
+        webhook_client.send_step_update(
+            step_number=5,
+            step_name="HeyGen Processing",
+            status="started",
+            duration=0,
+            details={'video_ids_count': len(heygen_video_ids), 'cache_enabled': cache_enabled}
+        )
+        
+        # Log step start
+        job_logger.log_step_start(job_id, 5, "HeyGen Processing", {
+            'video_ids_count': len(heygen_video_ids),
+            'cache_enabled': cache_enabled
+        })
         
         # Try to load existing HeyGen URLs from cache
         cached_heygen_urls_data = load_test_data('heygen_urls', country, genre, platform)
@@ -514,6 +644,23 @@ def run_full_workflow(num_movies: int = 3,
         if not skip_scroll_video:
             print(f"\n[STEP 6/7] Scroll Video Generation - Creating StreamGank scroll overlay")
             step_start = time.time()
+            
+            # Send real-time webhook update for step start
+            webhook_client.send_step_update(
+                step_number=6,
+                step_name="Scroll Video Generation",
+                status="started",
+                duration=0,
+                details={'skip_scroll_video': skip_scroll_video, 'smooth_scroll': smooth_scroll, 'scroll_distance': scroll_distance}
+            )
+            
+            # Log step start
+            job_logger.log_step_start(job_id, 6, "Scroll Video Generation", {
+                'skip_scroll_video': skip_scroll_video,
+                'smooth_scroll': smooth_scroll,
+                'scroll_distance': scroll_distance,
+                'cache_enabled': cache_enabled
+            })
             
             # Try to load existing scroll video data from cache
             cached_scroll_data = load_test_data('scroll_video', country, genre, platform)
@@ -583,6 +730,23 @@ def run_full_workflow(num_movies: int = 3,
             )
         else:
             print(f"\n[STEP 6/7] Scroll Video Generation - SKIPPED (user requested)")
+            
+            # Send real-time webhook update for skipped step
+            webhook_client.send_step_update(
+                step_number=6,
+                step_name="Scroll Video Generation",
+                status="completed",
+                duration=0,
+                details={'skip_scroll_video': True, 'reason': 'User requested to skip scroll video'}
+            )
+            
+            # Log skipped step 6
+            job_logger.log_job_event(job_id, "step_skipped", "Step 6/7 skipped: Scroll Video Generation", {
+                'step_number': 6,
+                'step_name': 'Scroll Video Generation',
+                'reason': 'User requested to skip scroll video',
+                'skip_scroll_video': skip_scroll_video
+            })
         
         workflow_results['steps_completed'].append('scroll_generation')
         
@@ -591,6 +755,23 @@ def run_full_workflow(num_movies: int = 3,
         # =============================================================================
         print(f"\n[STEP 7/7] Creatomate Assembly - Creating final video")
         step_start = time.time()
+        
+        # Send real-time webhook update for step start
+        webhook_client.send_step_update(
+            step_number=7,
+            step_name="Creatomate Assembly",
+            status="started",
+            duration=0,
+            details={'heygen_urls_count': len(heygen_video_urls), 'poster_timing_mode': poster_timing_mode, 'has_scroll_video': scroll_video_url is not None}
+        )
+        
+        # Log step start
+        job_logger.log_step_start(job_id, 7, "Creatomate Assembly", {
+            'heygen_urls_count': len(heygen_video_urls),
+            'poster_timing_mode': poster_timing_mode,
+            'has_scroll_video': scroll_video_url is not None,
+            'cache_enabled': cache_enabled
+        })
         
         # Try to load existing Creatomate data from cache
         cached_creatomate_data = load_test_data('creatomate', country, genre, platform)
@@ -640,14 +821,22 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['creatomate_id'] = creatomate_id
         workflow_results['steps_completed'].append('creatomate_assembly')
         
-        print(f"✅ STEP 7 COMPLETED - {'Loaded' if should_use_cache() and cached_creatomate_data else 'Created'} final video in {time.time() - step_start:.1f}s")
+        step_duration = time.time() - step_start
+        print(f"✅ STEP 7 COMPLETED - {'Loaded' if should_use_cache() and cached_creatomate_data else 'Created'} final video in {step_duration:.1f}s")
+        
+        # Log step completion
+        job_logger.log_step_complete(job_id, 7, "Creatomate Assembly", step_duration, {
+            'creatomate_id': creatomate_id,
+            'from_cache': should_use_cache() and cached_creatomate_data is not None,
+            'poster_timing_mode': poster_timing_mode
+        })
         
         # Send real-time webhook update
         webhook_client.send_step_update(
             step_number=7,
             step_name="Creatomate Assembly",
             status="completed",
-            duration=time.time() - step_start,
+            duration=step_duration,
             details={
                 'creatomate_id': creatomate_id,
                 'from_cache': should_use_cache() and cached_creatomate_data is not None
@@ -669,6 +858,14 @@ def run_full_workflow(num_movies: int = 3,
         print(f"   ⏱️ Total duration: {total_duration:.1f}s")
         print(f"   📊 Steps completed: {len(workflow_results['steps_completed'])}/7")
         print(f"   🎬 Creatomate ID: {creatomate_id}")
+        
+        # Log workflow completion
+        job_logger.log_workflow_complete(job_id, total_duration, creatomate_id, {
+            'steps_completed': len(workflow_results['steps_completed']),
+            'environment': app_env,
+            'cache_used': cache_enabled,
+            'final_creatomate_id': creatomate_id
+        })
         
         # Send final workflow completion webhook
         webhook_client.send_workflow_completed(
@@ -709,10 +906,18 @@ def run_full_workflow(num_movies: int = 3,
         print(f"   Error: {str(e)}")
         print(f"   Duration before failure: {total_duration:.1f}s")
         
+        # Log workflow failure
+        failed_step = len(workflow_results['steps_completed']) + 1
+        job_logger.log_workflow_failed(job_id, str(e), failed_step, {
+            'steps_completed_before_failure': len(workflow_results['steps_completed']),
+            'failed_at_step': failed_step,
+            'duration_before_failure': total_duration
+        })
+        
         # Send workflow failure webhook
         webhook_client.send_workflow_failed(
             error=str(e),
-            step_number=len(workflow_results['steps_completed']) + 1
+            step_number=failed_step
         )
         
         # Show environment-specific error guidance
