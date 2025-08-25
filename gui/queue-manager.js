@@ -2329,9 +2329,13 @@ class VideoQueueManager {
             try {
                 const response = await this.checkCreatomateStatusDirect(creatomateId);
 
-                if (response.success && response.status === 'completed' && response.url) {
+                if (
+                    response.success &&
+                    (response.status === 'completed' || response.status === 'succeeded') &&
+                    response.url
+                ) {
                     // Video ready - ALWAYS log success
-                    console.log(`✅ Video ready: ${jobId} → ${response.url}`);
+                    console.log(`✅ Video ready: ${jobId} → ${response.url} (status: ${response.status})`);
                     await this.updateJobWithVideo(jobId, response.url);
                     this.finishMonitoring(jobId);
                     return;

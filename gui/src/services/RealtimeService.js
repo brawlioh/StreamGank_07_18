@@ -15,15 +15,15 @@ export class RealtimeService extends EventTarget {
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 3;
 
-        // Polling fallback configuration - Optimized for reduced server load
+        // ANTI-SPAM: Polling fallback configuration - Much longer intervals
         this.pollingTimer = null;
         this.isPolling = false;
-        this.pollingInterval = 15000; // 15 seconds default (matches SSE frequency)
+        this.pollingInterval = 60000; // 60 seconds default (anti-spam)
         this.adaptivePollingConfig = {
-            fast: 10000, // 10 seconds during active operations
-            normal: 15000, // 15 seconds normal (matches SSE)
-            slow: 30000, // 30 seconds when idle
-            slowest: 15000 // 15 seconds when very idle
+            fast: 30000, // 30 seconds during active operations (was 10s)
+            normal: 60000, // 60 seconds normal (was 15s)
+            slow: 120000, // 2 minutes when idle (was 30s)
+            slowest: 180000 // 3 minutes when very idle (was 15s)
         };
 
         // Connection state

@@ -476,6 +476,14 @@ class StreamGankApp {
 
             // Start video generation via Job Manager
             await JobManager.startVideoGeneration(generationParams);
+
+            // IMMEDIATE DASHBOARD UPDATE: Refresh dashboard to show the new job
+            console.log('🔄 Refreshing dashboard to show new job...');
+            if (window.ProcessTable && typeof window.ProcessTable.loadRecentJobs === 'function') {
+                setTimeout(() => {
+                    window.ProcessTable.loadRecentJobs();
+                }, 1000); // Give the job 1 second to be created
+            }
         } catch (error) {
             console.error('❌ Form submission failed:', error);
             UIManager.addStatusMessage('error', '❌', `Generation failed: ${error.message}`);
@@ -604,10 +612,27 @@ class StreamGankApp {
     }
 
     /**
+     * Stop all polling timers to prevent request spam
+     */
+    stopAllPolling() {
+        console.log('🛑 ANTI-SPAM: Stopping all polling timers...');
+
+        // Stop ProcessTable polling
+        if (window.ProcessTable && typeof window.ProcessTable.stopPeriodicUpdates === 'function') {
+            window.ProcessTable.stopPeriodicUpdates();
+        }
+
+        console.log('✅ All polling stopped (anti-spam mode)');
+    }
+
+    /**
      * Cleanup application resources
      */
     cleanup() {
         console.log('🧹 Cleaning up application resources...');
+
+        // ANTI-SPAM: Stop all polling first
+        this.stopAllPolling();
 
         // Cleanup modules that support it
         Object.values(this.modules).forEach((module) => {
