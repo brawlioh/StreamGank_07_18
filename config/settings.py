@@ -52,8 +52,10 @@ API_SETTINGS = {
     'creatomate': {
         'base_url': 'https://api.creatomate.com/v1',
         'timeout': 120,  # Request timeout in seconds
-        'max_wait_time': 300,  # Maximum wait for completion
-        'poll_interval': 30  # Status check interval
+        'max_wait_time': 3600,  # Maximum wait for completion (1 hour)
+        'poll_interval': 30,  # Status check interval
+        'max_attempts': 120,  # Maximum status check attempts (120 * 30s = 1 hour)
+        'retry_on_timeout': True  # Allow retry after timeout
     },
     
     # Cloudinary Configuration

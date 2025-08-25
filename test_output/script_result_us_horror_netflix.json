@@ -1,18 +1,18 @@
 {
   "data": {
-    "combined_script": "Dare to watch? Dive into StreamGanks 3 most bone-chilling Horror flicks on Netflix that are setting the internet ablaze!\n\nDare to watch? Dive into StreamGanks 3 most bone-chilling Horror flicks on Netflix that are setting the internet ablaze! Everyones too scared to watch Stranger Things, but if you dare, youll discover the chilling side of Netflix you never knew existed!\n\nEveryones too scared to watch The Haunting of Hill House - a chilling masterpiece leaving even seasoned horror fans trembling!\n\nEveryones too scared to watch Love, Death & Robots - this horror masterpiece will make your Netflix scream with terror!",
+    "combined_script": "Brace yourself for StreamGanks bone-chilling, top 3 horror flicks on Netflix that are making hearts race worldwide!\n\nBrace yourself for StreamGanks bone-chilling, top 3 horror flicks on Netflix that are making hearts race worldwide! Everyones too scared to watch Stranger Things, but those brave enough are left breathless by the lurking horrors of the Upside Down.\n\nEveryones too scared to watch The Haunting of Hill House, but the chilling secrets of this haunted mansion will leave you breathless!\n\nEveryones too scared to watch Love, Death & Robots—are you brave enough to face Netflixs most horrifying masterpiece yet?",
     "script_file_path": "videos/combined_script.txt",
     "individual_scripts": {
       "movie1": {
-        "text": "Dare to watch? Dive into StreamGanks 3 most bone-chilling Horror flicks on Netflix that are setting the internet ablaze! Everyones too scared to watch Stranger Things, but if you dare, youll discover the chilling side of Netflix you never knew existed!",
+        "text": "Brace yourself for StreamGanks bone-chilling, top 3 horror flicks on Netflix that are making hearts race worldwide! Everyones too scared to watch Stranger Things, but those brave enough are left breathless by the lurking horrors of the Upside Down.",
         "path": "videos/script_movie1.txt"
       },
       "movie2": {
-        "text": "Everyones too scared to watch The Haunting of Hill House - a chilling masterpiece leaving even seasoned horror fans trembling!",
+        "text": "Everyones too scared to watch The Haunting of Hill House, but the chilling secrets of this haunted mansion will leave you breathless!",
         "path": "videos/script_movie2.txt"
       },
       "movie3": {
-        "text": "Everyones too scared to watch Love, Death & Robots - this horror masterpiece will make your Netflix scream with terror!",
+        "text": "Everyones too scared to watch Love, Death & Robots—are you brave enough to face Netflixs most horrifying masterpiece yet?",
         "path": "videos/script_movie3.txt"
       }
     },
@@ -21,9 +21,9 @@
         "id": 22571,
         "title": "Stranger Things",
         "year": 2016,
-        "imdb": "8.6/10 (1,476,935 votes)",
+        "imdb": "8.6/10 (1,477,738 votes)",
         "imdb_score": 8.6,
-        "imdb_votes": 1476935,
+        "imdb_votes": 1477738,
         "runtime": "61 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/301444843/s332/stranger-things.webp",
@@ -40,9 +40,9 @@
         "id": 14393,
         "title": "The Haunting of Hill House",
         "year": 2018,
-        "imdb": "8.5/10 (314,546 votes)",
+        "imdb": "8.5/10 (314,663 votes)",
         "imdb_score": 8.5,
-        "imdb_votes": 314546,
+        "imdb_votes": 314663,
         "runtime": "58 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/82936641/s332/the-haunting-of-hill-house.webp",
@@ -83,7 +83,7 @@
       "num_movies": 3
     },
     "script_count": 3,
-    "generation_timestamp": 1756121329.4338872
+    "generation_timestamp": 1756137502.5850823
   },
   "metadata": {
     "data_type": "script_result",
@@ -92,7 +92,7 @@
       "genre": "Horror",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1756121329.4341412,
-    "saved_datetime": "2025-08-25 11:28:49"
+    "saved_timestamp": 1756137502.585307,
+    "saved_datetime": "2025-08-25 15:58:22"
   }
 }

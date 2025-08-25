@@ -1,25 +1,25 @@
 {
   "data": {
     "enhanced_posters": {
-      "Godzilla Minus One": "https://res.cloudinary.com/dodod8s0v/image/upload/v1756118406/streamgank-reels/enhanced-poster-cover/enhanced_godzilla_minus_one_1.jpg",
-      "Train to Busan": "https://res.cloudinary.com/dodod8s0v/image/upload/v1756118411/streamgank-reels/enhanced-poster-cover/enhanced_train_to_busan_2.jpg",
-      "The Wailing": "https://res.cloudinary.com/dodod8s0v/image/upload/v1756118415/streamgank-reels/enhanced-poster-cover/enhanced_the_wailing_3.jpg"
+      "Stranger Things": "https://res.cloudinary.com/dodod8s0v/image/upload/v1756133419/streamgank-reels/enhanced-poster-cover/enhanced_stranger_things_1.jpg",
+      "The Haunting of Hill House": "https://res.cloudinary.com/dodod8s0v/image/upload/v1756133421/streamgank-reels/enhanced-poster-cover/enhanced_the_haunting_of_hill_house_2.jpg",
+      "Love, Death & Robots": "https://res.cloudinary.com/dodod8s0v/image/upload/v1756133424/streamgank-reels/enhanced-poster-cover/enhanced_love_death__robots_3.jpg"
     },
     "dynamic_clips": {
-      "Godzilla Minus One": "https://res.cloudinary.com/dodod8s0v/video/upload/v1756119263/streamgank-reels/movie-clips/godzilla_minus_one_7299.mp4",
-      "Train to Busan": "https://res.cloudinary.com/dodod8s0v/video/upload/v1756119425/streamgank-reels/movie-clips/train_to_busan_33495.mp4",
-      "The Wailing": "https://res.cloudinary.com/dodod8s0v/video/upload/v1756119561/streamgank-reels/movie-clips/the_wailing_33496.mp4"
+      "Stranger Things": "https://res.cloudinary.com/dodod8s0v/video/upload/v1755962475/streamgank-reels/movie-clips/stranger_things_22571.mp4",
+      "The Haunting of Hill House": "https://res.cloudinary.com/dodod8s0v/video/upload/v1756102624/streamgank-reels/movie-clips/the_haunting_of_hill_house_14393.mp4",
+      "Love, Death & Robots": "https://res.cloudinary.com/dodod8s0v/video/upload/v1756138002/streamgank-reels/movie-clips/love_death_robots_14462.mp4"
     },
     "parameters": {
       "country": "US",
       "genre": "Horror",
       "platform": "Netflix",
-      "content_type": "Film",
+      "content_type": "Série",
       "num_movies": 3
     },
     "poster_count": 3,
     "clip_count": 3,
-    "generation_timestamp": 1756119567.6384487
+    "generation_timestamp": 1756138011.9064925
   },
   "metadata": {
     "data_type": "assets",
@@ -28,7 +28,7 @@
       "genre": "Horror",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1756119567.6388505,
-    "saved_datetime": "2025-08-25 10:59:27"
+    "saved_timestamp": 1756138011.9068859,
+    "saved_datetime": "2025-08-25 16:06:51"
   }
 }

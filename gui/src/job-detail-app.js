@@ -156,6 +156,13 @@ export class JobDetailApp {
                 e.preventDefault();
                 this.checkCreatomateStatusAutomatically();
             }
+
+            // Retry monitoring button for timeouts
+            if (e.target && (e.target.id === 'retry-monitoring-btn' || e.target.closest('#retry-monitoring-btn'))) {
+                e.preventDefault();
+                console.log('🔄 Retry monitoring button clicked');
+                this.retryCreatomateMonitoring();
+            }
         });
     }
 
@@ -333,6 +340,13 @@ export class JobDetailApp {
                 if (this.currentActiveStep === stepNumber) {
                     // This step is currently active (received "started" webhook)
                     iconClass = 'active';
+                } else if (status === 'rendering' && step.id === 'creatomate_assembly' && !this.jobData.videoUrl) {
+                    // Special case: Show Creatomate Assembly as processing when job is rendering but no video yet
+                    iconClass = 'processing';
+                } else if (status === 'rendering' && step.id === 'creatomate_assembly' && this.jobData.videoUrl) {
+                    // Video is ready - mark Creatomate Assembly as completed
+                    iconClass = 'completed';
+                    timestamp = this.getStepTimestamp(step.id);
                 } else if (status === 'failed' && this.getProgressForStep(step.id) <= currentProgress) {
                     iconClass = 'failed';
                 } else if (this.getProgressForStep(step.id) < currentProgress) {
@@ -394,6 +408,15 @@ export class JobDetailApp {
             buttons.push(`
                 <button class="btn btn-outline-primary" onclick="jobDetailApp.retryJob()">
                     <i class="fas fa-redo me-1"></i> Retry Job
+                </button>
+            `);
+        }
+
+        // Add retry monitoring button for timed out rendering jobs
+        if (status === 'rendering' && this.jobData.renderTimeout) {
+            buttons.push(`
+                <button class="btn btn-outline-warning" onclick="jobDetailApp.retryCreatomateMonitoring()">
+                    <i class="fas fa-clock me-1"></i> Retry Monitoring
                 </button>
             `);
         }
@@ -654,6 +677,9 @@ export class JobDetailApp {
             if (this.jobData.videoUrl) {
                 console.log('🎬 Video URL already available, showing video result directly');
                 this.showCreatomateVideoResult();
+            } else if (this.jobData.renderTimeout) {
+                console.log('⏰ Job has timed out, showing timeout status');
+                this.showCreatomateTimeout();
             } else {
                 console.log('🔍 No video URL yet, checking Creatomate status automatically...');
                 // Always check Creatomate status to get the latest video info
@@ -698,6 +724,9 @@ export class JobDetailApp {
                     this.jobData.currentStep = '✅ Video creation completed';
 
                     console.log('💾 Updated job status to completed, progress to 100%');
+                    
+                    // Update timeline to show completion
+                    this.updateTimeline();
                     console.log('💾 Updated jobData.videoUrl to:', this.jobData.videoUrl);
 
                     // Update UI elements immediately
@@ -707,7 +736,7 @@ export class JobDetailApp {
                     console.log('🎬 About to call showCreatomateVideoResult()');
                     // Show video result
                     this.showCreatomateVideoResult();
-                } else if (result.status === 'processing' || result.status === 'planned') {
+                } else if (result.status === 'processing' || result.status === 'planned' || result.status === 'rendering') {
                     console.log('⏳ Video still rendering, status:', result.status);
                     this.showCreatomateRenderingStatus(result.status);
 
@@ -740,10 +769,22 @@ export class JobDetailApp {
     showCreatomateVideoResult() {
         console.log('🎬 showCreatomateVideoResult called with videoUrl:', this.jobData.videoUrl);
 
+        // Update job status to completed when video is ready
+        if (this.jobData.status === 'rendering' && this.jobData.videoUrl) {
+            this.jobData.status = 'completed';
+            this.jobData.progress = 100;
+            console.log('✅ Updated job status to completed');
+            
+            // Update the UI to reflect the completed status
+            this.updateTimeline();
+            this.updateProgressSection();
+        }
+
         // Hide other status views
         document.getElementById('rendering-status')?.classList.add('d-none');
         document.getElementById('error-status')?.classList.add('d-none');
         document.getElementById('creatomate-progress')?.classList.add('d-none');
+        document.getElementById('timeout-status')?.classList.add('d-none');
 
         // Show video result
         const videoResult = document.getElementById('video-result');
@@ -798,32 +839,10 @@ export class JobDetailApp {
         // Hide other views
         document.getElementById('video-result')?.classList.add('d-none');
         document.getElementById('error-status')?.classList.add('d-none');
+        document.getElementById('timeout-status')?.classList.add('d-none');
 
-        // Show progress indicator
-        const creatomateProgress = document.getElementById('creatomate-progress');
+        // Show simple rendering status without progress bars
         const renderingStatus = document.getElementById('rendering-status');
-
-        if (creatomateProgress) {
-            const statusText = document.getElementById('creatomate-status-text');
-            const progressBar = document.getElementById('creatomate-progress-bar');
-
-            if (statusText) {
-                const statusMessages = {
-                    planned: 'Video queued for rendering...',
-                    processing: 'Video is being rendered...',
-                    rendering: 'Video is being rendered...'
-                };
-                statusText.textContent = statusMessages[status] || 'Checking video status...';
-            }
-
-            if (progressBar) {
-                // Show indeterminate progress for processing
-                progressBar.style.width = status === 'processing' ? '75%' : '25%';
-                progressBar.classList.add('progress-bar-animated');
-            }
-
-            creatomateProgress.classList.remove('d-none');
-        }
 
         if (renderingStatus) {
             renderingStatus.classList.remove('d-none');
@@ -838,6 +857,7 @@ export class JobDetailApp {
         document.getElementById('video-result')?.classList.add('d-none');
         document.getElementById('rendering-status')?.classList.add('d-none');
         document.getElementById('creatomate-progress')?.classList.add('d-none');
+        document.getElementById('timeout-status')?.classList.add('d-none');
 
         // Show error status
         const errorStatus = document.getElementById('error-status');
@@ -855,6 +875,28 @@ export class JobDetailApp {
     }
 
     /**
+     * Show timeout status for monitoring timeouts
+     */
+    showCreatomateTimeout() {
+        console.log('⏰ Showing Creatomate timeout status');
+
+        // Hide other views
+        document.getElementById('video-result')?.classList.add('d-none');
+        document.getElementById('rendering-status')?.classList.add('d-none');
+        document.getElementById('creatomate-progress')?.classList.add('d-none');
+        document.getElementById('error-status')?.classList.add('d-none');
+
+        // Show timeout status
+        const timeoutStatus = document.getElementById('timeout-status');
+        if (timeoutStatus) {
+            timeoutStatus.classList.remove('d-none');
+        }
+
+        // Update status badge to timeout
+        this.updateCreatomateStatusBadge('timeout');
+    }
+
+    /**
      * Update Creatomate status badge
      */
     updateCreatomateStatusBadge(status) {
@@ -865,7 +907,8 @@ export class JobDetailApp {
                 processing: { text: 'Rendering', class: 'bg-warning' },
                 planned: { text: 'Queued', class: 'bg-info' },
                 failed: { text: 'Failed', class: 'bg-danger' },
-                error: { text: 'Error', class: 'bg-danger' }
+                error: { text: 'Error', class: 'bg-danger' },
+                timeout: { text: 'Timeout', class: 'bg-secondary' }
             };
 
             const statusInfo = statusMap[status] || { text: status, class: 'bg-secondary' };
@@ -1481,6 +1524,28 @@ export class JobDetailApp {
     }
 
     /**
+     * Retry Creatomate monitoring for timed out jobs
+     */
+    async retryCreatomateMonitoring() {
+        if (!confirm('Restart Creatomate monitoring? This will check if the video has finished rendering.')) return;
+
+        try {
+            console.log('🔄 Restarting Creatomate monitoring...');
+            
+            const response = await APIService.retryCreatomateMonitoring(this.jobId);
+            if (response.success) {
+                console.log(`✅ Monitoring restarted for Creatomate ID: ${response.creatomateId}`);
+                await this.refreshJobData();
+            } else {
+                throw new Error(response.message || 'Failed to retry monitoring');
+            }
+        } catch (error) {
+            console.error('❌ Failed to retry Creatomate monitoring:', error);
+            // Error logged in console only
+        }
+    }
+
+    /**
      * Retry job
      */
     async retryJob() {
@@ -1727,7 +1792,7 @@ export class JobDetailApp {
                     this.jobData.progress = 100;
                     this.jobData.currentStep = 'Video completed and ready for viewing!';
 
-                    // Refresh the UI to show the video
+                    // Refresh the UI to show the video and update timeline
                     this.updateUI();
                 } else if (result.status) {
                     // Still rendering
@@ -1838,6 +1903,7 @@ export class JobDetailApp {
         if (iconClass === 'completed') return '✓';
         if (iconClass === 'failed') return '✗';
         if (iconClass === 'active') return '⟳';
+        if (iconClass === 'processing') return '⟳'; // Same as active - spinning icon
 
         // Step-specific icons for pending state
         const stepIcons = {
@@ -1851,6 +1917,22 @@ export class JobDetailApp {
         };
 
         return stepIcons[stepId] || '○';
+    }
+
+    getStepStatusText(iconClass, timestamp) {
+        switch (iconClass) {
+            case 'completed':
+                return timestamp ? `Completed at ${timestamp}` : 'Completed';
+            case 'active':
+                return 'In Progress...';
+            case 'processing':
+                return 'Processing...';
+            case 'failed':
+                return 'Failed';
+            case 'pending':
+            default:
+                return 'Pending';
+        }
     }
 
     getStepTimestamp(stepId) {

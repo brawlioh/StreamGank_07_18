@@ -1525,6 +1525,70 @@ app.post('/api/queue/job/:jobId/monitor-creatomate', async (req, res) => {
     }
 });
 
+// API endpoint to retry Creatomate monitoring for timed out jobs
+app.post('/api/job/:jobId/retry-monitoring', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        console.log(`🔄 Retrying Creatomate monitoring for job: ${jobId}`);
+
+        // Get the job to check if it's eligible for retry
+        const job = await queueManager.getJob(jobId);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: 'Job not found'
+            });
+        }
+
+        // Check if job is in a state that allows retry monitoring
+        if (job.status !== 'rendering' || !job.renderTimeout) {
+            return res.status(400).json({
+                success: false,
+                message: 'Job is not eligible for retry monitoring',
+                error: `Job status: ${job.status}, timeout: ${job.renderTimeout}`
+            });
+        }
+
+        // Check if Creatomate ID exists
+        if (!job.creatomateId) {
+            return res.status(400).json({
+                success: false,
+                message: 'No Creatomate ID found for this job',
+                error: 'Cannot retry monitoring without Creatomate render ID'
+            });
+        }
+
+        // Reset timeout flags and restart monitoring
+        job.renderTimeout = false;
+        job.timeoutAt = null;
+        job.currentStep = '🔄 Restarting Creatomate monitoring...';
+        job.progress = 90;
+
+        await queueManager.updateJob(job);
+
+        // Add log entry for retry
+        await queueManager.addJobLog(jobId, `🔄 Restarting Creatomate monitoring for render ID: ${job.creatomateId}`, 'info');
+
+        // Restart monitoring
+        await queueManager.startCreatomateMonitoring(jobId, job.creatomateId);
+
+        res.json({
+            success: true,
+            message: 'Creatomate monitoring restarted successfully',
+            job: job,
+            creatomateId: job.creatomateId
+        });
+    } catch (error) {
+        console.error('❌ Failed to retry Creatomate monitoring:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retry monitoring',
+            error: error.message
+        });
+    }
+});
+
 // API endpoint to permanently delete a completed or failed job
 app.delete('/api/queue/job/:jobId/delete', async (req, res) => {
     try {

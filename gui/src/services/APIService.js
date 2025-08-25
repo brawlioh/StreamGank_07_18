@@ -212,6 +212,15 @@ export class APIService {
     }
 
     /**
+     * Retry Creatomate monitoring for timed out jobs
+     * @param {string} jobId - Job ID to retry monitoring for
+     * @returns {Promise<Object>} Retry monitoring result
+     */
+    async retryCreatomateMonitoring(jobId) {
+        return this.post(`/api/job/${jobId}/retry-monitoring`);
+    }
+
+    /**
      * Validate StreamGank URL
      * @param {string} url - URL to validate
      * @returns {Promise<Object>} Validation result

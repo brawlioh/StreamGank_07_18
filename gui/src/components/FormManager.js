@@ -118,9 +118,9 @@ export class FormManager {
             Comédie: '15d9eadcb46a45dbbca1834aa0a23ede',
             'Stand-up Comedy': '15d9eadcb46a45dbbca1834aa0a23ede',
 
-            // Action templates
-            'Action & Adventure': 'e44b139a1b94446a997a7f2ac5ac4178',
-            'Action & Aventure': 'e44b139a1b94446a997a7f2ac5ac4178',
+            // Action templates (Old ID: e44b139a1b94446a997a7f2ac5ac4178)
+            'Action & Adventure': '9186cef35dde4505bdccb1ec5c312339',
+            'Action & Aventure': '9186cef35dde4505bdccb1ec5c312339',
 
             // Default template for other genres
             default: 'cc6718c5363e42b282a123f99b94b335'
@@ -228,7 +228,7 @@ export class FormManager {
             { value: 'cc6718c5363e42b282a123f99b94b335', text: 'Default Template' },
             { value: 'ed21a309a5c84b0d873fde68642adea3', text: 'Horror/Thriller Cinematic' },
             { value: '15d9eadcb46a45dbbca1834aa0a23ede', text: 'Comedy Upbeat' },
-            { value: 'e44b139a1b94446a997a7f2ac5ac4178', text: 'Action Adventure' }
+            { value: '9186cef35dde4505bdccb1ec5c312339', text: 'Action Adventure' } // Old ID: e44b139a1b94446a997a7f2ac5ac4178
         ];
 
         templates.forEach((template) => {

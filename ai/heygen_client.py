@@ -1429,7 +1429,7 @@ def _get_template_name(template_id: str, genre: str = None) -> str:
     template_names = {
         'ed21a309a5c84b0d873fde68642adea3': 'Horror/Thriller Cinematic',
         '15d9eadcb46a45dbbca1834aa0a23ede': 'Comedy/Light Entertainment',
-        'e44b139a1b94446a997a7f2ac5ac4178': 'Action/Adventure Dynamic',
+        '9186cef35dde4505bdccb1ec5c312339': 'Action/Adventure Dynamic',  # Old ID: e44b139a1b94446a997a7f2ac5ac4178
         'cc6718c5363e42b282a123f99b94b335': 'Universal Default'
     }
     

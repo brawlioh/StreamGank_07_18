@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function () {
             genres: ['Comedy', 'Comédie', 'Comédie Romantique'],
         },
         action: {
-            id: 'e44b139a1b94446a997a7f2ac5ac4178',
+            id: '9186cef35dde4505bdccb1ec5c312339', // Old ID: e44b139a1b94446a997a7f2ac5ac4178
             name: 'Action/Adventure Dynamic',
             description: 'High-energy template for action and adventure content',
             genres: ['Action', 'Action & Adventure', 'Action & Aventure'],

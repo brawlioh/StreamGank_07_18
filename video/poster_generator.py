@@ -27,7 +27,10 @@ import re
 import math
 import logging
 import textwrap
+import glob
 from typing import Dict, List, Optional, Any
+# Import platform module with specific alias to avoid conflicts
+import platform as system_platform
 from io import BytesIO
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageColor
@@ -346,25 +349,191 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank
         small_size = font_config.get('rating', 32)       # Same as before
         
         # Load fonts with BOLD title font using CONFIGURED SIZES
+        logger.info(f"   🔤 Loading fonts with sizes: Title={title_size}, Platform={platform_size}, Metadata={metadata_size}, Small={small_size}")
+        
         try:
+            # Try Windows fonts first
             title_font = ImageFont.truetype("arialbd.ttf", title_size)      # BOLD title font - LARGER
             platform_font = ImageFont.truetype("arial.ttf", platform_size) # Platform badge - LARGER
             metadata_font = ImageFont.truetype("arial.ttf", metadata_size) # Metadata values
             small_font = ImageFont.truetype("arial.ttf", small_size)       # Labels
-        except:
+            logger.info("   ✅ Successfully loaded Windows Arial fonts")
+        except Exception as e1:
+            logger.warning(f"   ⚠️ Windows Arial fonts not found: {e1}")
             try:
+                # Try macOS fonts
                 title_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", title_size)  # BOLD
                 platform_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", platform_size)
                 metadata_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", metadata_size)
                 small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", small_size)
-            except:
-                # Fallback to default with simulated bold effect
-                title_font = ImageFont.load_default()
-                platform_font = ImageFont.load_default()
-                metadata_font = ImageFont.load_default()
-                small_font = ImageFont.load_default()
+                logger.info("   ✅ Successfully loaded macOS Arial fonts")
+            except Exception as e2:
+                logger.warning(f"   ⚠️ macOS Arial fonts not found: {e2}")
+                try:
+                    # Try common Linux fonts
+                    title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", title_size)
+                    platform_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", platform_size)
+                    metadata_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", metadata_size)
+                    small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", small_size)
+                    logger.info("   ✅ Successfully loaded Linux DejaVu fonts")
+                except Exception as e3:
+                    logger.warning(f"   ⚠️ Linux DejaVu fonts not found: {e3}")
+                    try:
+                        # Try Windows Calibri as alternative
+                        title_font = ImageFont.truetype("calibrib.ttf", title_size)
+                        platform_font = ImageFont.truetype("calibri.ttf", platform_size)
+                        metadata_font = ImageFont.truetype("calibri.ttf", metadata_size)
+                        small_font = ImageFont.truetype("calibri.ttf", small_size)
+                        logger.info("   ✅ Successfully loaded Windows Calibri fonts")
+                    except Exception as e4:
+                        logger.warning(f"   ⚠️ Windows Calibri fonts not found: {e4}")
+                        # Enhanced fallback - try to find ANY available system font
+                        logger.error("   ❌ All common fonts failed, searching for any available system font...")
+                        
+                        # Try to find any available TrueType font on the system
+                        font_found = False
+                        try:
+                            system_name = system_platform.system().lower()
+                            logger.info(f"   🖥️ Detected system: {system_name}")
+                        except Exception as e_platform:
+                            logger.warning(f"   ⚠️ Could not detect system platform: {e_platform}")
+                            # Default to generic paths if platform detection fails
+                            system_name = 'unknown'
+                        
+                        # Common font search paths by OS
+                        font_paths = []
+                        if system_name == 'windows':
+                            font_paths = [
+                                "C:/Windows/Fonts/*.ttf",
+                                "C:/Windows/Fonts/*.TTF"
+                            ]
+                        elif system_name == 'darwin':  # macOS
+                            font_paths = [
+                                "/System/Library/Fonts/*.ttf",
+                                "/Library/Fonts/*.ttf"
+                            ]
+                        else:  # Linux/Docker/Unknown
+                            font_paths = [
+                                # Standard Linux paths
+                                "/usr/share/fonts/*/*.ttf",
+                                "/usr/share/fonts/*/*/*.ttf",
+                                "/usr/local/share/fonts/*.ttf",
+                                # Docker/Alpine specific paths
+                                "/usr/share/fonts/truetype/*/*.ttf",
+                                "/usr/share/fonts/TTF/*.ttf",
+                                "/usr/share/fonts/truetype/dejavu/*.ttf",
+                                # Additional common paths
+                                "/usr/share/fonts/liberation/*.ttf",
+                                "/usr/share/fonts/noto/*.ttf",
+                                "/opt/fonts/*.ttf"
+                            ]
+                        
+                        # Try to find any font
+                        for pattern in font_paths:
+                            try:
+                                fonts = glob.glob(pattern)
+                                logger.info(f"   🔍 Searching pattern: {pattern}, found {len(fonts) if fonts else 0} fonts")
+                                
+                                if fonts and len(fonts) > 0:
+                                    try:
+                                        # Use the first available font
+                                        font_file = fonts[0]
+                                        logger.info(f"   🔤 Attempting to load font: {font_file}")
+                                        
+                                        title_font = ImageFont.truetype(font_file, title_size)
+                                        platform_font = ImageFont.truetype(font_file, platform_size)
+                                        metadata_font = ImageFont.truetype(font_file, metadata_size)
+                                        small_font = ImageFont.truetype(font_file, small_size)
+                                        logger.info(f"   ✅ Found and loaded system font: {font_file}")
+                                        font_found = True
+                                        break
+                                    except Exception as ef:
+                                        logger.warning(f"   ⚠️ Failed to load found font {font_file}: {ef}")
+                                        continue
+                            except Exception as e_glob:
+                                logger.warning(f"   ⚠️ Error searching pattern {pattern}: {e_glob}")
+                                continue
+                        
+                        if not font_found:
+                            # Last resort: Use PIL's built-in font rendering 
+                            logger.error("   ❌ No system fonts found - using PIL default fonts")
+                            try:
+                                # Use PIL's default font (this should always work)
+                                default_font = ImageFont.load_default()
+                                title_font = default_font
+                                platform_font = default_font
+                                metadata_font = default_font
+                                small_font = default_font
+                                logger.warning("   ⚠️ Using default PIL font - text will be enhanced with multiple draws for visibility")
+                                
+                                # Log font details for debugging
+                                logger.info(f"   🔤 Default font type: {type(default_font)}")
+                                
+                            except Exception as e_default:
+                                logger.error(f"   ❌ Even default font failed: {e_default}")
+                                # This should never happen, but create a minimal fallback
+                                logger.error("   🆘 Creating emergency text fallback...")
+                                # We'll handle this in the text drawing by skipping text if fonts fail completely
+                                title_font = None
+                                platform_font = None
+                                metadata_font = None
+                                small_font = None
                 
         logger.info(f"   🔤 Font sizes: Title={title_size}, Platform={platform_size}, Metadata={metadata_size}, Small={small_size}")
+        
+        # Helper function to draw enhanced text (especially for default fonts)
+        def draw_enhanced_text(draw, position, text, font, fill='#FFFFFF', shadow_color='#000000', bold_effect=False):
+            """Draw text with enhanced visibility, shadows, and optional bold effect"""
+            x, y = position
+            
+            # Handle case where font loading completely failed
+            if font is None:
+                logger.warning(f"   ⚠️ Skipping text '{text}' - no font available")
+                return
+            
+            # Check if we're using default font (which is very small)
+            try:
+                is_default_font = (font == ImageFont.load_default() or 
+                                 str(type(font)) == "<class 'PIL.ImageFont.DefaultFont'>" or
+                                 getattr(font, 'path', None) is None)
+            except:
+                # If comparison fails, assume it's a proper font
+                is_default_font = False
+            
+            # For default fonts, draw larger by using multiple overlapping draws
+            if is_default_font:
+                # Create a "larger" effect by drawing text in a pattern
+                offsets = [(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (0, 2), (2, 1), (1, 2), (2, 2)]
+                
+                # Draw shadow layers
+                for offset in offsets:
+                    draw.text((x + 3 + offset[0], y + 3 + offset[1]), text, fill=shadow_color, font=font)
+                    draw.text((x + 1 + offset[0], y + 1 + offset[1]), text, fill='#333333', font=font)
+                
+                # Draw main text with pattern for size
+                for offset in offsets:
+                    draw.text((x + offset[0], y + offset[1]), text, fill=fill, font=font)
+                
+                # Additional bold effect for titles
+                if bold_effect:
+                    extra_offsets = [(3, 0), (0, 3), (3, 1), (1, 3), (3, 3)]
+                    for offset in extra_offsets:
+                        draw.text((x + offset[0], y + offset[1]), text, fill=fill, font=font)
+            else:
+                # Normal rendering for proper fonts
+                # Draw shadow layers for depth
+                draw.text((x + 3, y + 3), text, fill=shadow_color, font=font)  # Deep shadow
+                draw.text((x + 1, y + 1), text, fill='#333333', font=font)     # Mid shadow
+                
+                # Main text
+                draw.text((x, y), text, fill=fill, font=font)
+                
+                # Bold effect for titles (draw multiple times with slight offsets)
+                if bold_effect:
+                    draw.text((x + 1, y), text, fill=fill, font=font)     # Bold effect 1
+                    draw.text((x, y + 1), text, fill=fill, font=font)     # Bold effect 2
+                    draw.text((x + 1, y + 1), text, fill=fill, font=font) # Bold effect 3
+                    draw.text((x, y - 1), text, fill='#F8F8F8', font=font) # Highlight
         
         # 🎨 CINEMATIC METADATA SECTION - PERFECT SPACING
         metadata_start_y = poster_y + new_height + 90  # Perfect breathing room from poster
@@ -377,21 +546,21 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank
         
         # Draw BOLD title text with cinematic effects (NO BACKGROUND)
         for line in title_lines[:2]:
-            bbox = draw.textbbox((0, 0), line, font=title_font)
-            text_width = bbox[2] - bbox[0]
-            text_x = int((canvas_width - text_width) / 2)
-            
-            # Multiple shadow layers for depth
-            draw.text((text_x + 3, current_y + 3), line, fill='#000000', font=title_font)  # Deep shadow
-            draw.text((text_x + 1, current_y + 1), line, fill='#333333', font=title_font)  # Mid shadow
-            
-            # BOLD title with enhanced effect (multiple draws for extra boldness)
-            # Simulate bold by drawing multiple times with slight offsets
-            draw.text((text_x, current_y), line, fill='#FFFFFF', font=title_font)  # Base
-            draw.text((text_x + 1, current_y), line, fill='#FFFFFF', font=title_font)  # Bold effect 1
-            draw.text((text_x, current_y + 1), line, fill='#FFFFFF', font=title_font)  # Bold effect 2
-            draw.text((text_x + 1, current_y + 1), line, fill='#FFFFFF', font=title_font)  # Bold effect 3
-            draw.text((text_x, current_y - 1), line, fill='#F8F8F8', font=title_font)  # Highlight
+            if title_font is not None:
+                try:
+                    bbox = draw.textbbox((0, 0), line, font=title_font)
+                    text_width = bbox[2] - bbox[0]
+                    text_x = int((canvas_width - text_width) / 2)
+                    
+                    # Use enhanced text drawing with bold effect
+                    draw_enhanced_text(draw, (text_x, current_y), line, title_font, fill='#FFFFFF', bold_effect=True)
+                except Exception as e_title:
+                    logger.warning(f"   ⚠️ Failed to draw title text '{line}': {e_title}")
+                    # Draw simple text without bbox calculation
+                    text_x = int(canvas_width / 2) - len(line) * 10  # Rough centering
+                    draw_enhanced_text(draw, (text_x, current_y), line, title_font, fill='#FFFFFF', bold_effect=True)
+            else:
+                logger.warning(f"   ⚠️ Skipping title line '{line}' - no font available")
             
             current_y += int(title_size * 1.2)  # Dynamic spacing based on title font size
         
@@ -407,9 +576,17 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank
             display_platform = platform if len(platform) <= 12 else platform[:10] + "..."
             
             # Create cinematic platform badge with multiple effects
-            platform_bbox = draw.textbbox((0, 0), display_platform, font=platform_font)
-            text_width = platform_bbox[2] - platform_bbox[0]
-            platform_width = text_width + 50
+            if platform_font is not None:
+                try:
+                    platform_bbox = draw.textbbox((0, 0), display_platform, font=platform_font)
+                    text_width = platform_bbox[2] - platform_bbox[0]
+                except:
+                    # Fallback text width calculation
+                    text_width = len(display_platform) * platform_size * 0.6
+            else:
+                text_width = len(display_platform) * platform_size * 0.6
+                
+            platform_width = int(text_width) + 50
             platform_height = int(platform_size * 1.5)  # Dynamic height based on font size
             platform_x = int((canvas_width - platform_width) / 2)
             
@@ -443,37 +620,46 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank
             draw.rounded_rectangle([platform_x, platform_y, platform_x + platform_width, platform_y + platform_height], 
                                  radius=18, fill=platform_color)
             
-            # Platform text with multiple effects
+            # Platform text with enhanced effects
             text_center_x = platform_x + platform_width // 2
             text_center_y = platform_y + platform_height // 2
             
-            # Text shadow
-            draw.text((text_center_x + 2, text_center_y + 2), display_platform, 
-                     fill='#000000', font=platform_font, anchor='mm')
-            # Text highlight
-            draw.text((text_center_x - 1, text_center_y - 1), display_platform, 
-                     fill='#FFFFFF', font=platform_font, anchor='mm')
-            # Main text
-            draw.text((text_center_x, text_center_y), display_platform, 
-                     fill='white', font=platform_font, anchor='mm')
+            # Enhanced platform text (manually center since we can't use anchor with our function)
+            if platform_font is not None:
+                try:
+                    platform_bbox = draw.textbbox((0, 0), display_platform, font=platform_font)
+                    platform_text_width = platform_bbox[2] - platform_bbox[0]
+                    platform_text_height = platform_bbox[3] - platform_bbox[1]
+                    centered_x = text_center_x - platform_text_width // 2
+                    centered_y = text_center_y - platform_text_height // 2
+                except:
+                    # Fallback positioning
+                    centered_x = text_center_x - len(display_platform) * platform_size // 4
+                    centered_y = text_center_y - platform_size // 2
+                
+                draw_enhanced_text(draw, (centered_x, centered_y), display_platform, platform_font, fill='white')
+            else:
+                logger.warning(f"   ⚠️ Skipping platform badge text - no font available")
             
             current_y = platform_y + platform_height + int(platform_size * 0.8)  # Dynamic spacing after platform
         
         # Step 8: Draw genres text WITHOUT background
-        if genres:
+        if genres and metadata_font is not None:
             genres_text = " • ".join(genres[:3])
-            genres_bbox = draw.textbbox((0, 0), genres_text, font=metadata_font)
-            genres_width = genres_bbox[2] - genres_bbox[0]
+            try:
+                genres_bbox = draw.textbbox((0, 0), genres_text, font=metadata_font)
+                genres_width = genres_bbox[2] - genres_bbox[0]
+                text_x = int((canvas_width - genres_width) / 2)
+            except:
+                # Fallback positioning
+                text_x = int(canvas_width / 2) - len(genres_text) * metadata_size // 4
             
-            # Genres text with cinematic effects (NO BACKGROUND)
-            text_x = int((canvas_width - genres_width) / 2)
-            # Multiple shadow layers
-            draw.text((text_x + 2, current_y + 2), genres_text, fill='#000000', font=metadata_font)
-            draw.text((text_x + 1, current_y + 1), genres_text, fill='#333333', font=metadata_font)
-            # Main text with subtle glow
-            draw.text((text_x, current_y), genres_text, fill='#F5F5F5', font=metadata_font)
+            # Genres text with enhanced effects (NO BACKGROUND)
+            draw_enhanced_text(draw, (text_x, current_y), genres_text, metadata_font, fill='#F5F5F5')
             
             current_y += int(metadata_size * 1.7)  # Dynamic spacing after genres
+        elif genres:
+            logger.warning(f"   ⚠️ Skipping genres text - no font available")
         
         # Step 9: Create ROUNDED and TRANSPARENT metadata panel
         metadata_y = current_y + 30  # More spacing before metadata
@@ -512,31 +698,32 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank
         metadata_bg = metadata_bg.filter(ImageFilter.GaussianBlur(radius=1))
         canvas.paste(metadata_bg, (panel_x, panel_y), metadata_bg)
         
-        # Display metadata with cinematic typography
+        # Display metadata with cinematic typography using enhanced text
         for i, (label, value) in enumerate(metadata_items):
             item_y = metadata_y + (i * 50)  # Slightly tighter spacing
             
-            # Left side - Labels with elegant styling
-            label_x = 140
-            # Deep shadow
-            draw.text((label_x + 2, item_y + 2), label, fill='#000000', font=small_font)
-            # Mid shadow
-            draw.text((label_x + 1, item_y + 1), label, fill='#404040', font=small_font)
-            # Main label
-            draw.text((label_x, item_y), label, fill='#C0C0C0', font=small_font)
+            # Left side - Labels with enhanced styling
+            if small_font is not None:
+                label_x = 140
+                draw_enhanced_text(draw, (label_x, item_y), label, small_font, fill='#C0C0C0')
             
-            # Right side - Values with dramatic effects
-            value_bbox = draw.textbbox((0, 0), value, font=metadata_font)
-            value_width = value_bbox[2] - value_bbox[0]
-            value_x = 940 - value_width
-            
-            # Value with multiple shadow layers for depth
-            draw.text((value_x + 3, item_y + 3), value, fill='#000000', font=metadata_font)  # Deep shadow
-            draw.text((value_x + 1, item_y + 1), value, fill='#333333', font=metadata_font)  # Mid shadow
-            
-            # Main value with cinematic glow effect
-            draw.text((value_x, item_y), value, fill='#FFFFFF', font=metadata_font)  # Base
-            draw.text((value_x, item_y - 1), value, fill='#F8F8F8', font=metadata_font)  # Highlight
+            # Right side - Values with enhanced effects
+            if metadata_font is not None:
+                try:
+                    value_bbox = draw.textbbox((0, 0), value, font=metadata_font)
+                    value_width = value_bbox[2] - value_bbox[0]
+                    value_x = 940 - value_width
+                except:
+                    # Fallback positioning
+                    value_x = 940 - len(value) * metadata_size // 2
+                
+                # Enhanced value text with extra highlight
+                draw_enhanced_text(draw, (value_x, item_y), value, metadata_font, fill='#FFFFFF')
+                # Extra highlight for values (only if font is available)
+                try:
+                    draw.text((value_x, item_y - 1), value, fill='#F8F8F8', font=metadata_font)
+                except:
+                    pass  # Skip highlight if it fails
         
         # Save enhanced poster
         clean_title = re.sub(r'[^a-zA-Z0-9_-]', '_', title.lower()).strip('_')

@@ -2312,9 +2312,9 @@ class VideoQueueManager {
         this.activeMonitoring.add(jobId);
 
         let attempts = 0;
-        const maxAttempts = 15; // Reduced to 15 minutes max
-        let checkInterval = 60000; // Start with 60 seconds
-        const maxInterval = 180000; // Max 3 minutes between checks
+        const maxAttempts = 120; // 120 attempts * 30s = 1 hour max (configurable)
+        let checkInterval = 30000; // Start with 30 seconds (matches config)
+        const maxInterval = 120000; // Max 2 minutes between checks
         let lastLoggedStatus = null;
         let lastProgressUpdate = 0;
 
@@ -2374,7 +2374,7 @@ class VideoQueueManager {
                 if (attempts < maxAttempts) {
                     setTimeout(checkStatus, checkInterval);
                 } else {
-                    console.log(`⏰ Timeout: ${jobId} after ${maxAttempts} attempts`);
+                    console.log(`⏰ Monitoring timeout: ${jobId} after ${maxAttempts} attempts (${Math.round(maxAttempts * checkInterval / 60000)} minutes)`);
                     await this.markJobAsRenderTimeout(jobId, creatomateId);
                     this.finishMonitoring(jobId);
                 }
@@ -2536,25 +2536,32 @@ class VideoQueueManager {
             const job = await this.getJob(jobId);
             if (!job) return;
 
-            job.status = 'completed';
+            // Don't mark as completed - keep as rendering with timeout flag
+            job.status = 'rendering';  // Keep rendering status
             job.progress = 95;
-            job.currentStep = `⚠️ Video render timeout - Check manually: ${creatomateId}`;
+            job.currentStep = `⏰ Monitoring timeout - Video may still be processing`;
             job.renderTimeout = true;
             job.timeoutAt = new Date().toISOString();
+            job.creatomateId = creatomateId; // Ensure ID is preserved for retry
 
             await this.updateJob(job);
 
-            this.addJobLog(jobId, `⚠️ Video rendering timed out after 20 minutes`, 'warning');
+            this.addJobLog(jobId, `⏰ Monitoring timed out after 1 hour (120 attempts)`, 'warning');
             this.addJobLog(
                 jobId,
-                `🔍 Check render manually: python main.py --check-creatomate ${creatomateId}`,
+                `🎬 Video may still be processing on Creatomate (ID: ${creatomateId})`,
+                'info'
+            );
+            this.addJobLog(
+                jobId,
+                `🔄 Use "Retry Monitoring" button or check status manually`,
                 'info'
             );
 
-            // Send webhook notification for timeout
+            // Send webhook notification for timeout (but not completion)
             this.sendWebhookNotification('job.render_timeout', job);
 
-            console.log(`⚠️ Job ${jobId} marked as render timeout (Creatomate ID: ${creatomateId})`);
+            console.log(`⏰ Job ${jobId} monitoring timed out - video may still be processing (Creatomate ID: ${creatomateId})`);
         } catch (error) {
             console.error(`❌ Failed to mark job ${jobId} as render timeout:`, error.message);
         }
