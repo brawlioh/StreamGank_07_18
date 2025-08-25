@@ -56,6 +56,17 @@ class ProcessTable {
                 this.cancelJob(jobId);
             }
         });
+
+        // Delete job button handler (delegated event with proper child element handling)
+        document.addEventListener('click', (e) => {
+            const deleteButton = e.target.closest('.btn-delete-job');
+            if (deleteButton) {
+                e.preventDefault();
+                const jobId = deleteButton.dataset.jobId;
+                console.log(`🗑️ Delete button clicked for job: ${jobId}`);
+                this.deleteJob(jobId);
+            }
+        });
     }
 
     /**
@@ -271,6 +282,17 @@ class ProcessTable {
                             `
                                     : ''
                             }
+                            ${
+                                job.status === 'failed' || job.status === 'completed' || job.status === 'cancelled'
+                                    ? `
+                            <button class="btn btn-sm btn-danger btn-delete-job" 
+                                    data-job-id="${job.id}" title="Delete Job Permanently"
+                                    style="border: 1px solid #dc3545; background-color: #dc3545; color: white;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            `
+                                    : ''
+                            }
                         </div>
                     </div>
                 </div>
@@ -454,6 +476,37 @@ class ProcessTable {
         } catch (error) {
             console.error('❌ Failed to cancel job:', error);
             UIManager.addStatusMessage('error', '❌', `Failed to cancel job: ${error.message}`);
+        }
+    }
+
+    /**
+     * Delete a completed or failed job permanently
+     * @param {string} jobId - Job ID
+     */
+    async deleteJob(jobId) {
+        const job = this.processData.get(jobId);
+        const jobShortId = jobId.slice(-8);
+        const statusText = job ? job.status : 'Unknown';
+
+        if (!confirm(`⚠️ Permanently delete ${statusText} job ${jobShortId}?\n\nThis action cannot be undone!`)) {
+            return;
+        }
+
+        try {
+            const response = await APIService.delete(`/api/queue/job/${jobId}/delete`);
+
+            if (response.success) {
+                UIManager.addStatusMessage('success', '🗑️', `Job ${jobShortId} deleted successfully`);
+
+                // Remove job from local data completely
+                this.processData.delete(jobId);
+                this.updateProcessTable();
+            } else {
+                throw new Error(response.error || 'Failed to delete job');
+            }
+        } catch (error) {
+            console.error('❌ Failed to delete job:', error);
+            UIManager.addStatusMessage('error', '❌', `Failed to delete job: ${error.message}`);
         }
     }
 

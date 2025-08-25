@@ -1,18 +1,18 @@
 {
   "data": {
-    "combined_script": "Brace yourself for StreamGanks top 3 spine-chilling Horror flicks on Netflix that are guaranteed to keep you up all night!\n\nBrace yourself for StreamGanks top 3 spine-chilling Horror flicks on Netflix that are guaranteed to keep you up all night! Everyones too scared to watch Stranger Things, but once you witness the terrifying unknown, youll be obsessed!\n\nEveryones too scared to watch The Haunting of Hill House, but are you brave enough to face the terror that awaits on Netflix?\n\nThis horror masterpiece Love, Death & Robots proves that even your wildest nightmares arent as terrifying as you think; theyre worse!",
+    "combined_script": "Dare to dive into StreamGanks top 3 bloodcurdling horror flicks on Netflix that are making viewers scream worldwide!\n\nDare to dive into StreamGanks top 3 bloodcurdling horror flicks on Netflix that are making viewers scream worldwide! Everyones too scared to watch Stranger Things, the nerve-chilling horror masterpiece that turned Netflix into your worst nightmare.\n\nEveryones too scared to watch The Haunting of Hill House, but those who dare are calling it the most bone-chilling Netflix series of 2018!\n\nEveryones too scared to watch Love, Death & Robots - this Netflix horror masterpiece will haunt your dreams forever!",
     "script_file_path": "videos/combined_script.txt",
     "individual_scripts": {
       "movie1": {
-        "text": "Brace yourself for StreamGanks top 3 spine-chilling Horror flicks on Netflix that are guaranteed to keep you up all night! Everyones too scared to watch Stranger Things, but once you witness the terrifying unknown, youll be obsessed!",
+        "text": "Dare to dive into StreamGanks top 3 bloodcurdling horror flicks on Netflix that are making viewers scream worldwide! Everyones too scared to watch Stranger Things, the nerve-chilling horror masterpiece that turned Netflix into your worst nightmare.",
         "path": "videos/script_movie1.txt"
       },
       "movie2": {
-        "text": "Everyones too scared to watch The Haunting of Hill House, but are you brave enough to face the terror that awaits on Netflix?",
+        "text": "Everyones too scared to watch The Haunting of Hill House, but those who dare are calling it the most bone-chilling Netflix series of 2018!",
         "path": "videos/script_movie2.txt"
       },
       "movie3": {
-        "text": "This horror masterpiece Love, Death & Robots proves that even your wildest nightmares arent as terrifying as you think; theyre worse!",
+        "text": "Everyones too scared to watch Love, Death & Robots - this Netflix horror masterpiece will haunt your dreams forever!",
         "path": "videos/script_movie3.txt"
       }
     },
@@ -21,9 +21,9 @@
         "id": 22571,
         "title": "Stranger Things",
         "year": 2016,
-        "imdb": "8.6/10 (1,476,585 votes)",
+        "imdb": "8.6/10 (1,476,935 votes)",
         "imdb_score": 8.6,
-        "imdb_votes": 1476585,
+        "imdb_votes": 1476935,
         "runtime": "61 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/301444843/s332/stranger-things.webp",
@@ -40,9 +40,9 @@
         "id": 14393,
         "title": "The Haunting of Hill House",
         "year": 2018,
-        "imdb": "8.5/10 (314,495 votes)",
+        "imdb": "8.5/10 (314,546 votes)",
         "imdb_score": 8.5,
-        "imdb_votes": 314495,
+        "imdb_votes": 314546,
         "runtime": "58 min",
         "platform": "Netflix",
         "poster_url": "https://images.justwatch.com/poster/82936641/s332/the-haunting-of-hill-house.webp",
@@ -83,7 +83,7 @@
       "num_movies": 3
     },
     "script_count": 3,
-    "generation_timestamp": 1755927984.7390196
+    "generation_timestamp": 1755947458.520171
   },
   "metadata": {
     "data_type": "script_result",
@@ -92,7 +92,7 @@
       "genre": "Horror",
       "platform": "Netflix"
     },
-    "saved_timestamp": 1755927984.7391229,
-    "saved_datetime": "2025-08-23 13:46:24"
+    "saved_timestamp": 1755947458.5203476,
+    "saved_datetime": "2025-08-23 11:10:58"
   }
 }

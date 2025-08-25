@@ -4,11 +4,24 @@ const path = require('path');
 const VideoQueueManager = require('./queue-manager');
 const WebhookManager = require('./webhook-manager');
 
-// Enhanced in-memory cache to reduce Redis calls during heavy processing
+// Enhanced in-memory cache to reduce Redis calls during heavy processing - PRODUCTION OPTIMIZED
 const jobCache = new Map();
 const statusCache = new Map(); // Cache for queue status to prevent Redis overload
-const CACHE_TTL = 45000; // 45 seconds cache (optimized for 1min refresh interval)
-const STATUS_CACHE_TTL = 30000; // 30 seconds cache - webhooks provide real-time updates
+const CACHE_TTL = 60000; // 60 seconds cache for jobs (increased from 45s)
+const STATUS_CACHE_TTL = 45000; // 45 seconds cache for queue status (increased from 30s)
+
+// PRODUCTION OPTIMIZATION: Different cache TTLs based on job status
+const getCacheTTL = (job) => {
+    if (!job) return CACHE_TTL;
+
+    // Completed/failed jobs rarely change - cache longer
+    if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+        return 300000; // 5 minutes for finished jobs
+    }
+
+    // Active/pending jobs change frequently - shorter cache
+    return 30000; // 30 seconds for active jobs
+};
 
 // Production-level optimizations for web deployment
 const sseClients = new Set(); // Track Server-Sent Events clients
@@ -150,12 +163,19 @@ app.get('/api/job/:jobId/details', async (req, res) => {
 // Platform mapping to match frontend values to Python script expectations
 const platformMapping = {
     amazon: 'Prime',
+    'Prime Video': 'Prime',
     apple: 'Apple TV+',
+    'Apple TV+': 'Apple TV+',
     disney: 'Disney+',
+    'Disney+': 'Disney+',
     hulu: 'Hulu',
+    Hulu: 'Hulu',
     max: 'Max',
+    Max: 'Max',
     netflix: 'Netflix',
-    free: 'Free'
+    Netflix: 'Netflix', // Handle capitalized Netflix from frontend
+    free: 'Free',
+    Free: 'Free'
 };
 
 // Content type mapping
@@ -335,116 +355,143 @@ app.post('/api/generate', async (req, res) => {
     }
 });
 
-// API endpoint to check Creatomate status
+// Direct Creatomate API status check (no main.py dependency)
+async function checkCreatomateStatus(renderId) {
+    const apiKey = process.env.CREATOMATE_API_KEY;
+    if (!apiKey) {
+        return { success: false, error: 'Missing CREATOMATE_API_KEY environment variable' };
+    }
+
+    try {
+        const axios = require('axios');
+        const response = await axios.get(`https://api.creatomate.com/v1/renders/${renderId}`, {
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000
+        });
+
+        if (response.status === 200) {
+            const result = response.data;
+            const status = result.status || 'unknown';
+            const url = result.url || '';
+
+            console.log(`✅ Creatomate render ${renderId} status: ${status}`);
+            if (url && status === 'completed') {
+                console.log(`🎬 Video ready at: ${url}`);
+            }
+
+            return {
+                success: true,
+                status: status,
+                url: url,
+                data: result
+            };
+        } else {
+            console.error(`❌ Creatomate API error: ${response.status} - ${response.statusText}`);
+            return {
+                success: false,
+                error: `HTTP ${response.status}: ${response.statusText}`
+            };
+        }
+    } catch (error) {
+        console.error(`❌ Error checking Creatomate status: ${error.message}`);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// API endpoint to check Creatomate status (OPTIMIZED - no main.py call)
 app.get('/api/status/:creatomateId', async (req, res) => {
     try {
         const { creatomateId } = req.params;
+        console.log(`🎬 Direct Creatomate API check for: ${creatomateId}`);
 
-        const scriptPath = path.join(__dirname, '../main.py');
-        const args = [scriptPath, '--check-creatomate', creatomateId];
+        // Direct API call - no main.py execution needed
+        const statusResult = await checkCreatomateStatus(creatomateId);
 
-        // Execute Python script with async/await
-        const result = await executePythonScript(args);
-        const { stdout } = result;
-
-        // Parse status from output
-        let status = 'unknown';
-        let videoUrl = '';
-
-        const statusMatch = stdout.match(/Render Status[:\s]+(\w+)/i);
-        if (statusMatch && statusMatch[1]) {
-            status = statusMatch[1];
+        if (statusResult.success) {
+            res.json({
+                success: true,
+                creatomateId,
+                status: statusResult.status,
+                videoUrl: statusResult.url,
+                data: statusResult.data,
+                source: 'direct_api' // Indicate this bypassed main.py
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to check Creatomate status',
+                error: statusResult.error,
+                creatomateId
+            });
         }
-
-        const urlMatch = stdout.match(/Video URL[:\s]+(https:\/\/[^\s\n]+)/i);
-        if (urlMatch && urlMatch[1]) {
-            videoUrl = urlMatch[1];
-        }
-
-        res.json({
-            success: true,
-            status: status,
-            videoUrl: videoUrl,
-            creatomateId: creatomateId
-        });
     } catch (error) {
-        console.error('Status check failed:', error);
-
+        console.error('❌ Failed to check Creatomate status:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to check status',
-            error: error.error || error.message
+            message: 'Failed to check Creatomate status',
+            error: error.message,
+            creatomateId: req.params.creatomateId
         });
     }
 });
 
-// API endpoint to test Python script and database connection
+// DISABLED: Test endpoint removed to reduce main.py load and improve performance
+// Only video generation should use main.py - all other functionality extracted to Node.js
 app.get('/api/test', async (req, res) => {
-    try {
-        console.log('Testing Python script and database connection...');
+    console.log('⚡ Test endpoint disabled for performance - main.py reserved for video generation only');
 
-        const scriptPath = path.join(__dirname, '../main.py');
-        const args = [
-            scriptPath,
-            '--country',
-            'FR',
-            '--platform',
-            'Netflix',
-            '--genre',
-            'Horror',
-            '--content-type',
-            'Film'
-        ];
-
-        // Execute with shorter timeout for testing
-        const result = await executePythonScript(args, path.join(__dirname, '..'), 5 * 60 * 1000);
-
-        res.json({
-            success: true,
-            message: 'Python script test completed',
-            hasOutput: result.stdout.length > 0,
-            outputLength: result.stdout.length,
-            preview: result.stdout.substring(0, 500) + (result.stdout.length > 500 ? '...' : '')
-        });
-    } catch (error) {
-        console.error('Python script test failed:', error);
-
-        res.json({
-            success: false,
-            message: 'Python script test failed',
-            error: error.error || error.message,
-            code: error.code,
-            stdout: error.stdout ? error.stdout.substring(0, 500) : '',
-            stderr: error.stderr ? error.stderr.substring(0, 500) : ''
-        });
-    }
+    res.json({
+        success: true,
+        message: 'Test endpoint disabled for performance optimization',
+        info: 'main.py is now reserved exclusively for video generation. Status checks use direct API calls.',
+        performance: {
+            optimization: 'Eliminated unnecessary main.py calls',
+            benefit: 'Multiple users can generate videos simultaneously without interference',
+            status_check: 'Direct Creatomate API integration (no Python process)',
+            video_generation: 'Dedicated main.py processes per user'
+        }
+    });
 });
 
-// API endpoint to get job status by ID - OPTIMIZED with caching and performance monitoring
+// API endpoint to get job status by ID - PRODUCTION OPTIMIZED with smart caching
 app.get('/api/job/:jobId', async (req, res) => {
     const startTime = Date.now();
     try {
         const { jobId } = req.params;
 
-        // Check cache first
+        // Check cache first with smart TTL based on job status
         const cacheKey = `job_${jobId}`;
         const cachedData = jobCache.get(cacheKey);
 
-        if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
-            const duration = Date.now() - startTime;
-            return res.json({
-                success: true,
-                job: cachedData.job,
-                _debug: {
-                    duration: `${duration}ms`,
-                    cached: true
-                }
-            });
+        if (cachedData) {
+            const age = Date.now() - cachedData.timestamp;
+            const cacheTTL = getCacheTTL(cachedData.job);
+
+            if (age < cacheTTL) {
+                const duration = Date.now() - startTime;
+                console.log(`📋 Job ${jobId.slice(-8)} served from cache (age: ${age}ms, TTL: ${cacheTTL}ms)`);
+                return res.json({
+                    success: true,
+                    job: cachedData.job,
+                    _debug: {
+                        duration: `${duration}ms`,
+                        cached: true,
+                        cacheAge: `${age}ms`,
+                        cacheTTL: `${cacheTTL}ms`
+                    }
+                });
+            }
         }
 
-        // Add timeout to prevent hanging requests
+        // PRODUCTION: Shorter timeout to fail fast and use cache fallback
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Request timeout')), 3000); // 3 second timeout
+            setTimeout(() => reject(new Error('Redis request timeout')), 2000); // 2 second timeout
         });
 
         const jobPromise = queueManager.getJob(jobId);
@@ -452,8 +499,8 @@ app.get('/api/job/:jobId', async (req, res) => {
 
         const duration = Date.now() - startTime;
 
-        // Log slow requests for debugging
-        if (duration > 500) {
+        // Log slow requests for production monitoring
+        if (duration > 300) {
             console.warn(`⚠️ Slow job request for ${jobId.slice(-8)}: ${duration}ms`);
         }
 
@@ -464,19 +511,25 @@ app.get('/api/job/:jobId', async (req, res) => {
             });
         }
 
-        // Cache the result
+        // Cache the result with smart TTL
         jobCache.set(cacheKey, {
             job: job,
             timestamp: Date.now()
         });
 
-        // Clean old cache entries occasionally
-        if (jobCache.size > 100) {
+        // PRODUCTION: More aggressive cache cleaning to prevent memory bloat
+        if (jobCache.size > 500) {
             const now = Date.now();
+            let cleanedCount = 0;
             for (const [key, value] of jobCache) {
-                if (now - value.timestamp > CACHE_TTL * 5) {
+                const maxAge = getCacheTTL(value.job) * 2; // Clean entries older than 2x their TTL
+                if (now - value.timestamp > maxAge) {
                     jobCache.delete(key);
+                    cleanedCount++;
                 }
+            }
+            if (cleanedCount > 0) {
+                console.log(`🧹 Cleaned ${cleanedCount} expired job cache entries (${jobCache.size} remaining)`);
             }
         }
 
@@ -485,11 +538,38 @@ app.get('/api/job/:jobId', async (req, res) => {
             job: job,
             _debug: {
                 duration: `${duration}ms`,
-                cached: false
+                cached: false,
+                cacheSize: jobCache.size
             }
         });
     } catch (error) {
         const duration = Date.now() - startTime;
+
+        // PRODUCTION: Return cached data during Redis failures to maintain user experience
+        if (error.message.includes('timeout') || error.message.includes('Redis')) {
+            console.error(`🚨 Redis error for job ${req.params.jobId.slice(-8)}: ${error.message} (${duration}ms)`);
+
+            const cacheKey = `job_${req.params.jobId}`;
+            const cachedData = jobCache.get(cacheKey);
+            if (cachedData) {
+                const age = Date.now() - cachedData.timestamp;
+                console.log(
+                    `📋 Using stale cache for ${req.params.jobId.slice(-8)} due to Redis error (age: ${age}ms)`
+                );
+                return res.json({
+                    success: true,
+                    job: cachedData.job,
+                    _debug: {
+                        duration: `${duration}ms`,
+                        cached: true,
+                        stale: true,
+                        cacheAge: `${age}ms`,
+                        fallback: 'redis_error'
+                    }
+                });
+            }
+        }
+
         console.error(`❌ Failed to get job (${duration}ms):`, error.message);
 
         res.status(500).json({
@@ -771,30 +851,70 @@ app.get('/api/webhooks/status', (req, res) => {
 // API endpoint to receive step completion webhooks from Python workflow
 app.post('/api/webhooks/step-update', async (req, res) => {
     try {
-        const { job_id, step_number, step_name, status, duration, details } = req.body;
+        const { job_id, step_number, step_name, status, duration, details, timestamp } = req.body;
 
-        console.log(`📡 Step webhook received: Job ${job_id} - Step ${step_number} (${step_name}) ${status}`);
+        console.log(`📡 Real-time webhook: Job ${job_id} - Step ${step_number} (${step_name}) ${status}`);
 
         // Update job with step progress
         const job = await queueManager.getJob(job_id);
         if (job) {
-            job.currentStep = `Step ${step_number}: ${step_name}`;
-            job.progress = Math.round((step_number / 7) * 100);
+            // Handle special cases for workflow start/completion
+            if (step_number === 0 && step_name === 'Workflow Started') {
+                job.currentStep = '🚀 Workflow started - processing movies...';
+                job.progress = 5;
+            } else if (step_number === 8 && step_name === 'Workflow Completed') {
+                job.currentStep = '🎉 All steps completed - starting video rendering...';
+                job.progress = 95;
+                job.status = 'rendering'; // Set to rendering status for Creatomate monitoring
+                if (details?.creatomate_id) {
+                    job.creatomateId = details.creatomate_id;
+                }
+            } else if (step_name === 'Workflow Failed') {
+                job.currentStep = `❌ Workflow failed: ${details?.error || 'Unknown error'}`;
+                job.status = 'failed';
+                job.error = details?.error || 'Workflow failed';
+            } else {
+                // Normal step progression (1-7)
+                job.currentStep = `${step_name} - ${status}`;
+                job.progress = Math.max(job.progress || 0, Math.round((step_number / 7) * 90)); // Max 90% until video ready
+            }
+
             job.lastUpdate = new Date().toISOString();
 
-            // Add step details if provided
+            // Add step details and duration
             if (details) {
-                job.stepDetails = details;
+                job.stepDetails = { ...job.stepDetails, [`step_${step_number}`]: details };
+            }
+            if (duration) {
+                job.stepDuration = { ...job.stepDuration, [`step_${step_number}`]: duration };
             }
 
             await queueManager.updateJob(job);
 
-            console.log(`✅ Job ${job_id} updated: ${job.progress}% complete`);
+            // Clear job cache to force fresh data on next request
+            if (jobCache.has(job_id)) {
+                jobCache.delete(job_id);
+            }
+
+            console.log(`✅ Real-time update: Job ${job_id} - ${job.progress}% - ${job.currentStep}`);
+
+            // Add real-time log entry for better user experience
+            if (step_number >= 1 && step_number <= 7) {
+                queueManager.addJobLog(job_id, `✅ Step ${step_number} completed: ${step_name}`, 'success');
+                if (details) {
+                    const detailStr = Object.entries(details)
+                        .map(([key, value]) => `${key}: ${value}`)
+                        .join(', ');
+                    queueManager.addJobLog(job_id, `📊 Step ${step_number} details: ${detailStr}`, 'info');
+                }
+            }
+        } else {
+            console.warn(`⚠️ Webhook received for unknown job: ${job_id}`);
         }
 
-        res.json({ success: true, message: 'Step update received' });
+        res.json({ success: true, message: 'Real-time step update processed' });
     } catch (error) {
-        console.error('❌ Step webhook error:', error);
+        console.error('❌ Real-time webhook error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -990,6 +1110,166 @@ app.post('/api/job/:jobId/cancel', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to cancel job',
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to cancel a job (DELETE method for frontend compatibility)
+app.delete('/api/queue/job/:jobId', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        console.log(`🛑 Cancelling job via DELETE: ${jobId}`);
+
+        // Use the queue manager's cancelJob method which handles process killing
+        const job = await queueManager.cancelJob(jobId);
+
+        res.json({
+            success: true,
+            message: 'Job cancelled successfully',
+            job: job
+        });
+    } catch (error) {
+        console.error('❌ Failed to cancel job via DELETE:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to cancel job',
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to get real-time logs for a specific job
+app.get('/api/queue/job/:jobId/logs', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        console.log(`📋 API: Getting logs for job ${jobId}`);
+
+        // Get real logs from the queue manager
+        const logs = queueManager.getJobLogs(jobId);
+
+        res.json({
+            success: true,
+            data: {
+                jobId: jobId,
+                logs: logs,
+                count: logs.length,
+                lastUpdate: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error getting job logs:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to manually trigger Creatomate monitoring for a job
+app.post('/api/queue/job/:jobId/monitor-creatomate', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        console.log(`🎬 Manual Creatomate monitoring trigger for job: ${jobId}`);
+
+        const job = await queueManager.getJob(jobId);
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: 'Job not found'
+            });
+        }
+
+        if (!job.creatomateId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Job has no Creatomate ID'
+            });
+        }
+
+        if (job.videoUrl) {
+            return res.status(400).json({
+                success: false,
+                message: 'Job already has video URL'
+            });
+        }
+
+        // Check if workflow was marked as incomplete
+        if (job.workflowIncomplete) {
+            return res.status(400).json({
+                success: false,
+                message: 'Job workflow was incomplete - manual verification needed before monitoring',
+                details:
+                    'The Python workflow did not complete all 7 steps properly. Check logs and verify Creatomate render manually.'
+            });
+        }
+
+        // Update job to rendering status if it's completed without video
+        if (job.status === 'completed' && !job.videoUrl) {
+            job.status = 'rendering';
+            job.currentStep = 'Video rendering in progress with Creatomate...';
+            await queueManager.updateJob(job);
+        }
+
+        // Start monitoring
+        queueManager.startCreatomateMonitoring(jobId, job.creatomateId);
+
+        res.json({
+            success: true,
+            message: `Started Creatomate monitoring for job ${jobId}`,
+            job: job,
+            creatomateId: job.creatomateId
+        });
+    } catch (error) {
+        console.error('❌ Failed to start Creatomate monitoring:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to start Creatomate monitoring',
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to permanently delete a completed or failed job
+app.delete('/api/queue/job/:jobId/delete', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        console.log(`🗑️ Permanently deleting job: ${jobId}`);
+
+        // Get the job first to check its status
+        const job = await queueManager.getJob(jobId);
+
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: 'Job not found',
+                error: 'Job does not exist'
+            });
+        }
+
+        // Only allow deletion of completed, failed, or cancelled jobs
+        if (!['completed', 'failed', 'cancelled'].includes(job.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Job cannot be deleted',
+                error: `Cannot delete job with status: ${job.status}. Only completed, failed, or cancelled jobs can be deleted.`
+            });
+        }
+
+        // Use the queue manager's deleteJob method (permanent removal)
+        const result = await queueManager.deleteJob(jobId);
+
+        res.json({
+            success: true,
+            message: `Job ${jobId.slice(-8)} deleted permanently`,
+            job: job,
+            deletedAt: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Failed to delete job:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete job',
             error: error.message
         });
     }
@@ -1207,6 +1487,11 @@ async function startServer() {
         // Connect to Redis
         await queueManager.connect();
         console.log('🔗 Redis queue manager connected');
+
+        // Check for existing jobs needing Creatomate monitoring (after 5 seconds)
+        setTimeout(() => {
+            queueManager.checkExistingJobsForCreatomateMonitoring();
+        }, 5000);
 
         // Start the server
         app.listen(port, '0.0.0.0', () => {

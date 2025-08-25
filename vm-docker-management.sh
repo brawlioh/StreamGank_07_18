@@ -251,7 +251,30 @@ vm_restart() {
     print_status "GUI available at: http://localhost:3000"
 }
 
-
+# VM-optimized quick update (build-start sequence - NO stop needed)
+vm_update() {
+    print_status "🚀 VM Update - Quick build-start sequence for code changes..."
+    print_status "This will:"
+    echo "  1. Rebuild Docker images with cache (for code changes)"
+    echo "  2. Start services with new image (containers auto-updated)"
+    echo "  ⚡ FASTER: No stop step needed - Docker handles the update!"
+    echo ""
+    
+    # Step 1: Build with cache (perfect for code changes)
+    print_status "Step 1/2: Building updated images..."
+    setup_vm_optimized
+    build_vm_optimized
+    print_success "✅ Build completed"
+    
+    # Step 2: Start/Update services (Docker will restart containers with new image)
+    print_status "Step 2/2: Updating services with new image..."
+    docker-compose -f docker-compose.vm-optimized.yml up -d
+    print_success "✅ Services updated"
+    
+    print_success "🎉 VM Update completed successfully!"
+    print_status "GUI available at: http://localhost:3000"
+    print_status "💡 Use 'vm-update' for code changes | 'vm-restart' for config changes | 'vm-rebuild' for dependency changes"
+}
 
 # Show detailed VM and container status
 show_vm_status() {
@@ -335,6 +358,7 @@ show_vm_help() {
     echo "  vm-rebuild    - Force rebuild without cache (when dependencies change)"
     echo "  vm-start      - Start in VM-optimized production mode"
     echo "  vm-restart    - Full restart: down → build → start (complete refresh)"
+    echo "  vm-update     - Quick update: build → start (FAST - for code changes only)"
     echo "  vm-status     - Show detailed VM and container status"
     echo "  vm-monitor    - Real-time VM performance monitoring"
     echo "  vm-cleanup    - VM-optimized cleanup with space reclamation"
@@ -348,6 +372,7 @@ show_vm_help() {
     echo "Examples:"
     echo "  $0 vm-setup   # Initialize VM environment"
     echo "  $0 vm-start   # Start production mode"
+    echo "  $0 vm-update  # Quick update after code changes (FASTEST)"
     echo "  $0 vm-restart # Full restart: stop → build → start"
     echo "  $0 vm-monitor # Monitor performance"
     echo ""
@@ -401,6 +426,9 @@ case "${1:-help}" in
         ;;
     vm-restart)
         vm_restart
+        ;;
+    vm-update)
+        vm_update
         ;;
     vm-status)
         show_vm_status

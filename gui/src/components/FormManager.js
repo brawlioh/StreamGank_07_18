@@ -109,9 +109,9 @@ export class FormManager {
     loadTemplatesByGenre() {
         // Genre-specific HeyGen templates (from memory)
         this.templatesByGenre = {
-            // Horror templates
-            Horror: 'e2ad0e5c7e71483991536f5c93594e42',
-            Horreur: 'e2ad0e5c7e71483991536f5c93594e42',
+            // Horror templates (FIXED: Use correct template ID from config/templates.py)
+            Horror: 'ed21a309a5c84b0d873fde68642adea3',
+            Horreur: 'ed21a309a5c84b0d873fde68642adea3',
 
             // Comedy templates
             Comedy: '15d9eadcb46a45dbbca1834aa0a23ede',
@@ -223,10 +223,10 @@ export class FormManager {
         // Clear existing options except first
         templateSelect.innerHTML = '<option value="">Select Template...</option>';
 
-        // Add default templates
+        // Add default templates (FIXED: Use correct Horror template ID)
         const templates = [
             { value: 'cc6718c5363e42b282a123f99b94b335', text: 'Default Template' },
-            { value: 'e2ad0e5c7e71483991536f5c93594e42', text: 'Horror/Thriller Cinematic' },
+            { value: 'ed21a309a5c84b0d873fde68642adea3', text: 'Horror/Thriller Cinematic' },
             { value: '15d9eadcb46a45dbbca1834aa0a23ede', text: 'Comedy Upbeat' },
             { value: 'e44b139a1b94446a997a7f2ac5ac4178', text: 'Action Adventure' }
         ];
@@ -884,11 +884,15 @@ export class FormManager {
             }
 
             // Emit form submission event with data
-            this.emit('formSubmit', {
-                formData: { ...this.formState },
-                previewUrl,
-                validation: urlValidation
-            });
+            document.dispatchEvent(
+                new CustomEvent('formSubmit', {
+                    detail: {
+                        formData: { ...this.formState },
+                        previewUrl,
+                        validation: urlValidation
+                    }
+                })
+            );
         } catch (error) {
             console.error('❌ Form submission error:', error);
             UIManager.addStatusMessage('error', '❌', `Form submission failed: ${error.message}`);

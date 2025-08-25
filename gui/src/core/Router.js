@@ -103,13 +103,17 @@ export class Router extends EventTarget {
             }
 
             // Emit route change event
-            this.emit('routeChange', {
-                path,
-                route: routeKey,
-                params,
-                previousRoute,
-                metadata: route.metadata
-            });
+            this.dispatchEvent(
+                new CustomEvent('routeChange', {
+                    detail: {
+                        path,
+                        route: routeKey,
+                        params,
+                        previousRoute,
+                        metadata: route.metadata
+                    }
+                })
+            );
 
             // Call route handler
             try {
@@ -117,7 +121,7 @@ export class Router extends EventTarget {
                 console.log(`🛤️ Navigated to: ${path} (${routeKey})`);
             } catch (error) {
                 console.error('🛤️ Route handler error:', error);
-                this.emit('routeError', { path, error });
+                this.dispatchEvent(new CustomEvent('routeError', { detail: { path, error } }));
             }
         } else {
             // No route matched - handle 404
@@ -190,7 +194,7 @@ export class Router extends EventTarget {
         console.warn(`🛤️ No route found for: ${path}`);
 
         // Emit 404 event
-        this.emit('notFound', { path });
+        this.dispatchEvent(new CustomEvent('notFound', { detail: { path } }));
 
         // Try to redirect to dashboard or show 404 page
         if (path !== '/' && path !== '/dashboard') {

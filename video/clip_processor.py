@@ -1951,47 +1951,43 @@ def _compose_single_highlight_with_effects(clip_path: str, title: str, movie_id:
         clean_title = re.sub(r'[^a-zA-Z0-9_-]', '_', title.lower())
         output_path = os.path.join(output_dir, f"{clean_title}_{movie_id}_premium_highlight.mp4")
         
-        # PREMIUM cinematic processing with advanced effects
+        # OPTIMIZED cinematic processing (faster but still high quality)
         ffmpeg_cmd = [
             'ffmpeg', '-i', clip_path,
-            # Ultra-cinematic 9:16 conversion with dynamic blur background
+            # Streamlined 9:16 conversion with blur background (OPTIMIZED)
             '-filter_complex',
-            '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=25[bg];'
+            '[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=20[bg];'
             '[0:v]scale=1080:1920:force_original_aspect_ratio=decrease[scaled];'
             '[bg][scaled]overlay=(W-w)/2:(H-h)/2,'
-            # PREMIUM effects chain:
-            # 1. Advanced sharpening with edge enhancement
-            'unsharp=5:5:1.5:5:5:0.5,'
-            # 2. HDR-style tone mapping for cinematic look
-            'eq=contrast=1.25:brightness=0.12:saturation=1.35:gamma=0.95,'
-            # 3. Subtle film grain for premium texture
-            'noise=alls=2:allf=t,'
-            # 4. Micro-zoom effect for dynamic feel (1.02x scale with smooth motion)
-            'scale=1102:1958,crop=1080:1920:(iw-ow)/2:(ih-oh)/2,'
-            # 5. Dynamic fade effects with smooth transitions
+            # OPTIMIZED effects chain for speed:
+            # 1. Moderate sharpening (reduced complexity)
+            'unsharp=5:5:1.0:5:5:0.3,'
+            # 2. Enhanced contrast and color (simplified)
+            'eq=contrast=1.15:brightness=0.08:saturation=1.25:gamma=0.98,'
+            # 3. Dynamic fade effects
             f'fade=in:st=0:d={fade_in_duration},fade=out:st={fade_out_start}:d={fade_out_duration}',
-            # Dynamic audio fade effects to match video
+            # Audio fade effects to match video
             '-af', f'afade=in:st=0:d={fade_in_duration},afade=out:st={fade_out_start}:d={fade_out_duration}',
-            # Ultra-high quality encoding for premium output
-            '-c:v', 'libx264', '-crf', '12',  # Even higher quality (was 15)
-            '-preset', 'slower',  # Best compression efficiency
+            # OPTIMIZED encoding for speed vs quality balance
+            '-c:v', 'libx264', '-crf', '16',  # Good quality, faster than CRF 12
+            '-preset', 'fast',  # Much faster than 'slower'
             '-tune', 'film',  # Optimize for film-like content
             '-profile:v', 'high', '-level:v', '4.1',
-            '-c:a', 'aac', '-b:a', '256k',  # Higher audio quality
-            '-r', '30', '-maxrate', '5000k', '-bufsize', '10000k',  # Higher bitrate for premium quality
+            '-c:a', 'aac', '-b:a', '192k',  # Good audio quality, faster encoding
+            '-r', '30', '-maxrate', '3500k', '-bufsize', '7000k',  # Balanced bitrate
             '-movflags', '+faststart', '-pix_fmt', 'yuv420p',
             '-y', output_path
         ]
         
-        logger.info(f"   🎨 Applying cinematic effects and professional fades...")
-        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=90)
+        logger.info(f"   🎨 Applying optimized cinematic effects (fast preset for reliability)...")
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=180)  # Increased timeout to 3 minutes
         
         if result.returncode == 0 and os.path.exists(output_path):
             file_size = os.path.getsize(output_path)
-            logger.info(f"   ✨ PREMIUM SINGLE HIGHLIGHT SUCCESS: {output_path}")
-            logger.info(f"   🎬 HDR-style tone mapping + film grain + micro-zoom effects applied")
-            logger.info(f"   🏆 Golden ratio positioning with dynamic fade timing")
-            logger.info(f"   📊 Premium quality: {file_size // 1024}KB (CRF-12, 5Mbps)")
+            logger.info(f"   ✨ OPTIMIZED SINGLE HIGHLIGHT SUCCESS: {output_path}")
+            logger.info(f"   🎬 Cinematic effects + enhanced color grading applied")
+            logger.info(f"   ⚡ Fast preset used for reliable processing")
+            logger.info(f"   📊 High quality output: {file_size // 1024}KB (CRF-16, optimized)")
             return output_path
         else:
             logger.error(f"   ❌ Single highlight processing failed: {result.stderr}")
@@ -2032,7 +2028,7 @@ def _compose_simple_concatenation(clip_paths: List[str], output_path: str) -> Op
             '-y', output_path
         ]
         
-        result = subprocess.run(concat_cmd, capture_output=True, text=True, timeout=90)
+        result = subprocess.run(concat_cmd, capture_output=True, text=True, timeout=120)
         
         # Cleanup
         if os.path.exists(concat_file):

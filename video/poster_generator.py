@@ -184,7 +184,7 @@ def format_votes(votes):
 # MAIN POSTER CREATION FUNCTIONS - LEGACY MIGRATED
 # =============================================================================
 
-def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "temp_posters") -> Optional[str]:
+def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "streamgank-reels/enhanced-poster-cover") -> Optional[str]:
     """
     Create an enhanced movie poster card with metadata overlay for TikTok/Instagram Reels
     
@@ -335,24 +335,36 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "temp_poste
             draw.text((poster_x + new_width//2, poster_y + new_height//2), "CINEMATIC\\nPOSTER", 
                      fill='white', anchor='mm')
         
-        # Load fonts with BOLD title font
+        # Get font sizes from settings configuration
+        settings = get_video_settings()
+        font_config = settings.get('font_sizes', {})
+        
+        # Use configured font sizes (with fallbacks)
+        title_size = font_config.get('title', 72)        # Was 52, now 72 (40% larger)
+        platform_size = font_config.get('subtitle', 48)  # Was 36, now 48 (33% larger)
+        metadata_size = font_config.get('metadata', 36)  # Same as before
+        small_size = font_config.get('rating', 32)       # Same as before
+        
+        # Load fonts with BOLD title font using CONFIGURED SIZES
         try:
-            title_font = ImageFont.truetype("arialbd.ttf", 52)   # BOLD title font
-            platform_font = ImageFont.truetype("arial.ttf", 36) # Platform badge  
-            metadata_font = ImageFont.truetype("arial.ttf", 36) # Metadata values
-            small_font = ImageFont.truetype("arial.ttf", 32)    # Labels
+            title_font = ImageFont.truetype("arialbd.ttf", title_size)      # BOLD title font - LARGER
+            platform_font = ImageFont.truetype("arial.ttf", platform_size) # Platform badge - LARGER
+            metadata_font = ImageFont.truetype("arial.ttf", metadata_size) # Metadata values
+            small_font = ImageFont.truetype("arial.ttf", small_size)       # Labels
         except:
             try:
-                title_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", 52)  # BOLD
-                platform_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 36)
-                metadata_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 36)
-                small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 32)
+                title_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", title_size)  # BOLD
+                platform_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", platform_size)
+                metadata_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", metadata_size)
+                small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", small_size)
             except:
                 # Fallback to default with simulated bold effect
                 title_font = ImageFont.load_default()
                 platform_font = ImageFont.load_default()
                 metadata_font = ImageFont.load_default()
                 small_font = ImageFont.load_default()
+                
+        logger.info(f"   🔤 Font sizes: Title={title_size}, Platform={platform_size}, Metadata={metadata_size}, Small={small_size}")
         
         # 🎨 CINEMATIC METADATA SECTION - PERFECT SPACING
         metadata_start_y = poster_y + new_height + 90  # Perfect breathing room from poster
@@ -381,7 +393,7 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "temp_poste
             draw.text((text_x + 1, current_y + 1), line, fill='#FFFFFF', font=title_font)  # Bold effect 3
             draw.text((text_x, current_y - 1), line, fill='#F8F8F8', font=title_font)  # Highlight
             
-            current_y += 75  # More spacing after title
+            current_y += int(title_size * 1.2)  # Dynamic spacing based on title font size
         
         # Step 7: Create cinematic platform badge
         platform_y = current_y + 30  # More spacing after title
@@ -398,7 +410,7 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "temp_poste
             platform_bbox = draw.textbbox((0, 0), display_platform, font=platform_font)
             text_width = platform_bbox[2] - platform_bbox[0]
             platform_width = text_width + 50
-            platform_height = 55
+            platform_height = int(platform_size * 1.5)  # Dynamic height based on font size
             platform_x = int((canvas_width - platform_width) / 2)
             
             # Outer glow (multiple layers for cinema effect)
@@ -445,7 +457,7 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "temp_poste
             draw.text((text_center_x, text_center_y), display_platform, 
                      fill='white', font=platform_font, anchor='mm')
             
-            current_y = platform_y + platform_height + 40  # More spacing after platform
+            current_y = platform_y + platform_height + int(platform_size * 0.8)  # Dynamic spacing after platform
         
         # Step 8: Draw genres text WITHOUT background
         if genres:
@@ -461,7 +473,7 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = "temp_poste
             # Main text with subtle glow
             draw.text((text_x, current_y), genres_text, fill='#F5F5F5', font=metadata_font)
             
-            current_y += 60  # More spacing after genres
+            current_y += int(metadata_size * 1.7)  # Dynamic spacing after genres
         
         # Step 9: Create ROUNDED and TRANSPARENT metadata panel
         metadata_y = current_y + 30  # More spacing before metadata
@@ -555,12 +567,13 @@ def create_enhanced_movie_posters(movie_data: List[Dict], max_movies: int = 3) -
     Returns:
         Dict[str, str]: Dictionary mapping movie titles to enhanced poster URLs
     """
+    enhanced_poster_urls = {}
+    temp_dir = "streamgank-reels/enhanced-poster-cover"  # Save to streamgank-reels folder structure
+    
     logger.info(f"🎨 Creating enhanced movie posters for {min(len(movie_data), max_movies)} movies")
     logger.info("🎬 Style: Professional TikTok/Instagram Reels format")
     logger.info("📐 Dimensions: 1080x1920 (9:16 portrait)")
-    
-    enhanced_poster_urls = {}
-    temp_dir = "temp_posters"
+    logger.info(f"💾 Save Location: {temp_dir} (local) + streamgank-reels/enhanced-poster-cover/ (Cloudinary)")
     
     try:
         # Create temporary directory
@@ -592,15 +605,15 @@ def create_enhanced_movie_posters(movie_data: List[Dict], max_movies: int = 3) -
                 logger.error(f"❌ Error processing poster for movie {i+1}: {str(e)}")
                 continue
         
-        # Cleanup temporary files
-        cleanup_temp_files(temp_dir)
+        # Note: Not cleaning up files as they're saved to permanent streamgank-reels folder
+        # cleanup_temp_files(temp_dir)  # Commented out - keeping enhanced posters permanently
         
         logger.info(f"🎨 Successfully created {len(enhanced_poster_urls)} enhanced posters")
         return enhanced_poster_urls
         
     except Exception as e:
         logger.error(f"❌ Error in create_enhanced_movie_posters: {str(e)}")
-        cleanup_temp_files(temp_dir)
+        # cleanup_temp_files(temp_dir)  # Not cleaning up - permanent storage folder
         return {}
 
 # =============================================================================
@@ -631,14 +644,16 @@ def _upload_poster_to_cloudinary(poster_path: str, title: str, movie_num: int) -
         safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_title = safe_title.replace(' ', '_').lower()[:30]  # Limit length
         
-        public_id = f"streamgank/posters/enhanced_{safe_title}_{movie_num}"
+        public_id = f"enhanced_{safe_title}_{movie_num}"  # Clean public ID without folder path
         
-        # Upload to Cloudinary (fix quality parameter conflict)
+        # Upload to Cloudinary (using folder parameter like movie clips)
         result = cloudinary.uploader.upload(
             poster_path,
             public_id=public_id,
+            folder="streamgank-reels/enhanced-poster-cover",  # Separate folder parameter
             resource_type="image",
             format="jpg",
+            overwrite=True,  # Allow overwrite like movie clips
             fetch_format="auto",
             transformation=[
                 {'width': 1080, 'height': 1920, 'crop': 'fill'},
@@ -648,9 +663,14 @@ def _upload_poster_to_cloudinary(poster_path: str, title: str, movie_num: int) -
         )
         
         cloudinary_url = result.get('secure_url')
+        actual_public_id = result.get('public_id')
+        folder_used = result.get('folder')
         
         if cloudinary_url:
-            logger.info(f"☁️ Uploaded to Cloudinary: {public_id}")
+            logger.info(f"✅ Successfully uploaded enhanced poster to Cloudinary: {cloudinary_url}")
+            logger.info(f"   📁 Actual folder: {folder_used}")
+            logger.info(f"   🆔 Actual public_id: {actual_public_id}")
+            logger.info(f"   🖼️ Enhanced poster available at: streamgank-reels/enhanced-poster-cover/{public_id}")
             return cloudinary_url
         else:
             logger.error(f"❌ Cloudinary upload failed for {poster_path}")

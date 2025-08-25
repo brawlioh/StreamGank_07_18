@@ -50,6 +50,7 @@ services:
             # Configuration and logs (bind mounts - less frequently accessed)
             - ./scripts:/app/scripts:cached
             - ./test_output:/app/test_output:cached
+            - ./streamgank-reels:/app/streamgank-reels:cached # Enhanced posters and movie clips
             - ./.env:/app/.env:ro
         networks:
             - streamgank-network

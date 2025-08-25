@@ -4,8 +4,6 @@
 .gitattributes
 
 # Documentation
-*.md
-md/
 README.md
 
 # Environment files (will be mounted separately)

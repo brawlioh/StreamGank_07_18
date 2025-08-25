@@ -42,6 +42,9 @@ from utils.test_data_cache import (
     is_local_mode, is_development_mode, is_production_mode
 )
 
+# Import webhook client for real-time step updates
+from utils.webhook_client import create_webhook_client
+
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -136,6 +139,12 @@ def run_full_workflow(num_movies: int = 3,
         'start_time': time.time()
     }
     
+    # Initialize webhook client for real-time step updates
+    webhook_client = create_webhook_client()
+    
+    # Send workflow started notification
+    webhook_client.send_workflow_started(total_steps=7)
+    
     try:
         # =============================================================================
         # STEP 1: DATABASE EXTRACTION
@@ -188,6 +197,15 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['steps_completed'].append('database_extraction')
         
         print(f"✅ STEP 1 COMPLETED - Found {len(raw_movies)} movies in {time.time() - step_start:.1f}s")
+        
+        # Send real-time webhook update
+        webhook_client.send_step_update(
+            step_number=1,
+            step_name="Database Extraction",
+            status="completed", 
+            duration=time.time() - step_start,
+            details={'movies_found': len(raw_movies)}
+        )
         
         # =============================================================================
         # PAUSE AFTER EXTRACTION (if requested)
@@ -283,6 +301,15 @@ def run_full_workflow(num_movies: int = 3,
         
         print(f"✅ STEP 2 COMPLETED - Using {len(individual_scripts)} scripts in {time.time() - step_start:.1f}s")
         
+        # Send real-time webhook update
+        webhook_client.send_step_update(
+            step_number=2,
+            step_name="Script Generation",
+            status="completed",
+            duration=time.time() - step_start,
+            details={'scripts_generated': len(individual_scripts)}
+        )
+        
         # =============================================================================
         # STEP 3: ASSET PREPARATION (MODULAR FUNCTIONS WITH TEST DATA CACHING)
         # =============================================================================
@@ -292,8 +319,8 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing asset data from test_output
         cached_assets_data = load_test_data('assets', country, genre, platform)
         
-        if cached_assets_data and should_use_cache():
-        # if False: # TESTING FIXED FADE EFFECTS + DUAL ZERO-SILENCE SYSTEM
+        # if cached_assets_data and should_use_cache():
+        if False: # TESTING POSTER UPLOAD TO streamgank-reels/enhanced-poster-cover
             print("   📂 Using cached asset data from test_output...")
             
             enhanced_posters = cached_assets_data.get('enhanced_posters', {})
@@ -360,6 +387,18 @@ def run_full_workflow(num_movies: int = 3,
         
         print(f"✅ STEP 3 COMPLETED - Created {len(movie_covers)} posters and {len(movie_clips)} clips in {time.time() - step_start:.1f}s")
         
+        # Send real-time webhook update
+        webhook_client.send_step_update(
+            step_number=3,
+            step_name="Asset Preparation",
+            status="completed",
+            duration=time.time() - step_start,
+            details={
+                'posters_created': len(movie_covers),
+                'clips_processed': len(movie_clips)
+            }
+        )
+        
         # =============================================================================
         # STEP 4: HEYGEN VIDEO CREATION (WITH ENVIRONMENT-AWARE CACHING)
         # =============================================================================
@@ -404,6 +443,18 @@ def run_full_workflow(num_movies: int = 3,
         
         print(f"✅ STEP 4 COMPLETED - {'Loaded' if should_use_cache() and cached_heygen_data else 'Created'} {len(heygen_video_ids)} HeyGen videos in {time.time() - step_start:.1f}s")
         
+        # Send real-time webhook update
+        webhook_client.send_step_update(
+            step_number=4,
+            step_name="HeyGen Video Creation",
+            status="completed",
+            duration=time.time() - step_start,
+            details={
+                'videos_created': len(heygen_video_ids),
+                'from_cache': should_use_cache() and cached_heygen_data is not None
+            }
+        )
+        
         # =============================================================================
         # STEP 5: GET HEYGEN VIDEO URLS (WITH ENVIRONMENT-AWARE CACHING)
         # =============================================================================
@@ -446,6 +497,15 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['steps_completed'].append('heygen_processing')
         
         print(f"✅ STEP 5 COMPLETED - Got {len(heygen_video_urls)} video URLs in {time.time() - step_start:.1f}s")
+        
+        # Send real-time webhook update
+        webhook_client.send_step_update(
+            step_number=5,
+            step_name="HeyGen Processing",
+            status="completed",
+            duration=time.time() - step_start,
+            details={'video_urls_retrieved': len(heygen_video_urls)}
+        )
         
         # =============================================================================
         # STEP 6: SCROLL VIDEO GENERATION (WITH ENVIRONMENT-AWARE CACHING)
@@ -509,6 +569,18 @@ def run_full_workflow(num_movies: int = 3,
                 print(f"✅ STEP 6 COMPLETED - {'Loaded' if should_use_cache() and cached_scroll_data and cached_scroll_data.get('scroll_video_url') else 'Generated'} scroll video in {time.time() - step_start:.1f}s")
             else:
                 print(f"⚠️ STEP 6 SKIPPED - Scroll video {'not available in cache' if is_local_mode() else 'generation failed'}, continuing without it")
+                
+            # Send real-time webhook update
+            webhook_client.send_step_update(
+                step_number=6,
+                step_name="Scroll Video Generation",
+                status="completed",
+                duration=time.time() - step_start,
+                details={
+                    'scroll_video_created': scroll_video_url is not None,
+                    'from_cache': should_use_cache() and cached_scroll_data and cached_scroll_data.get('scroll_video_url')
+                }
+            )
         else:
             print(f"\n[STEP 6/7] Scroll Video Generation - SKIPPED (user requested)")
         
@@ -570,6 +642,18 @@ def run_full_workflow(num_movies: int = 3,
         
         print(f"✅ STEP 7 COMPLETED - {'Loaded' if should_use_cache() and cached_creatomate_data else 'Created'} final video in {time.time() - step_start:.1f}s")
         
+        # Send real-time webhook update
+        webhook_client.send_step_update(
+            step_number=7,
+            step_name="Creatomate Assembly",
+            status="completed",
+            duration=time.time() - step_start,
+            details={
+                'creatomate_id': creatomate_id,
+                'from_cache': should_use_cache() and cached_creatomate_data is not None
+            }
+        )
+        
         # =============================================================================
         # WORKFLOW COMPLETION
         # =============================================================================
@@ -585,6 +669,12 @@ def run_full_workflow(num_movies: int = 3,
         print(f"   ⏱️ Total duration: {total_duration:.1f}s")
         print(f"   📊 Steps completed: {len(workflow_results['steps_completed'])}/7")
         print(f"   🎬 Creatomate ID: {creatomate_id}")
+        
+        # Send final workflow completion webhook
+        webhook_client.send_workflow_completed(
+            total_duration=total_duration,
+            creatomate_id=creatomate_id
+        )
         
         # Show environment-specific completion message
         if is_local_mode():
@@ -618,6 +708,12 @@ def run_full_workflow(num_movies: int = 3,
         print(f"\n❌ WORKFLOW FAILED at step {len(workflow_results['steps_completed']) + 1}")
         print(f"   Error: {str(e)}")
         print(f"   Duration before failure: {total_duration:.1f}s")
+        
+        # Send workflow failure webhook
+        webhook_client.send_workflow_failed(
+            error=str(e),
+            step_number=len(workflow_results['steps_completed']) + 1
+        )
         
         # Show environment-specific error guidance
         if is_local_mode() and "No cached" in str(e):

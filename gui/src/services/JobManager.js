@@ -84,7 +84,7 @@ export class JobManager extends EventTarget {
             UIManager.updateProgress(5, 'Job queued, waiting to start...');
 
             // Emit job started event
-            this.emit('jobStarted', { job });
+            this.dispatchEvent(new CustomEvent('jobStarted', { detail: { job } }));
 
             console.log(`💼 Job started: ${job.id}`);
             return { success: true, job };
@@ -95,7 +95,7 @@ export class JobManager extends EventTarget {
             this.resetGenerationState();
             UIManager.addStatusMessage('error', '❌', `Failed to start generation: ${error.message}`);
 
-            this.emit('jobError', { error });
+            this.dispatchEvent(new CustomEvent('jobError', { detail: { error } }));
             throw error;
         }
     }
@@ -236,7 +236,7 @@ export class JobManager extends EventTarget {
         }
 
         // Emit job updated event
-        this.emit('jobUpdated', { job, previousStatus });
+        this.dispatchEvent(new CustomEvent('jobUpdated', { detail: { job, previousStatus } }));
 
         console.log(`💼 Job ${job.id} updated: ${job.status} (${job.progress}%)`);
     }
@@ -294,7 +294,7 @@ export class JobManager extends EventTarget {
             this.moveJobToHistory(job);
         }
 
-        this.emit('jobCompleted', { job });
+        this.dispatchEvent(new CustomEvent('jobCompleted', { detail: { job } }));
     }
 
     /**
@@ -459,7 +459,7 @@ export class JobManager extends EventTarget {
         UIManager.addStatusMessage('error', '❌', `Generation failed: ${job.error || 'Unknown error'}`, false);
 
         this.moveJobToHistory(job);
-        this.emit('jobFailed', { job });
+        this.dispatchEvent(new CustomEvent('jobFailed', { detail: { job } }));
         this.resetGenerationState();
     }
 
@@ -472,7 +472,7 @@ export class JobManager extends EventTarget {
 
         UIManager.addStatusMessage('warning', '⏹️', 'Job was cancelled');
         this.moveJobToHistory(job);
-        this.emit('jobCancelled', { job });
+        this.dispatchEvent(new CustomEvent('jobCancelled', { detail: { job } }));
         this.resetGenerationState();
     }
 

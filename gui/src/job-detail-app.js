@@ -14,17 +14,25 @@ export class JobDetailApp {
         this.logUpdateInterval = null;
         this.autoScroll = true;
         this.isInitialized = false;
+        this.lastRefreshTime = 0; // Track last refresh for smart intervals
 
-        // Timeline steps for video generation process
+        // Timeline steps for video generation process - MATCHES ACTUAL WORKFLOW.PY
         this.processSteps = [
-            { id: 'queued', name: 'Queued', description: 'Job added to processing queue' },
-            { id: 'initializing', name: 'Initializing', description: 'Setting up job environment' },
-            { id: 'scraping', name: 'Content Discovery', description: 'Finding movies/shows from platform' },
-            { id: 'processing', name: 'Data Processing', description: 'Analyzing content and metadata' },
-            { id: 'generating', name: 'Video Creation', description: 'Generating video content' },
-            { id: 'rendering', name: 'Video Rendering', description: 'Creating final video file' },
-            { id: 'uploading', name: 'Upload & Storage', description: 'Saving video to cloud storage' },
-            { id: 'completed', name: 'Completed', description: 'Job finished successfully' }
+            { id: 'database_extraction', name: 'Database Extraction', description: 'Extracting movies from database' },
+            { id: 'script_generation', name: 'Script Generation', description: 'Generating AI scripts for content' },
+            {
+                id: 'asset_preparation',
+                name: 'Asset Preparation',
+                description: 'Creating enhanced posters and movie clips'
+            },
+            { id: 'heygen_creation', name: 'HeyGen Video Creation', description: 'Generating AI avatar videos' },
+            { id: 'heygen_processing', name: 'HeyGen Processing', description: 'Waiting for video completion' },
+            {
+                id: 'scroll_generation',
+                name: 'Scroll Video Generation',
+                description: 'Creating StreamGank scroll overlay'
+            },
+            { id: 'creatomate_assembly', name: 'Creatomate Assembly', description: 'Creating final video' }
         ];
     }
 
@@ -121,6 +129,7 @@ export class JobDetailApp {
             }
 
             this.jobData = response.job;
+            this.lastRefreshTime = Date.now(); // Initialize refresh tracking
             this.updateUI();
 
             console.log('✅ Job data loaded successfully');
@@ -179,11 +188,27 @@ export class JobDetailApp {
         const progressPercentage = document.getElementById('progress-percentage');
         const currentStep = document.getElementById('current-step');
 
-        const progress = this.jobData.progress || 0;
+        // PRODUCTION FIX: Always show 100% for completed jobs with video URL
+        let progress = this.jobData.progress || 0;
+
+        // Override progress for truly completed jobs
+        if (this.jobData.status === 'completed' && this.jobData.videoUrl) {
+            progress = 100;
+        }
+        // Show actual progress for completed jobs without video (still rendering)
+        else if (this.jobData.status === 'completed' && !this.jobData.videoUrl) {
+            // Keep the actual progress to show it's not truly done yet
+            progress = this.jobData.progress || 0;
+        }
+        // Also ensure failed/cancelled jobs show their actual progress, not stuck at partial
+        else if (this.jobData.status === 'failed' || this.jobData.status === 'cancelled') {
+            // Keep original progress for failed/cancelled to show where it stopped
+            progress = this.jobData.progress || 0;
+        }
 
         if (progressBar) {
             progressBar.style.width = `${progress}%`;
-            progressBar.className = `progress-bar ${this.getProgressBarClass(progress)} progress-bar-striped ${progress < 100 && this.jobData.status === 'active' ? 'progress-bar-animated' : ''}`;
+            progressBar.className = `progress-bar ${this.getProgressBarClass(progress)} progress-bar-striped ${progress < 100 && ['active', 'processing', 'rendering'].includes(this.jobData.status) ? 'progress-bar-animated' : ''}`;
         }
 
         if (progressPercentage) {
@@ -211,15 +236,22 @@ export class JobDetailApp {
             { label: 'Worker ID', value: this.jobData.workerId || 'Unassigned', icon: 'fas fa-user' }
         ];
 
+        // Add Creatomate ID if available
+        if (this.jobData.creatomateId) {
+            params.push({
+                label: 'Creatomate ID',
+                value: this.jobData.creatomateId,
+                icon: 'fas fa-video'
+            });
+        }
+
         parametersContainer.innerHTML = params
             .map(
                 (param) => `
-            <div class="parameter-item">
-                <div class="d-flex align-items-center mb-1">
-                    <i class="${param.icon} me-2 text-primary"></i>
-                    <small class="text-muted">${param.label}</small>
-                </div>
-                <div class="text-light fw-bold">${param.value || 'Unknown'}</div>
+            <div class="param-badge">
+                <i class="${param.icon}"></i>
+                <span class="label">${param.label}:</span>
+                <span class="value">${param.value || 'Unknown'}</span>
             </div>
         `
             )
@@ -252,15 +284,12 @@ export class JobDetailApp {
                 }
 
                 return `
-                <div class="timeline-item">
-                    <div class="timeline-icon ${iconClass}">
+                <div class="timeline-step ${iconClass}">
+                    <div class="step-icon">
                         ${this.getStepIcon(step.id, iconClass)}
                     </div>
-                    <div class="timeline-content">
-                        <h6 class="text-light mb-1">${step.name}</h6>
-                        <p class="text-muted mb-1 small">${step.description}</p>
-                        ${timestamp ? `<small class="text-info">${timestamp}</small>` : ''}
-                    </div>
+                    <div class="step-title">${step.name}</div>
+                    <div class="step-status text-muted">${this.getStepStatusText(iconClass, timestamp)}</div>
                 </div>
             `;
             })
@@ -306,6 +335,25 @@ export class JobDetailApp {
                     <i class="fas fa-redo me-1"></i> Retry Job
                 </button>
             `);
+        }
+
+        // Show monitoring button for completed jobs with Creatomate ID but no video URL
+        if (status === 'completed' && this.jobData.creatomateId && !this.jobData.videoUrl) {
+            if (this.jobData.workflowIncomplete) {
+                // Workflow was incomplete - show warning button with different action
+                buttons.push(`
+                    <button class="btn btn-outline-danger" onclick="jobDetailApp.showWorkflowWarning()">
+                        <i class="fas fa-exclamation-triangle me-1"></i> Workflow Issue
+                    </button>
+                `);
+            } else {
+                // Normal case - show monitoring button
+                buttons.push(`
+                    <button class="btn btn-outline-warning" onclick="jobDetailApp.monitorCreatomate()">
+                        <i class="fas fa-eye me-1"></i> Check Video Status
+                    </button>
+                `);
+            }
         }
 
         if (this.jobData.videoUrl) {
@@ -398,68 +446,178 @@ export class JobDetailApp {
      * Start real-time updates
      */
     startRealTimeUpdates() {
-        console.log('🔄 Starting real-time updates...');
+        console.log('🔄 Starting webhook-optimized updates (reduced polling)...');
 
         // Initialize RealtimeService for real-time events
         RealtimeService.init();
 
-        // PROFESSIONAL: Webhooks provide real-time updates, minimal polling as backup only
+        // WEBHOOK-OPTIMIZED: Much longer intervals since webhooks provide real-time updates
         this.refreshInterval = setInterval(() => {
-            this.refreshJobData();
-        }, 120000); // Backup refresh every 2 minutes only (webhooks do the real work)
+            // Stop refreshing if job is finished (but continue during rendering)
+            if (['completed', 'failed', 'cancelled'].includes(this.jobData?.status) && this.jobData?.videoUrl) {
+                // Only stop if truly completed (has video URL or is failed/cancelled)
+                console.log('🛑 Job finished, stopping polling');
+                this.stopRealTimeUpdates();
+                return;
+            }
 
-        // Simulate live logs (in real implementation, this would come from WebSocket)
+            // WEBHOOK-OPTIMIZED: Reduced polling since webhooks handle real-time updates
+            const isActive = this.jobData?.status === 'active' || this.jobData?.status === 'processing';
+            const isRendering = this.jobData?.status === 'rendering';
+
+            if (isActive || isRendering) {
+                // Active/rendering jobs: only refresh every 2 minutes (webhooks handle real-time)
+                const timeSinceLastUpdate = Date.now() - this.lastRefreshTime;
+                if (timeSinceLastUpdate > 120000) {
+                    // 2 minutes
+                    this.refreshJobData();
+                }
+            } else {
+                // Pending jobs: refresh every 5 minutes (webhooks handle transitions)
+                const timeSinceLastUpdate = Date.now() - this.lastRefreshTime;
+                if (timeSinceLastUpdate > 300000) {
+                    // 5 minutes
+                    this.refreshJobData();
+                }
+            }
+        }, 60000); // Check every 1 minute instead of 15 seconds (major reduction!)
+
+        // Start fetching real job logs from the server (also reduced frequency)
         this.startLogUpdates();
     }
 
     /**
-     * Start log updates simulation
+     * Stop real-time updates when job is finished
      */
-    startLogUpdates() {
-        this.logUpdateInterval = setInterval(() => {
-            if (this.jobData && (this.jobData.status === 'active' || this.jobData.status === 'pending')) {
-                this.simulateLogEntry();
-            }
-        }, 3000); // Add log entry every 3 seconds
-    }
+    stopRealTimeUpdates() {
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = null;
+            console.log('🛑 Stopped job refresh interval');
+        }
 
-    /**
-     * Simulate a log entry (for demonstration)
-     */
-    simulateLogEntry() {
-        const sampleLogs = [
-            { level: 'info', message: 'Processing content metadata...' },
-            { level: 'success', message: 'Found content matching criteria' },
-            { level: 'info', message: 'Generating video segments...' },
-            { level: 'info', message: 'Applying video template...' },
-            { level: 'success', message: 'Video segment created successfully' },
-            { level: 'info', message: 'Uploading to cloud storage...' }
-        ];
-
-        if (Math.random() < 0.3) {
-            // 30% chance to add a log entry
-            const randomLog = sampleLogs[Math.floor(Math.random() * sampleLogs.length)];
-            this.addLogEntry({
-                timestamp: new Date(),
-                level: randomLog.level,
-                message: randomLog.message
-            });
+        if (this.logUpdateInterval) {
+            clearInterval(this.logUpdateInterval);
+            this.logUpdateInterval = null;
+            console.log('🛑 Stopped log update interval');
         }
     }
 
     /**
-     * Add a log entry to the log viewer
+     * Start real log updates from server
+     */
+    startLogUpdates() {
+        // Initial log fetch
+        this.fetchRealLogs();
+
+        // WEBHOOK-OPTIMIZED: Poll for logs every 30 seconds (webhooks add logs in real-time)
+        this.logUpdateInterval = setInterval(() => {
+            if (this.jobData && ['active', 'pending', 'processing', 'rendering'].includes(this.jobData.status)) {
+                this.fetchRealLogs();
+            } else if (['completed', 'failed', 'cancelled'].includes(this.jobData?.status)) {
+                // Job finished - fetch final logs once and stop polling
+                this.fetchRealLogs();
+                clearInterval(this.logUpdateInterval);
+                console.log('🛑 Job finished, stopped log polling');
+            }
+        }, 30000); // 30 seconds instead of 2 seconds (major reduction!)
+    }
+
+    /**
+     * Fetch real logs from server
+     */
+    async fetchRealLogs() {
+        try {
+            const response = await fetch(`/api/queue/job/${this.jobId}/logs`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            if (result.success && result.data.logs) {
+                this.updateLogDisplay(result.data.logs);
+            }
+        } catch (error) {
+            console.error('❌ Failed to fetch job logs:', error);
+            // Only show error if we haven't shown logs yet
+            const logViewer = document.getElementById('log-viewer');
+            if (logViewer && logViewer.children.length <= 1) {
+                this.addLogEntry({
+                    timestamp: new Date(),
+                    level: 'error',
+                    message: `Failed to fetch logs: ${error.message}\n\nThis could be due to network issues or the job not being found. Try refreshing the page.`
+                });
+            }
+        }
+    }
+
+    /**
+     * Update log display with real logs from server
+     */
+    updateLogDisplay(logs) {
+        const logViewer = document.getElementById('log-viewer');
+        if (!logViewer) return;
+
+        // Clear existing logs first
+        logViewer.innerHTML = '';
+
+        if (logs.length === 0) {
+            logViewer.innerHTML = `
+                <div class="log-entry level-info">
+                    <div class="log-icon">
+                        <i class="fas fa-info-circle"></i>
+                    </div>
+                    <div class="log-timestamp">--:--:--</div>
+                    <div class="log-content">
+                        <strong>No logs available yet</strong><br>
+                        Job processing hasn't started or logs are still being initialized.
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        // Add all logs
+        logs.forEach((logData) => {
+            this.addLogEntry({
+                timestamp: logData.timestamp,
+                level: logData.type || 'info',
+                message: logData.message
+            });
+        });
+
+        // Auto-scroll to bottom if enabled
+        if (this.autoScroll) {
+            logViewer.scrollTop = logViewer.scrollHeight;
+        }
+    }
+
+    /**
+     * Add a professional log entry to the log viewer
      */
     addLogEntry(logData) {
         const logViewer = document.getElementById('log-viewer');
         if (!logViewer) return;
 
-        const timestamp = new Date(logData.timestamp || new Date()).toLocaleTimeString();
+        const timestamp = new Date(logData.timestamp || new Date()).toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+
+        const level = logData.level || 'info';
+        const message = this.formatLogMessage(logData.message || '');
+        const icon = this.getLogIcon(level);
+
         const logEntry = document.createElement('div');
-        logEntry.className = 'log-entry';
+        logEntry.className = `log-entry level-${level}`;
         logEntry.innerHTML = `
-            <span class="log-timestamp">[${timestamp}]</span>
-            <span class="log-level-${logData.level}">${logData.message}</span>
+            <div class="log-icon">
+                <i class="${icon}"></i>
+            </div>
+            <div class="log-timestamp">${timestamp}</div>
+            <div class="log-content">${message}</div>
         `;
 
         logViewer.appendChild(logEntry);
@@ -469,11 +627,63 @@ export class JobDetailApp {
             logViewer.scrollTop = logViewer.scrollHeight;
         }
 
-        // Limit log entries to prevent memory issues
-        const maxEntries = 100;
+        // Keep only last 150 log entries for performance
+        const maxEntries = 150;
         while (logViewer.children.length > maxEntries) {
             logViewer.removeChild(logViewer.firstChild);
         }
+    }
+
+    /**
+     * Get icon for log level
+     */
+    getLogIcon(level) {
+        const icons = {
+            info: 'fas fa-info-circle',
+            success: 'fas fa-check-circle',
+            warning: 'fas fa-exclamation-triangle',
+            error: 'fas fa-times-circle',
+            step: 'fas fa-cog fa-spin',
+            debug: 'fas fa-bug'
+        };
+        return icons[level] || icons.info;
+    }
+
+    /**
+     * Format log message for better readability
+     */
+    formatLogMessage(message) {
+        if (!message || typeof message !== 'string') return '';
+
+        // Clean up the message
+        let formattedMessage = message
+            .trim()
+            .replace(/\r\n/g, '\n') // Normalize line endings
+            .replace(/\r/g, '\n') // Handle remaining \r
+            .replace(/\n{3,}/g, '\n\n'); // Limit consecutive newlines
+
+        // Highlight important patterns
+        formattedMessage = formattedMessage
+            // Highlight file paths and URLs
+            .replace(/(\/[^\s]+\.(py|js|json|mp4|jpg|png|webp))/g, '<code>$1</code>')
+            // Highlight URLs
+            .replace(/(https?:\/\/[^\s]+)/g, '<code>$1</code>')
+            // Highlight step indicators
+            .replace(/Step (\d+)\/(\d+):/g, '<strong>Step $1/$2:</strong>')
+            // Highlight success indicators
+            .replace(/(✅|✓|SUCCESS|COMPLETED|DONE)/gi, '<strong style="color: #3fb950;">$1</strong>')
+            // Highlight error indicators
+            .replace(/(❌|✗|ERROR|FAILED|FAILURE)/gi, '<strong style="color: #f85149;">$1</strong>')
+            // Highlight warning indicators
+            .replace(/(⚠️|WARNING|WARN)/gi, '<strong style="color: #d29922;">$1</strong>')
+            // Highlight processing indicators
+            .replace(/(🎬|📝|🎨|🤖|⏳|📱)/g, '<strong>$1</strong>')
+            // Highlight file sizes and durations
+            .replace(/(\d+(?:\.\d+)?\s*(?:MB|KB|GB|s|ms|minutes?|seconds?))/gi, '<strong>$1</strong>')
+            // Highlight percentages
+            .replace(/(\d+(?:\.\d+)?%)/g, '<strong>$1</strong>');
+
+        return formattedMessage;
     }
 
     /**
@@ -482,8 +692,24 @@ export class JobDetailApp {
     async refreshJobData() {
         try {
             console.log('🔄 Refreshing job data...');
+
+            // Store previous status to detect completion
+            const previousStatus = this.jobData?.status;
+
             await this.loadJobData();
+            this.lastRefreshTime = Date.now(); // Track refresh time for smart intervals
             console.log('✅ Job data refreshed');
+
+            // Stop real-time updates if job just completed with video URL
+            if (
+                previousStatus &&
+                ['active', 'pending', 'processing', 'rendering'].includes(previousStatus) &&
+                this.jobData?.status === 'completed' &&
+                this.jobData?.videoUrl
+            ) {
+                console.log('🏁 Job completed during refresh, stopping real-time updates');
+                this.stopRealTimeUpdates();
+            }
         } catch (error) {
             console.error('❌ Failed to refresh job data:', error);
             this.addLogEntry({
@@ -499,11 +725,25 @@ export class JobDetailApp {
     handleJobUpdate(updateData) {
         console.log('📡 Received job update:', updateData);
 
+        // Store previous status to detect completion
+        const previousStatus = this.jobData?.status;
+
         // Merge update data with current job data
         this.jobData = { ...this.jobData, ...updateData };
 
         // Update UI
         this.updateUI();
+
+        // Stop real-time updates if job just completed with video
+        if (
+            previousStatus &&
+            ['active', 'pending', 'processing', 'rendering'].includes(previousStatus) &&
+            this.jobData.status === 'completed' &&
+            this.jobData.videoUrl
+        ) {
+            console.log('🏁 Job completed with video, stopping real-time updates');
+            this.stopRealTimeUpdates();
+        }
 
         // Add log entry about the update
         this.addLogEntry({
@@ -536,8 +776,25 @@ export class JobDetailApp {
     clearLogs() {
         const logViewer = document.getElementById('log-viewer');
         if (logViewer) {
-            logViewer.innerHTML =
-                '<div class="log-entry"><span class="log-timestamp">[Cleared]</span><span class="log-level-info">Log viewer cleared</span></div>';
+            const timestamp = new Date().toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+
+            logViewer.innerHTML = `
+                <div class="log-entry level-info">
+                    <div class="log-icon">
+                        <i class="fas fa-broom"></i>
+                    </div>
+                    <div class="log-timestamp">${timestamp}</div>
+                    <div class="log-content">
+                        <strong>Log viewer cleared</strong><br>
+                        Previous log entries have been removed from display.
+                    </div>
+                </div>
+            `;
         }
     }
 
@@ -627,11 +884,97 @@ export class JobDetailApp {
         }
     }
 
+    /**
+     * Manually trigger Creatomate monitoring for this job
+     */
+    async monitorCreatomate() {
+        try {
+            console.log(`🎬 Manual Creatomate monitoring trigger for job ${this.jobId}`);
+
+            this.addLogEntry({
+                level: 'info',
+                message: 'Checking video render status with Creatomate...'
+            });
+
+            const response = await fetch(`/api/queue/job/${this.jobId}/monitor-creatomate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.addLogEntry({
+                    level: 'success',
+                    message: `Started monitoring Creatomate render ID: ${result.creatomateId}`
+                });
+
+                this.addLogEntry({
+                    level: 'info',
+                    message:
+                        'Video status will be checked every 30 seconds. This page will update automatically when ready.'
+                });
+
+                // Refresh job data to show new status
+                await this.refreshJobData();
+            } else {
+                this.addLogEntry({
+                    level: 'error',
+                    message: `Failed to start monitoring: ${result.message}`
+                });
+
+                if (result.details) {
+                    this.addLogEntry({
+                        level: 'warning',
+                        message: result.details
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('❌ Failed to trigger Creatomate monitoring:', error);
+            this.addLogEntry({
+                level: 'error',
+                message: `Failed to trigger monitoring: ${error.message}`
+            });
+        }
+    }
+
+    /**
+     * Show workflow warning information
+     */
+    showWorkflowWarning() {
+        this.addLogEntry({
+            level: 'warning',
+            message: '⚠️ Workflow Incomplete - The Python script did not complete all 7 steps properly'
+        });
+
+        this.addLogEntry({
+            level: 'info',
+            message: 'This job has a Creatomate ID but the workflow may not have submitted the video correctly.'
+        });
+
+        if (this.jobData.creatomateId) {
+            this.addLogEntry({
+                level: 'info',
+                message: `Manual check: python main.py --check-creatomate ${this.jobData.creatomateId}`
+            });
+        }
+
+        this.addLogEntry({
+            level: 'info',
+            message: 'Consider retrying this job to ensure all 7 workflow steps complete properly.'
+        });
+    }
+
     // Helper methods
     getStatusBadgeClass(status) {
         const classes = {
             pending: 'bg-warning text-dark',
             active: 'bg-info text-dark',
+            processing: 'bg-info text-dark',
+            rendering: 'bg-primary', // New rendering status
             completed: 'bg-success',
             failed: 'bg-danger',
             cancelled: 'bg-secondary'
@@ -647,8 +990,19 @@ export class JobDetailApp {
     }
 
     getStepFromProgress(progress) {
-        const step = Math.floor(progress / 12.5); // 8 steps, so 100/8 = 12.5
+        const stepSize = 100 / this.processSteps.length; // Dynamic step size
+        const step = Math.floor(progress / stepSize);
         return this.processSteps[Math.min(step, this.processSteps.length - 1)]?.description || 'Processing...';
+    }
+
+    getStepStatusText(iconClass, timestamp) {
+        const statusTexts = {
+            pending: 'Waiting...',
+            active: 'In Progress',
+            completed: timestamp ? `Done ${timestamp}` : 'Completed',
+            failed: 'Failed'
+        };
+        return statusTexts[iconClass] || 'Unknown';
     }
 
     getProgressForStep(stepId) {
@@ -657,10 +1011,23 @@ export class JobDetailApp {
     }
 
     getStepIcon(stepId, iconClass) {
+        // Status-based icons
         if (iconClass === 'completed') return '✓';
         if (iconClass === 'failed') return '✗';
         if (iconClass === 'active') return '⟳';
-        return '○';
+
+        // Step-specific icons for pending state
+        const stepIcons = {
+            database_extraction: '🗄️',
+            script_generation: '📝',
+            asset_preparation: '🎨',
+            heygen_creation: '🤖',
+            heygen_processing: '⏳',
+            scroll_generation: '📱',
+            creatomate_assembly: '🎬'
+        };
+
+        return stepIcons[stepId] || '○';
     }
 
     getStepTimestamp(stepId) {
@@ -670,14 +1037,27 @@ export class JobDetailApp {
 
     getCurrentStepNumber() {
         const progress = this.jobData?.progress || 0;
-        return `${Math.min(Math.floor(progress / 12.5) + 1, 8)}/8`;
+        const stepNumber = Math.min(
+            Math.floor(progress / (100 / this.processSteps.length)) + 1,
+            this.processSteps.length
+        );
+        return `${stepNumber}/${this.processSteps.length}`;
     }
 
     calculateDuration() {
         if (!this.jobData?.startedAt) return '--';
 
         const start = new Date(this.jobData.startedAt);
-        const end = this.jobData.completedAt ? new Date(this.jobData.completedAt) : new Date();
+
+        // For completed, failed, or cancelled jobs, use completedAt timestamp
+        // Otherwise use current time for active jobs
+        let end;
+        if (['completed', 'failed', 'cancelled'].includes(this.jobData.status)) {
+            end = this.jobData.completedAt ? new Date(this.jobData.completedAt) : new Date(this.jobData.startedAt);
+        } else {
+            end = new Date(); // Keep timer running for active jobs
+        }
+
         const duration = end - start;
 
         const minutes = Math.floor(duration / 60000);

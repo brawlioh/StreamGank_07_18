@@ -2,6 +2,7 @@ const redis = require('redis');
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const { promisify } = require('util');
+const axios = require('axios'); // For Creatomate API requests
 
 /**
  * Redis-based Video Queue Manager
@@ -68,6 +69,7 @@ class VideoQueueManager {
         this.activeProcesses = new Map(); // Track multiple Python processes by jobId
         this.availableWorkers = this.maxWorkers; // Number of available worker slots
         this.jobLogs = new Map(); // Store logs for each job by jobId
+        this.jobCache = new Map(); // PRODUCTION: In-memory job cache to reduce Redis calls
 
         console.log(
             `👥 Worker pool initialized: ${this.maxWorkers} max workers, concurrent processing: ${this.concurrentProcessing}`
@@ -80,7 +82,7 @@ class VideoQueueManager {
                     console.error('❌ Background cleanup error:', error);
                 });
             },
-            30 * 60 * 1000  // 30 minutes - much less frequent
+            30 * 60 * 1000 // 30 minutes - much less frequent
         );
 
         // Redis queue keys with database-aware namespace
@@ -108,6 +110,7 @@ class VideoQueueManager {
         this.expireAsync = promisify(this.client.expire).bind(this.client);
         this.delAsync = promisify(this.client.del).bind(this.client);
         this.lrangeAsync = promisify(this.client.lrange).bind(this.client);
+        this.hdelAsync = promisify(this.client.hdel).bind(this.client);
         this.quitAsync = promisify(this.client.quit).bind(this.client);
 
         // Production-level error tracking and recovery
@@ -115,6 +118,11 @@ class VideoQueueManager {
         this.lastErrorTime = 0;
         this.maxErrorsBeforeAlert = 10;
         this.errorResetInterval = 300000; // 5 minutes
+
+        // PRODUCTION FIX: Limit concurrent Creatomate monitoring to prevent log spam
+        this.activeMonitoring = new Set(); // Track currently monitored jobs
+        this.maxConcurrentMonitoring = 5; // Max 5 simultaneous monitoring jobs
+        this.monitoringQueue = []; // Queue for monitoring when at limit
 
         // Webhook manager reference (will be set by server.js)
         this.webhookManager = null;
@@ -392,25 +400,85 @@ class VideoQueueManager {
     }
 
     /**
-     * Get specific job by ID - OPTIMIZED with performance monitoring
+     * Get specific job by ID - OPTIMIZED with performance monitoring and aggressive caching
      * @param {string} jobId - Job identifier
      * @returns {Object|null} Job object or null if not found
      */
     async getJob(jobId) {
         const startTime = Date.now();
+
+        // PRODUCTION OPTIMIZATION: Check in-memory cache first to avoid Redis calls
+        const cacheKey = `job_${jobId}`;
+        if (this.jobCache && this.jobCache.has(cacheKey)) {
+            const cached = this.jobCache.get(cacheKey);
+            const age = Date.now() - cached.timestamp;
+
+            // Use longer cache for completed/failed jobs (they don't change)
+            const isStatic = cached.job && ['completed', 'failed', 'cancelled'].includes(cached.job.status);
+            const maxAge = isStatic ? 300000 : 30000; // 5 minutes for static, 30 seconds for active
+
+            if (age < maxAge) {
+                // Cache hit - no Redis request needed
+                console.log(`📋 Job cache hit for ${jobId.slice(-8)} (age: ${age}ms)`);
+                return cached.job;
+            }
+        }
+
         try {
-            const jobData = await this.hgetAsync(this.keys.jobs, jobId);
+            // Add timeout protection specifically for Redis operations
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error(`Redis timeout for job ${jobId.slice(-8)}`)), 2000);
+            });
+
+            const redisPromise = this.executeWithPool(this.getNextClient().hget, [this.keys.jobs, jobId], 'hget_job');
+            const jobData = await Promise.race([redisPromise, timeoutPromise]);
+
             const duration = Date.now() - startTime;
 
-            // Log slow Redis operations
+            // Log slow Redis operations with more context
             if (duration > 200) {
-                console.warn(`⚠️ Slow Redis getJob for ${jobId.slice(-8)}: ${duration}ms`);
+                console.warn(`⚠️ Slow Redis getJob for ${jobId.slice(-8)}: ${duration}ms (pool usage: active)`);
             }
 
-            return jobData ? JSON.parse(jobData) : null;
+            const job = jobData ? JSON.parse(jobData) : null;
+
+            // Cache the result to prevent immediate re-fetching
+            if (job) {
+                if (!this.jobCache) this.jobCache = new Map();
+                this.jobCache.set(cacheKey, {
+                    job: job,
+                    timestamp: Date.now()
+                });
+
+                // Clean old cache entries to prevent memory leaks
+                if (this.jobCache.size > 1000) {
+                    const now = Date.now();
+                    for (const [key, value] of this.jobCache) {
+                        if (now - value.timestamp > 600000) {
+                            // 10 minutes
+                            this.jobCache.delete(key);
+                        }
+                    }
+                }
+            }
+
+            return job;
         } catch (error) {
             const duration = Date.now() - startTime;
-            console.error(`❌ Failed to get job ${jobId} (${duration}ms):`, error.message);
+
+            if (error.message.includes('timeout')) {
+                console.error(`🚨 PRODUCTION ALERT: Redis timeout for job ${jobId.slice(-8)} after ${duration}ms`);
+
+                // Return cached data if available during timeout
+                const cacheKey = `job_${jobId}`;
+                if (this.jobCache && this.jobCache.has(cacheKey)) {
+                    const cached = this.jobCache.get(cacheKey);
+                    console.log(`📋 Using stale cache for ${jobId.slice(-8)} due to Redis timeout`);
+                    return cached.job;
+                }
+            }
+
+            console.error(`❌ Failed to get job ${jobId.slice(-8)} (${duration}ms):`, error.message);
             return null;
         }
     }
@@ -422,6 +490,17 @@ class VideoQueueManager {
     async updateJob(job) {
         try {
             await this.hsetAsync(this.keys.jobs, job.id, JSON.stringify(job));
+
+            // PRODUCTION OPTIMIZATION: Invalidate cache when job is updated
+            const cacheKey = `job_${job.id}`;
+            if (this.jobCache && this.jobCache.has(cacheKey)) {
+                // Update cache with fresh data instead of invalidating
+                this.jobCache.set(cacheKey, {
+                    job: job,
+                    timestamp: Date.now()
+                });
+                console.log(`📋 Job cache updated for ${job.id.slice(-8)}`);
+            }
         } catch (error) {
             console.error(`❌ Failed to update job ${job.id}:`, error);
         }
@@ -605,19 +684,59 @@ class VideoQueueManager {
                 // Send webhook notification for full completion
                 this.sendWebhookNotification('job.completed', job);
             } else if (result.creatomateId) {
-                // Python script done but video still rendering
-                job.status = 'completed'; // Mark as completed for Python script
-                job.creatomateId = result.creatomateId;
-                job.videoUrl = null; // No video URL yet
-                job.progress = 90;
-                job.currentStep = 'Python script completed, video rendering in progress...';
+                // PRODUCTION FIX: Only start Creatomate monitoring if workflow fully completed
+                if (result.workflowFullyComplete) {
+                    console.log(`✅ Workflow fully complete for job ${job.id} - Starting Creatomate monitoring`);
 
-                // Remove from processing queue and add to completed (but video not ready)
-                await this.lremAsync(this.keys.processing, 1, processingJobState);
-                await this.lpushAsync(this.keys.completed, JSON.stringify(job));
+                    // Python script done but video still rendering
+                    job.status = 'rendering'; // Use 'rendering' status to distinguish from fully completed
+                    job.creatomateId = result.creatomateId;
+                    job.videoUrl = null; // No video URL yet
+                    job.progress = 90;
+                    job.currentStep = 'All 7 steps completed - Video rendering with Creatomate...';
 
-                // Send webhook notification for script completion (video still rendering)
-                this.sendWebhookNotification('job.script_completed', job);
+                    // Remove from processing queue and add to completed (but video not ready)
+                    await this.lremAsync(this.keys.processing, 1, processingJobState);
+                    await this.lpushAsync(this.keys.completed, JSON.stringify(job));
+
+                    // Send webhook notification for script completion (video still rendering)
+                    this.sendWebhookNotification('job.script_completed', job);
+
+                    // Start monitoring Creatomate render status ONLY after full workflow completion
+                    console.log(`🎬 Starting Creatomate monitoring for job ${job.id} (Render ID: ${job.creatomateId})`);
+                    this.startCreatomateMonitoring(job.id, job.creatomateId);
+                } else {
+                    // Workflow incomplete - mark as completed but note the issue
+                    console.warn(`⚠️ Job ${job.id} has Creatomate ID but workflow not fully complete:`);
+                    console.warn(`   - Step 7 completed: ${result.step7Completed}`);
+                    console.warn(`   - Workflow completed message: ${result.workflowCompleted}`);
+
+                    job.status = 'completed';
+                    job.creatomateId = result.creatomateId;
+                    job.videoUrl = null;
+                    job.progress = 85; // Not full 90% since workflow incomplete
+                    job.currentStep = '⚠️ Python script completed but workflow may be incomplete - Manual check needed';
+                    job.workflowIncomplete = true;
+
+                    // Remove from processing queue and add to completed
+                    await this.lremAsync(this.keys.processing, 1, processingJobState);
+                    await this.lpushAsync(this.keys.completed, JSON.stringify(job));
+
+                    // Send notification about incomplete workflow
+                    this.sendWebhookNotification('job.workflow_incomplete', job);
+
+                    // Add warning to job logs
+                    this.addJobLog(
+                        job.id,
+                        `⚠️ Workflow may be incomplete - Step 7: ${result.step7Completed}, Workflow message: ${result.workflowCompleted}`,
+                        'warning'
+                    );
+                    this.addJobLog(
+                        job.id,
+                        `🔍 Manual verification needed for Creatomate ID: ${result.creatomateId}`,
+                        'info'
+                    );
+                }
             } else {
                 // No video URL or Creatomate ID - something went wrong
                 job.status = 'completed';
@@ -1095,6 +1214,11 @@ class VideoQueueManager {
         return new Promise((resolve, reject) => {
             const { country, platform, genre, contentType, template, pauseAfterExtraction } = parameters;
 
+            // Track workflow completion state
+            let allStepsCompleted = false;
+            let step7Completed = false;
+            let workflowCompleted = false;
+
             // Construct Python command (Using main.py modular system as requested)
             // Check if running in Docker or locally
             const isDocker = process.env.PYTHON_BACKEND_PATH === '/app';
@@ -1116,11 +1240,8 @@ class VideoQueueManager {
                 args.push('--heygen-template-id', template);
             }
 
-            // Add Vizard template ID for intelligent video processing
-            args.push('--vizard-template-id', '69147768');
-
-            // Add job ID for webhook notifications
-            args.push('--job-id', job.id);
+            // Note: Vizard template ID and job ID not supported by main.py CLI
+            // Removed unsupported arguments: --vizard-template-id and --job-id
 
             // Add pause flag if enabled
             if (pauseAfterExtraction) {
@@ -1137,9 +1258,13 @@ class VideoQueueManager {
                 env: {
                     ...process.env,
                     PYTHONIOENCODING: 'utf-8',
-                    PYTHONUNBUFFERED: '1'
+                    PYTHONUNBUFFERED: '1',
+                    JOB_ID: job.id, // Pass job ID for real-time webhook updates
+                    WEBHOOK_BASE_URL: process.env.WEBHOOK_BASE_URL || 'http://localhost:3000'
                 }
             });
+
+            console.log(`📡 Real-time webhooks enabled for job: ${job.id}`);
 
             // Store reference to current process for cancellation (multi-worker support)
             this.activeProcesses.set(job.id, pythonProcess);
@@ -1324,6 +1449,21 @@ class VideoQueueManager {
                                 job.progress = Math.max(job.progress, pattern.progress);
                                 job.currentStep = pattern.step;
                                 progressUpdated = true;
+
+                                // PRODUCTION FIX: Track workflow completion properly
+                                if (pattern.patterns.includes('✅ STEP 7 COMPLETED')) {
+                                    step7Completed = true;
+                                    console.log(`✅ Step 7 completed for job ${job.id} - Final step done`);
+                                }
+
+                                if (pattern.patterns.includes('🎉 WORKFLOW COMPLETED SUCCESSFULLY')) {
+                                    workflowCompleted = true;
+                                    allStepsCompleted = step7Completed && workflowCompleted;
+                                    console.log(
+                                        `🎉 Workflow completion detected for job ${job.id} - All steps: ${allStepsCompleted}`
+                                    );
+                                }
+
                                 await this.updateJob(job); // Force immediate job update for UI
                                 break; // Stop at first match to avoid conflicts
                             }
@@ -1566,11 +1706,23 @@ class VideoQueueManager {
                         stderr: stderr
                     });
                 } else {
+                    // PRODUCTION FIX: Only consider workflow complete if all steps actually finished
+                    const workflowFullyComplete = allStepsCompleted && step7Completed && workflowCompleted;
+
+                    console.log(`📊 Workflow completion status for job ${job.id}:`);
+                    console.log(`   - Step 7 completed: ${step7Completed}`);
+                    console.log(`   - Workflow completed message: ${workflowCompleted}`);
+                    console.log(`   - All steps complete: ${workflowFullyComplete}`);
+                    console.log(`   - Creatomate ID: ${creatomateId || 'None'}`);
+
                     resolve({
                         creatomateId,
                         videoUrl,
                         stdout,
-                        stderr
+                        stderr,
+                        workflowFullyComplete, // Pass this flag to the job processing logic
+                        step7Completed,
+                        workflowCompleted
                     });
                 }
             });
@@ -1709,6 +1861,87 @@ class VideoQueueManager {
     }
 
     /**
+     * Permanently delete a completed, failed, or cancelled job
+     * @param {string} jobId - Job ID
+     * @returns {boolean} True if successfully deleted
+     */
+    async deleteJob(jobId) {
+        try {
+            // Get the job to verify it exists and check its status
+            const job = await this.getJob(jobId);
+            if (!job) {
+                throw new Error('Job not found');
+            }
+
+            // Only allow deletion of non-active jobs
+            if (!['completed', 'failed', 'cancelled'].includes(job.status)) {
+                throw new Error(
+                    `Cannot delete job with status: ${job.status}. Only completed, failed, or cancelled jobs can be deleted.`
+                );
+            }
+
+            // Ensure job is not currently running
+            const activeJob = this.activeJobs.get(jobId);
+            if (activeJob) {
+                throw new Error('Cannot delete a job that is currently processing');
+            }
+
+            console.log(`🗑️ Permanently deleting job ${jobId} (status: ${job.status})`);
+
+            // Remove from jobs hash
+            await this.hdelAsync(this.keys.jobs, jobId);
+
+            // Remove from all possible queue states (try to remove from all lists)
+            // Note: We don't know exactly which queue the job is in, so try to remove from all
+            const queueKeys = [this.keys.waiting, this.keys.active, this.keys.completed, this.keys.failed];
+
+            for (const queueKey of queueKeys) {
+                try {
+                    // Try to remove the job from this queue
+                    // Since jobs in queues might have slight formatting differences,
+                    // we'll get the entire queue and filter it
+                    const allJobs = await this.lrangeAsync(queueKey, 0, -1);
+                    for (let i = 0; i < allJobs.length; i++) {
+                        try {
+                            const queueJob = JSON.parse(allJobs[i]);
+                            if (queueJob.id === jobId) {
+                                await this.lremAsync(queueKey, 1, allJobs[i]);
+                                console.log(`🗑️ Removed job ${jobId} from queue: ${queueKey}`);
+                                break;
+                            }
+                        } catch (parseError) {
+                            // Skip malformed entries
+                            continue;
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ Could not clean job from queue ${queueKey}:`, error.message);
+                }
+            }
+
+            // Remove job logs and data
+            await this.delAsync(`${this.keys.logs}:${jobId}`);
+            await this.delAsync(`${this.keys.data}:${jobId}`);
+
+            // Clean up in-memory data
+            this.jobLogs.delete(jobId);
+
+            // Send webhook notification for job deletion
+            this.sendWebhookNotification('job.deleted', {
+                ...job,
+                deletedAt: new Date().toISOString()
+            });
+
+            console.log(`✅ Job ${jobId} permanently deleted from all storage`);
+
+            return true;
+        } catch (error) {
+            console.error(`❌ Failed to delete job ${jobId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Stop queue processing
      */
     stopProcessing() {
@@ -1795,6 +2028,26 @@ class VideoQueueManager {
 
             if (cleanedCount > 0) {
                 console.log(`🧹 Cleaned up ${cleanedCount} orphaned processing jobs`);
+            }
+
+            // PRODUCTION OPTIMIZATION: Clean job cache during periodic cleanup
+            if (this.jobCache && this.jobCache.size > 0) {
+                const now = Date.now();
+                let cacheCleanedCount = 0;
+
+                for (const [key, value] of this.jobCache) {
+                    // Remove entries older than 10 minutes
+                    if (now - value.timestamp > 600000) {
+                        this.jobCache.delete(key);
+                        cacheCleanedCount++;
+                    }
+                }
+
+                if (cacheCleanedCount > 0) {
+                    console.log(
+                        `🧹 Cleaned up ${cacheCleanedCount} expired job cache entries (${this.jobCache.size} remaining)`
+                    );
+                }
             }
 
             return cleanedCount;
@@ -1898,35 +2151,29 @@ class VideoQueueManager {
      * @param {string} type - Log type (info, success, warning, error, step)
      */
     addJobLog(jobId, message, type = 'info') {
-        // FILTER OUT detailed workflow logs - don't store them at all
-        // These logs clutter the job detail pages and are not useful for users
+        // PRODUCTION OPTIMIZED: Smart filtering - keep important step messages, filter noise
         const shouldSkipLog =
-            // Skip step-by-step workflow details
-            message.match(/^Step \d+\/\d+:/) ||
-            message.includes('Database Extraction - Extracting') ||
-            message.includes('Script Generation - Generating') ||
-            message.includes('Asset Preparation - Creating') ||
-            message.includes('HeyGen Video Creation - Generating') ||
-            message.includes('Video Processing') ||
-            message.includes('Scroll Video Generation') ||
-            message.includes('Creatomate') ||
+            // Keep: [STEP X/Y] messages - users want to see progress
+            // Keep: ✅ STEP COMPLETED messages - users want to see completions
+            // Keep: Movies extracted from database - users want to see results
+            // Keep: 🎉 WORKFLOW COMPLETED - users want to see final results
+
+            // FILTER OUT: Technical noise and repetitive details
             message.includes('Parameters: {') ||
             message.includes('Job job_') ||
             message.includes('started with worker') ||
             message.includes('Queue position:') ||
             message.includes('Queue stats') ||
             message.includes('Processing job') ||
-            // Skip technical extraction details
-            (message.includes('Extracting ') && message.includes('movies from database')) ||
-            (message.includes('Generating scripts for') && message.includes('content on')) ||
-            message.includes('Creating enhanced posters and movie clips') ||
-            message.includes('waiting for video completion') ||
-            // Skip settings and cache messages
-            message.includes('Using settings') ||
-            message.includes('smooth_scroll') ||
+            // Settings and cache noise (not interesting to users)
+            (message.includes('Using settings') && message.includes('smooth_scroll')) ||
             message.includes('cached script') ||
             message.includes('cached asset') ||
-            message.includes('Loaded');
+            (message.includes('Loaded') && message.includes('cached')) ||
+            // Repetitive processing messages
+            (message.includes('Creating enhanced posters') && !message.includes('✅')) ||
+            (message.includes('Generating scripts for') && !message.includes('[STEP')) ||
+            (message.includes('waiting for video completion') && !message.includes('STEP'));
 
         if (shouldSkipLog) {
             // Still log to console for debugging, but don't store for GUI
@@ -1990,6 +2237,315 @@ class VideoQueueManager {
             console.log('🔌 Redis connection closed');
         } catch (error) {
             console.error('❌ Error closing Redis connection:', error);
+        }
+    }
+
+    /**
+     * Start monitoring Creatomate render status and update job when complete
+     * @param {string} jobId - Job ID to update
+     * @param {string} creatomateId - Creatomate render ID
+     */
+    async startCreatomateMonitoring(jobId, creatomateId) {
+        if (!creatomateId) {
+            console.error(`❌ Cannot monitor Creatomate for job ${jobId}: No render ID provided`);
+            return;
+        }
+
+        // PRODUCTION FIX: Concurrency control to prevent log spam with multiple jobs
+        if (this.activeMonitoring.size >= this.maxConcurrentMonitoring) {
+            this.monitoringQueue.push({ jobId, creatomateId });
+            console.log(
+                `📋 Queued monitoring: ${jobId} (${this.monitoringQueue.length} in queue, ${this.activeMonitoring.size} active)`
+            );
+            return;
+        }
+
+        // Add to active monitoring set
+        this.activeMonitoring.add(jobId);
+
+        let attempts = 0;
+        const maxAttempts = 15; // Reduced to 15 minutes max
+        let checkInterval = 60000; // Start with 60 seconds
+        const maxInterval = 180000; // Max 3 minutes between checks
+        let lastLoggedStatus = null;
+        let lastProgressUpdate = 0;
+
+        // Single startup log
+        console.log(
+            `🎬 Monitoring [${this.activeMonitoring.size}/${this.maxConcurrentMonitoring}]: ${jobId} → ${creatomateId}`
+        );
+
+        const checkStatus = async () => {
+            attempts++;
+
+            try {
+                const response = await this.checkCreatomateStatusDirect(creatomateId);
+
+                if (response.success && response.status === 'completed' && response.url) {
+                    // Video ready - ALWAYS log success
+                    console.log(`✅ Video ready: ${jobId} → ${response.url}`);
+                    await this.updateJobWithVideo(jobId, response.url);
+                    this.finishMonitoring(jobId);
+                    return;
+                } else if (response.success && response.status) {
+                    const status = response.status.toLowerCase();
+
+                    // SMART LOGGING: Only log status changes OR every 5th attempt
+                    const shouldLog = status !== lastLoggedStatus || attempts % 5 === 0 || attempts === 1;
+
+                    if (shouldLog) {
+                        console.log(`⏳ ${jobId}: ${status} [${attempts}/${maxAttempts}]`);
+                        lastLoggedStatus = status;
+                    }
+
+                    // SMART PROGRESS UPDATES: Only every 2nd attempt or significant progress
+                    const now = Date.now();
+                    const shouldUpdateProgress = now - lastProgressUpdate > 120000 || attempts % 2 === 0;
+
+                    if (shouldUpdateProgress) {
+                        await this.updateJobRenderingProgress(jobId, status, attempts, maxAttempts);
+                        lastProgressUpdate = now;
+                    }
+
+                    // PROGRESSIVE INTERVALS: Start fast, slow down over time
+                    if (attempts > 3) {
+                        checkInterval = Math.min(maxInterval, checkInterval + 30000); // Increase by 30s
+                    }
+                } else if (response.success === false) {
+                    // MINIMAL ERROR LOGGING: Only every 3rd error
+                    if (attempts % 3 === 1) {
+                        console.warn(`⚠️ API error ${jobId}: ${response.error}`);
+                    }
+                }
+
+                // Schedule next check or timeout
+                if (attempts < maxAttempts) {
+                    setTimeout(checkStatus, checkInterval);
+                } else {
+                    console.log(`⏰ Timeout: ${jobId} after ${maxAttempts} attempts`);
+                    await this.markJobAsRenderTimeout(jobId, creatomateId);
+                    this.finishMonitoring(jobId);
+                }
+            } catch (error) {
+                // MINIMAL ERROR LOGGING: Only every 3rd error
+                if (attempts % 3 === 1) {
+                    console.error(`❌ Error ${jobId}: ${error.message}`);
+                }
+
+                if (attempts < maxAttempts) {
+                    setTimeout(checkStatus, Math.min(120000, checkInterval)); // Cap error retry at 2min
+                } else {
+                    await this.markJobAsRenderTimeout(jobId, creatomateId);
+                    this.finishMonitoring(jobId);
+                }
+            }
+        };
+
+        // Start monitoring with 10 second delay to avoid startup spam
+        setTimeout(checkStatus, 10000);
+    }
+
+    /**
+     * Clean up monitoring and start next queued job
+     */
+    finishMonitoring(jobId) {
+        this.activeMonitoring.delete(jobId);
+
+        // Start next job in queue if any
+        if (this.monitoringQueue.length > 0) {
+            const next = this.monitoringQueue.shift();
+            console.log(`📋 Starting queued monitoring: ${next.jobId} (${this.monitoringQueue.length} remaining)`);
+            setTimeout(() => this.startCreatomateMonitoring(next.jobId, next.creatomateId), 5000);
+        }
+    }
+
+    /**
+     * Direct Creatomate API status check
+     * @param {string} renderId - Creatomate render ID
+     * @returns {Promise<Object>} Status response
+     */
+    async checkCreatomateStatusDirect(renderId) {
+        const apiKey = process.env.CREATOMATE_API_KEY;
+        if (!apiKey) {
+            return { success: false, error: 'Missing CREATOMATE_API_KEY environment variable' };
+        }
+
+        try {
+            const axios = require('axios');
+            const response = await axios.get(`https://api.creatomate.com/v1/renders/${renderId}`, {
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 30000
+            });
+
+            if (response.status === 200) {
+                const result = response.data;
+                const status = result.status || 'unknown';
+                const url = result.url || '';
+
+                return {
+                    success: true,
+                    status: status,
+                    url: url,
+                    data: result
+                };
+            } else {
+                return {
+                    success: false,
+                    error: `HTTP ${response.status}: ${response.statusText}`
+                };
+            }
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Update job with final video URL when Creatomate completes
+     * @param {string} jobId - Job ID
+     * @param {string} videoUrl - Final video URL
+     */
+    async updateJobWithVideo(jobId, videoUrl) {
+        try {
+            const job = await this.getJob(jobId);
+            if (!job) {
+                console.error(`❌ Cannot update job ${jobId} with video: Job not found`);
+                return;
+            }
+
+            // Update job with final video URL
+            job.status = 'completed';
+            job.videoUrl = videoUrl;
+            job.progress = 100;
+            job.completedAt = new Date().toISOString();
+            job.currentStep = '🎉 Video rendering completed successfully!';
+
+            await this.updateJob(job);
+
+            // Send webhook notification for full completion
+            this.sendWebhookNotification('job.completed', job);
+
+            console.log(`🎬 Job ${jobId} updated with final video: ${videoUrl}`);
+            this.addJobLog(jobId, `🎬 Video rendering completed: ${videoUrl}`, 'success');
+            this.addJobLog(jobId, `✅ Final video is ready for viewing and download`, 'success');
+        } catch (error) {
+            console.error(`❌ Failed to update job ${jobId} with video:`, error.message);
+        }
+    }
+
+    /**
+     * Update job rendering progress
+     * @param {string} jobId - Job ID
+     * @param {string} status - Creatomate status
+     * @param {number} attempts - Current attempt number
+     * @param {number} maxAttempts - Maximum attempts
+     */
+    async updateJobRenderingProgress(jobId, status, attempts, maxAttempts) {
+        try {
+            const job = await this.getJob(jobId);
+            if (!job) return;
+
+            // Calculate progress based on attempts and status
+            let progressPercent = 90 + (attempts / maxAttempts) * 10;
+
+            if (status.includes('render') || status.includes('process')) {
+                progressPercent = Math.min(95, progressPercent);
+            }
+
+            job.progress = Math.round(progressPercent);
+            job.currentStep = `🎬 Rendering video: ${status.charAt(0).toUpperCase() + status.slice(1)}... (${attempts}/${maxAttempts})`;
+
+            await this.updateJob(job);
+
+            // Add periodic log updates (every 4th attempt = every 2 minutes)
+            if (attempts % 4 === 0) {
+                this.addJobLog(jobId, `⏳ Video render status: ${status} (check ${attempts}/${maxAttempts})`, 'info');
+            }
+        } catch (error) {
+            console.error(`❌ Failed to update job ${jobId} rendering progress:`, error.message);
+        }
+    }
+
+    /**
+     * Mark job as render timeout
+     * @param {string} jobId - Job ID
+     * @param {string} creatomateId - Creatomate render ID
+     */
+    async markJobAsRenderTimeout(jobId, creatomateId) {
+        try {
+            const job = await this.getJob(jobId);
+            if (!job) return;
+
+            job.status = 'completed';
+            job.progress = 95;
+            job.currentStep = `⚠️ Video render timeout - Check manually: ${creatomateId}`;
+            job.renderTimeout = true;
+            job.timeoutAt = new Date().toISOString();
+
+            await this.updateJob(job);
+
+            this.addJobLog(jobId, `⚠️ Video rendering timed out after 20 minutes`, 'warning');
+            this.addJobLog(
+                jobId,
+                `🔍 Check render manually: python main.py --check-creatomate ${creatomateId}`,
+                'info'
+            );
+
+            // Send webhook notification for timeout
+            this.sendWebhookNotification('job.render_timeout', job);
+
+            console.log(`⚠️ Job ${jobId} marked as render timeout (Creatomate ID: ${creatomateId})`);
+        } catch (error) {
+            console.error(`❌ Failed to mark job ${jobId} as render timeout:`, error.message);
+        }
+    }
+
+    /**
+     * Check existing jobs for Creatomate monitoring needs (startup recovery)
+     */
+    async checkExistingJobsForCreatomateMonitoring() {
+        try {
+            console.log('🔍 Checking existing jobs for Creatomate monitoring needs...');
+
+            const allJobs = await this.getAllJobs();
+            let monitoringStarted = 0;
+
+            for (const job of allJobs) {
+                // Find jobs that have Creatomate ID but no video URL and status is 'completed' or 'rendering'
+                if (job.creatomateId && !job.videoUrl && ['completed', 'rendering'].includes(job.status)) {
+                    // PRODUCTION FIX: Only start monitoring for jobs that don't have workflow issues
+                    if (job.workflowIncomplete) {
+                        console.log(`⚠️ Skipping job ${job.id} - marked as workflow incomplete`);
+                        continue;
+                    }
+
+                    console.log(`🎬 Found job ${job.id} needing Creatomate monitoring (ID: ${job.creatomateId})`);
+
+                    // Update status to 'rendering' if it's 'completed' without video
+                    if (job.status === 'completed') {
+                        job.status = 'rendering';
+                        job.currentStep = 'Video rendering in progress with Creatomate...';
+                        await this.updateJob(job);
+                    }
+
+                    // Start monitoring
+                    this.startCreatomateMonitoring(job.id, job.creatomateId);
+                    monitoringStarted++;
+                }
+            }
+
+            if (monitoringStarted > 0) {
+                console.log(`✅ Started Creatomate monitoring for ${monitoringStarted} existing jobs`);
+            } else {
+                console.log('📋 No existing jobs need Creatomate monitoring');
+            }
+        } catch (error) {
+            console.error('❌ Error checking existing jobs for Creatomate monitoring:', error.message);
         }
     }
 }
