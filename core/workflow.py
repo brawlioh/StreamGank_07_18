@@ -32,13 +32,15 @@ from ai.heygen_client import create_heygen_video, get_heygen_videos_for_creatoma
 from video.scroll_generator import generate_scroll_video
 from video.creatomate_client import create_creatomate_video
 
+# Import media utilities for background music selection
+from media.media_utils import select_background_music, get_background_music_info
+
 # Import centralized settings
 from config.settings import get_scroll_settings, get_video_settings
 
 # Import test data caching utilities
 from utils.test_data_cache import (
-    load_test_data, save_test_data, save_script_result, save_assets_result,
-    save_heygen_result, save_creatomate_result, save_workflow_result,
+    load_test_data, save_workflow_result,
     get_app_env, should_use_cache, should_save_results,
     is_local_mode, is_development_mode, is_production_mode
 )
@@ -232,6 +234,10 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['raw_movies'] = raw_movies
         workflow_results['steps_completed'].append('database_extraction')
         
+        # Save incremental progress in development mode
+        if save_enabled:
+            save_workflow_result(workflow_results, country, genre, platform)
+        
         step_duration = time.time() - step_start
         print(f"✅ STEP 1 COMPLETED - Found {len(raw_movies)} movies in {step_duration:.1f}s")
         
@@ -337,27 +343,16 @@ def run_full_workflow(num_movies: int = 3,
             
             combined_script, script_file_path, individual_scripts = script_result
             
-            # Save script result to test_output for future use
-            script_data_to_save = {
-                'combined_script': combined_script,
-                'script_file_path': script_file_path,
-                'individual_scripts': individual_scripts,
-                'raw_movies': raw_movies,  # Also save movie data for reference
-                'parameters': {
-                    'country': country,
-                    'genre': genre,
-                    'platform': platform,
-                    'content_type': content_type,
-                    'num_movies': len(raw_movies)
-                }
-            }
-            
-            save_script_result(script_data_to_save, country, genre, platform)
+            # Script results saved via save_workflow_result() call below
         
         workflow_results['combined_script'] = combined_script
         workflow_results['script_file_path'] = script_file_path
         workflow_results['individual_scripts'] = individual_scripts
         workflow_results['steps_completed'].append('script_generation')
+        
+        # Save incremental progress in development mode
+        if save_enabled:
+            save_workflow_result(workflow_results, country, genre, platform)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 2 COMPLETED - Using {len(individual_scripts)} scripts in {step_duration:.1f}s")
@@ -411,6 +406,20 @@ def run_full_workflow(num_movies: int = 3,
             
             print(f"   📋 Loaded {len(enhanced_posters)} cached posters and {len(dynamic_clips)} cached clips")
             
+            # Check if cached data already has background music, otherwise select new one
+            if 'background_music_url' in cached_assets_data:
+                background_music_url = cached_assets_data['background_music_url']
+                background_music_info = cached_assets_data.get('background_music_info', 
+                    get_background_music_info(genre))
+                print(f"   📋 Loaded cached background music: {background_music_info['type']}")
+            else:
+                print("   🎵 No cached background music found, selecting new one...")
+                background_music_url = select_background_music(genre)
+                background_music_info = get_background_music_info(genre)
+                print(f"   ✅ Selected {background_music_info['type']} background music for {genre}")
+            
+            print(f"   🔗 Music URL: {background_music_url}")
+            
         else:
             print("   🔄 No cached assets found, generating new assets...")
             
@@ -463,20 +472,15 @@ def run_full_workflow(num_movies: int = 3,
                 logger.warning(f"⚠️ Partial clip success: Got {len(dynamic_clips)}/3 clips - continuing with available content")
                 print(f"   ⚠️ Some trailers failed processing (YouTube restrictions/short videos) - continuing with {len(dynamic_clips)} clips")
             
-            # Save asset results to test_output for future use
-            assets_data_to_save = {
-                'enhanced_posters': enhanced_posters,
-                'dynamic_clips': dynamic_clips,
-                'parameters': {
-                    'country': country,
-                    'genre': genre,
-                    'platform': platform,
-                    'content_type': content_type,
-                    'num_movies': len(raw_movies)
-                }
-            }
-            
-            save_assets_result(assets_data_to_save, country, genre, platform)
+            # Asset results saved via save_workflow_result() call below
+        
+        # Select background music based on genre (NEW FEATURE)
+        print("   🎵 Selecting background music based on genre...")
+        background_music_url = select_background_music(genre)
+        background_music_info = get_background_music_info(genre)
+        
+        print(f"   ✅ Selected {background_music_info['type']} background music for {genre}")
+        print(f"   🔗 Music URL: {background_music_url}")
         
         # Extract URLs for Creatomate
         movie_covers = list(enhanced_posters.values())[:3]
@@ -486,7 +490,13 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['movie_clips'] = movie_clips
         workflow_results['enhanced_posters'] = enhanced_posters
         workflow_results['dynamic_clips'] = dynamic_clips
+        workflow_results['background_music_url'] = background_music_url
+        workflow_results['background_music_info'] = background_music_info
         workflow_results['steps_completed'].append('asset_preparation')
+        
+        # Save incremental progress in development mode
+        if save_enabled:
+            save_workflow_result(workflow_results, country, genre, platform)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 3 COMPLETED - Created {len(movie_covers)} posters and {len(movie_clips)} clips in {step_duration:.1f}s")
@@ -556,17 +566,14 @@ def run_full_workflow(num_movies: int = 3,
             if not heygen_video_ids:
                 raise Exception("HeyGen video creation failed")
             
-            # Save HeyGen results if environment allows
-            if should_save_results():
-                heygen_data_to_save = {
-                    'video_ids': heygen_video_ids,
-                    'template_id': heygen_template_id,
-                    'script_count': len(individual_scripts)
-                }
-                save_heygen_result(heygen_data_to_save, country, genre, platform)
+            # HeyGen results saved via save_workflow_result() call below
         
         workflow_results['heygen_video_ids'] = heygen_video_ids
         workflow_results['steps_completed'].append('heygen_creation')
+        
+        # Save incremental progress in development mode
+        if save_enabled:
+            save_workflow_result(workflow_results, country, genre, platform)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 4 COMPLETED - {'Loaded' if should_use_cache() and cached_heygen_data else 'Created'} {len(heygen_video_ids)} HeyGen videos in {step_duration:.1f}s")
@@ -634,17 +641,14 @@ def run_full_workflow(num_movies: int = 3,
             if not heygen_video_urls:
                 raise Exception("HeyGen video URL retrieval failed")
             
-            # Save HeyGen URL results if environment allows
-            if should_save_results():
-                heygen_urls_data_to_save = {
-                    'video_urls': heygen_video_urls,
-                    'video_ids': heygen_video_ids,
-                    'url_count': len(heygen_video_urls)
-                }
-                save_test_data(heygen_urls_data_to_save, 'heygen_urls', country, genre, platform)
+            # HeyGen URLs saved via save_workflow_result() call below
         
         workflow_results['heygen_video_urls'] = heygen_video_urls
         workflow_results['steps_completed'].append('heygen_processing')
+        
+        # Save incremental progress in development mode
+        if save_enabled:
+            save_workflow_result(workflow_results, country, genre, platform)
         
         print(f"✅ STEP 5 COMPLETED - Got {len(heygen_video_urls)} video URLs in {time.time() - step_start:.1f}s")
         
@@ -715,21 +719,7 @@ def run_full_workflow(num_movies: int = 3,
                         duration=scroll_settings.get('target_duration', 4)
                     )
                     
-                    # Save scroll video results if environment allows
-                    if should_save_results() and scroll_video_url:
-                        scroll_data_to_save = {
-                            'scroll_video_url': scroll_video_url,
-                            'parameters': {
-                                'country': country,
-                                'genre': genre,
-                                'platform': platform,
-                                'content_type': content_type,
-                                'smooth_scroll': smooth_scroll,
-                                'scroll_distance': scroll_distance,
-                                'duration': scroll_settings.get('target_duration', 4)
-                            }
-                        }
-                        save_test_data(scroll_data_to_save, 'scroll_video', country, genre, platform)
+                    # Scroll video results saved via save_workflow_result() call below
             
             if scroll_video_url:
                 workflow_results['scroll_video_url'] = scroll_video_url
@@ -769,6 +759,10 @@ def run_full_workflow(num_movies: int = 3,
             })
         
         workflow_results['steps_completed'].append('scroll_generation')
+        
+        # Save incremental progress in development mode
+        if save_enabled:
+            save_workflow_result(workflow_results, country, genre, platform)
         
         # =============================================================================
         # STEP 7: CREATOMATE FINAL ASSEMBLY (WITH ENVIRONMENT-AWARE CACHING)
@@ -820,26 +814,21 @@ def run_full_workflow(num_movies: int = 3,
                 movie_clips=movie_clips,
                 scroll_video_url=scroll_video_url,
                 scripts=individual_scripts,
-                poster_timing_mode=poster_timing_mode
+                poster_timing_mode=poster_timing_mode,
+                background_music_url=workflow_results.get('background_music_url')
             )
             
             if not creatomate_id or creatomate_id.startswith('error'):
                 raise Exception(f"Creatomate video creation failed: {creatomate_id}")
             
-            # Save Creatomate results if environment allows
-            if should_save_results():
-                creatomate_data_to_save = {
-                    'render_id': creatomate_id,
-                    'heygen_urls_count': len(heygen_video_urls),
-                    'movie_covers_count': len(movie_covers),
-                    'movie_clips_count': len(movie_clips),
-                    'has_scroll_video': scroll_video_url is not None,
-                    'poster_timing_mode': poster_timing_mode
-                }
-                save_creatomate_result(creatomate_data_to_save, country, genre, platform)
+            # Creatomate results saved via save_workflow_result() call below
         
         workflow_results['creatomate_id'] = creatomate_id
         workflow_results['steps_completed'].append('creatomate_assembly')
+        
+        # Save incremental progress in development mode
+        if save_enabled:
+            save_workflow_result(workflow_results, country, genre, platform)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 7 COMPLETED - {'Loaded' if should_use_cache() and cached_creatomate_data else 'Created'} final video in {step_duration:.1f}s")

@@ -78,7 +78,8 @@ def create_creatomate_video(heygen_video_urls: Dict[str, str],
                           movie_clips: Optional[List[str]] = None,
                           scroll_video_url: Optional[str] = None,
                           scripts: Optional[Dict] = None,
-                          poster_timing_mode: str = "heygen_last3s") -> str:
+                          poster_timing_mode: str = "heygen_last3s",
+                          background_music_url: Optional[str] = None) -> str:
     """
     Create a video using Creatomate API with all provided assets.
     
@@ -98,6 +99,7 @@ def create_creatomate_video(heygen_video_urls: Dict[str, str],
         scroll_video_url (str): Optional scroll video URL for overlay
         scripts (Dict): Optional script data for duration estimation
         poster_timing_mode (str): Poster timing strategy
+        background_music_url (str): Optional background music URL for audio elements
         
     Returns:
         str: Creatomate render ID (guaranteed success)
@@ -132,7 +134,8 @@ def create_creatomate_video(heygen_video_urls: Dict[str, str],
         movie_clips=movie_clips,
         scroll_video_url=scroll_video_url,
         scripts=scripts,
-        poster_timing_mode=poster_timing_mode
+        poster_timing_mode=poster_timing_mode,
+        background_music_url=background_music_url
     )
     
     # STRICT: Submit render job (will raise on failure)

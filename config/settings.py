@@ -93,10 +93,10 @@ VIDEO_SETTINGS = {
     'poster_resolution': (1080, 1920),
     'poster_quality': 95,
     'font_sizes': {
-        'title': 72,
-        'subtitle': 48,
-        'metadata': 36,
-        'rating': 42
+        'title': 88,         # BALANCED to 88px - Perfect title size matching Spider-Man poster
+        'subtitle': 60,      # BALANCED to 60px - Platform badge size matching reference  
+        'metadata': 50,      # BALANCED to 50px - Metadata values matching reference
+        'rating': 54         # BALANCED to 54px - Labels matching Spider-Man poster
     },
     'margins': {
         'top': 100,

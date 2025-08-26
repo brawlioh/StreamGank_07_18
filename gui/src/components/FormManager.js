@@ -114,13 +114,13 @@ export class FormManager {
             Horreur: 'ed21a309a5c84b0d873fde68642adea3',
 
             // Comedy templates
-            Comedy: '9186cef35dde4505bdccb1ec5c312339',
-            Comédie: '9186cef35dde4505bdccb1ec5c312339',
-            'Stand-up Comedy': '9186cef35dde4505bdccb1ec5c312339',
+            Comedy: '0786b31e7a8b4e8c97799b913b1e39ea',
+            Comédie: '0786b31e7a8b4e8c97799b913b1e39ea',
+            'Stand-up Comedy': '0786b31e7a8b4e8c97799b913b1e39ea',
 
             // Action templates
-            'Action & Adventure': 'e4549f9f3d5e43dbaac26146e32e2a1f',
-            'Action & Aventure': 'e4549f9f3d5e43dbaac26146e32e2a1f',
+            'Action & Adventure': '7f8db20ddcd94a33a1235599aa8bf473',
+            'Action & Aventure': '7f8db20ddcd94a33a1235599aa8bf473',
 
             // Default template for other genres
             default: 'cc6718c5363e42b282a123f99b94b335'

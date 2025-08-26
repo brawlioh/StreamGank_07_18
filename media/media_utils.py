@@ -581,6 +581,101 @@ def _get_directory_size(directory: str) -> int:
         return 0
 
 # =============================================================================
+# BACKGROUND MUSIC SELECTION
+# =============================================================================
+
+def select_background_music(genre: str) -> str:
+    """
+    Select appropriate background music URL based on the genre.
+    
+    Uses genre-specific background music to enhance the video experience.
+    Supports both English and French genres with case-insensitive matching.
+    
+    Args:
+        genre (str): Content genre (e.g., 'Horror', 'Comedy', 'Action')
+        
+    Returns:
+        str: Cloudinary URL for the appropriate background music
+        
+    Examples:
+        >>> select_background_music('Horror')
+        'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3'
+        
+        >>> select_background_music('comedy')  # Case insensitive
+        'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218702/comedy_uju3dv.mp3'
+        
+        >>> select_background_music('Drama')   # Uses default horror for unknown genres
+        'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3'
+    """
+    logger.info(f"🎵 Selecting background music for genre: {genre}")
+    
+    # Background music URLs by genre - ALL LOWERCASE for easy matching
+    BACKGROUND_MUSIC_URLS = {
+        # Comedy genres
+        'comedy': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218702/comedy_uju3dv.mp3',
+        
+        # Action & Adventure genres  
+        'action': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218054/action_y1zm5x.mp3',
+        'action & adventure': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218054/action_y1zm5x.mp3',
+        'action & aventure': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218054/action_y1zm5x.mp3',
+        
+        # Horror genres
+        'horror': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
+        'horreur': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
+        'thriller': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
+        'mystery & thriller': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
+        
+        # Default fallback (using Action as default)
+        'default': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/action_y1zm5x.mp3'
+    }
+    
+    if not genre:
+        logger.info("🎵 No genre provided, using default background music")
+        return BACKGROUND_MUSIC_URLS['default']
+    
+    # Normalize genre for comparison (lowercase, stripped)
+    genre_normalized = genre.strip().lower()
+    
+    # Check for exact match first
+    if genre_normalized in BACKGROUND_MUSIC_URLS:
+        selected_url = BACKGROUND_MUSIC_URLS[genre_normalized]
+        logger.info(f"🎵 Genre '{genre}' matched background music: {selected_url}")
+        return selected_url
+    
+    # No match found, use default
+    logger.info(f"🎵 Genre '{genre}' not specifically mapped, using default background music")
+    return BACKGROUND_MUSIC_URLS['default']
+
+
+def get_background_music_info(genre: str) -> Dict[str, str]:
+    """
+    Get background music information including URL and metadata.
+    
+    Args:
+        genre (str): Content genre
+        
+    Returns:
+        Dict[str, str]: Background music information
+    """
+    music_url = select_background_music(genre)
+    
+    # Extract music type from URL for metadata
+    music_type = 'horror'  # default
+    if 'comedy' in music_url:
+        music_type = 'comedy'
+    elif 'action' in music_url:
+        music_type = 'action'
+    elif 'horror' in music_url:
+        music_type = 'horror'
+    
+    return {
+        'url': music_url,
+        'type': music_type,
+        'genre': genre,
+        'description': f'{music_type.title()} background music for {genre} content'
+    }
+
+# =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 

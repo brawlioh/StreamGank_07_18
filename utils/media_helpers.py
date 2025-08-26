@@ -358,48 +358,8 @@ def calculate_processing_requirements(media_files: List[str]) -> Dict[str, Any]:
 # MODULAR ASSET CREATION FUNCTIONS (REPLACES LEGACY)
 # =============================================================================
 
-def create_enhanced_movie_posters(movie_data: List[Dict], max_movies: int = 3) -> Dict[str, str]:
-    """
-    Create enhanced movie posters with metadata overlays.
-    
-    MODULAR VERSION - Replaces legacy function from streamgank_helpers.py
-    
-    Args:
-        movie_data (List[Dict]): List of movie data dictionaries
-        max_movies (int): Maximum number of movies to process
-        
-    Returns:
-        Dict[str, str]: Dictionary mapping movie titles to poster URLs
-    """
-    logger.info(f"🎬 Creating enhanced movie posters for {min(len(movie_data), max_movies)} movies")
-    
-    try:
-        enhanced_posters = {}
-        
-        # Process up to max_movies
-        for i, movie in enumerate(movie_data[:max_movies]):
-            try:
-                title = movie.get('title', f'Movie_{i+1}')
-                poster_url = movie.get('poster_url', '')
-                
-                if poster_url:
-                    # For now, return the original poster URL
-                    # In a full implementation, this would add metadata overlays
-                    enhanced_posters[title] = poster_url
-                    logger.info(f"✅ Enhanced poster created for: {title}")
-                else:
-                    logger.warning(f"⚠️ No poster URL found for: {title}")
-                    
-            except Exception as e:
-                logger.error(f"❌ Error creating enhanced poster for movie {i+1}: {str(e)}")
-                continue
-        
-        logger.info(f"🎬 Successfully created {len(enhanced_posters)} enhanced posters")
-        return enhanced_posters
-        
-    except Exception as e:
-        logger.error(f"❌ Error in create_enhanced_movie_posters: {str(e)}")
-        return {}
+# REMOVED: create_enhanced_movie_posters function
+# Use video.poster_generator.create_enhanced_movie_posters instead
 
 
 def process_movie_trailers_to_clips(movie_data: List[Dict], 

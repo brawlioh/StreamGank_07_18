@@ -51,42 +51,42 @@ class TestHeyGenTemplates:
     def test_get_heygen_template_id_horror(self):
         """Test template ID retrieval for horror genre."""
         template_id = get_heygen_template_id('Horror')
-        assert template_id == 'e2ad0e5c7e71483991536f5c93594e42'
+        assert template_id == 'ed21a309a5c84b0d873fde68642adea3'
         
         # Test case insensitive
         template_id_lower = get_heygen_template_id('horror')
-        assert template_id_lower == 'e2ad0e5c7e71483991536f5c93594e42'
+        assert template_id_lower == 'ed21a309a5c84b0d873fde68642adea3'
     
     def test_get_heygen_template_id_comedy(self):
         """Test template ID retrieval for comedy genre."""
         template_id = get_heygen_template_id('Comedy')
-        assert template_id == '9186cef35dde4505bdccb1ec5c312339'
+        assert template_id == '0786b31e7a8b4e8c97799b913b1e39ea'
         
         # Test French version
         template_id_french = get_heygen_template_id('Comédie')
-        assert template_id_french == '9186cef35dde4505bdccb1ec5c312339'
+        assert template_id_french == '0786b31e7a8b4e8c97799b913b1e39ea'
     
     def test_get_heygen_template_id_action(self):
         """Test template ID retrieval for action genre."""
         template_id = get_heygen_template_id('Action')
-        assert template_id == 'e4549f9f3d5e43dbaac26146e32e2a1f'
+        assert template_id == '7f8db20ddcd94a33a1235599aa8bf473'
         
         # Test with adventure
         template_id_adventure = get_heygen_template_id('Action & Adventure')
-        assert template_id_adventure == 'e4549f9f3d5e43dbaac26146e32e2a1f'
+        assert template_id_adventure == '7f8db20ddcd94a33a1235599aa8bf473'
     
     def test_get_heygen_template_id_default(self):
         """Test default template ID for unknown genres."""
         template_id = get_heygen_template_id('Drama')
-        assert template_id == '7fb75067718944ac8f02e661c2c61522'
+        assert template_id == 'cc6718c5363e42b282a123f99b94b335'
         
         # Test with None
         template_id_none = get_heygen_template_id(None)
-        assert template_id_none == '7fb75067718944ac8f02e661c2c61522'
+        assert template_id_none == 'cc6718c5363e42b282a123f99b94b335'
         
         # Test with empty string
         template_id_empty = get_heygen_template_id('')
-        assert template_id_empty == '7fb75067718944ac8f02e661c2c61522'
+        assert template_id_empty == 'cc6718c5363e42b282a123f99b94b335'
     
     def test_get_template_info(self):
         """Test template information retrieval."""

@@ -171,13 +171,13 @@ document.addEventListener('DOMContentLoaded', function () {
             genres: ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller', 'Mystère & Thriller']
         },
         comedy: {
-            id: '9186cef35dde4505bdccb1ec5c312339',
+            id: '0786b31e7a8b4e8c97799b913b1e39ea',
             name: 'Comedy/Light Entertainment',
             description: 'Optimized template for comedy and humorous content',
             genres: ['Comedy', 'Comédie', 'Comédie Romantique']
         },
         action: {
-            id: 'e4549f9f3d5e43dbaac26146e32e2a1f',
+            id: '7f8db20ddcd94a33a1235599aa8bf473',
             name: 'Action/Adventure Dynamic',
             description: 'High-energy template for action and adventure content',
             genres: ['Action', 'Action & Adventure', 'Action & Aventure']

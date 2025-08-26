@@ -2834,99 +2834,111 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                 logger.warning(f"   📺 URL provided: '{trailer_url}'")
                 continue
             
-            # Step 1: Create Vizard project with trailer URL
-            logger.info(f"   🚀 Creating Vizard AI project for: {title}")
-            project_payload = {
-                "lang": "en",
-                "videoUrl": trailer_url,
-                "videoType": 2,
-                "ratioOfClip": 1,
-                "templateId": 69353061,
-                "removeSilenceSwitch": 0,
-                "maxClipNumber": 3,
-                "subtitleSwitch": 1,
-                "headlineSwitch": 1,
-                "ext": "mp4",
-                "highlightSwitch": 1,
-                "preferLength": [1]
-            }
+            # Step 1: Create Vizard project with trailer URL (with restart logic for Code 2000 + no videos)
+            max_project_attempts = 3  # Maximum number of project creations for same video
+            project_attempt = 0
+            movie_processed = False
             
-            project_headers = {
-                "VIZARDAI_API_KEY": vizard_api_key,
-                "content-type": "application/json"
-            }
-            
-            # Create project
-            project_response = requests.post(create_project_url, json=project_payload, headers=project_headers)
-            
-            if project_response.status_code != 200:
-                logger.error(f"❌ Vizard project creation failed for {title}: {project_response.status_code}")
-                logger.error(f"   Response: {project_response.text}")
-                continue
+            while project_attempt < max_project_attempts and not movie_processed:
+                project_attempt += 1
                 
-            project_data = project_response.json()
-            
-            if project_data.get('code') != 2000:
-                logger.error(f"❌ Vizard API error for {title}: {project_data}")
-                continue
+                if project_attempt > 1:
+                    logger.info(f"   🔄 RESTARTING PROJECT CREATION (attempt {project_attempt}/{max_project_attempts})")
+                    logger.info(f"   📺 YouTube URL: {trailer_url}")
                 
-            project_id = project_data.get('projectId')
-            if not project_id:
-                logger.error(f"❌ No project ID returned for {title}")
-                continue
+                logger.info(f"   🚀 Creating Vizard AI project for: {title} (attempt {project_attempt}/{max_project_attempts})")
+                project_payload = {
+                    "lang": "en",
+                    "videoUrl": trailer_url,
+                    "videoType": 2,
+                    "ratioOfClip": 1,
+                    "templateId": 69353061,
+                    "removeSilenceSwitch": 0,
+                    "maxClipNumber": 1,
+                    "subtitleSwitch": 1,
+                    "headlineSwitch": 1,
+                    "ext": "mp4",
+                    "highlightSwitch": 1,
+                    "preferLength": [1]
+                }
                 
-            logger.info(f"   ✅ Vizard project created: {project_id}")
-            
-            # Step 2: Wait for Vizard AI to complete processing (SYNCHRONOUS - like HeyGen)
-            query_url = f"https://elb-api.vizard.ai/hvizard-server-front/open-api/v1/project/query/{project_id}"
-            max_attempts = 60  # 10 minutes max wait time (10s intervals) - increased for video processing
-            attempt = 0
-            
-            logger.info(f"   ⏳ WAITING FOR VIZARD AI COMPLETION: {title}")
-            logger.info(f"   🎬 Processing will block until clips are ready (like HeyGen workflow)")
-            logger.info(f"   📡 Waiting for code 2000 (complete) with videos array")
-            logger.info(f"   ⏰ Maximum wait time: 10 minutes")
-            
-            clip_ready = False
-            start_time = time.time()
-            
-            while attempt < max_attempts and not clip_ready:
-                attempt += 1
+                project_headers = {
+                    "VIZARDAI_API_KEY": vizard_api_key,
+                    "content-type": "application/json"
+                }
                 
-                # Wait before checking (except first attempt)
-                if attempt > 1:
-                    wait_time = 10  # Consistent 10-second intervals for predictable timing
-                    logger.info(f"   ⏱️ Waiting 10s before next check... (attempt {attempt}/{max_attempts})")
-                    time.sleep(wait_time)
+                # Create project
+                project_response = requests.post(create_project_url, json=project_payload, headers=project_headers)
                 
-                # Retry mechanism for the API request itself (max 3 tries per polling attempt)
-                query_success = False
-                query_data = None
+                if project_response.status_code != 200:
+                    logger.error(f"❌ Vizard project creation failed for {title}: {project_response.status_code}")
+                    logger.error(f"   Response: {project_response.text}")
+                    break  # Exit project attempt loop and try next movie
+                    
+                project_data = project_response.json()
                 
-                for query_retry in range(1, 4):  # Maximum 3 tries per polling attempt
-                    try:
-                        # Query project status
-                        query_response = requests.get(query_url, headers=project_headers, timeout=30)
-                        
-                        if query_response.status_code == 200:
-                            query_data = query_response.json()
-                            query_success = True
-                            logger.debug(f"   📡 Query successful on retry {query_retry}/3 (attempt {attempt}/{max_attempts})")
-                            break
-                        else:
-                            logger.warning(f"   ⚠️ Query retry {query_retry}/3 failed: HTTP {query_response.status_code}")
-                            if query_retry < 3:
-                                logger.info(f"   🔄 Retrying query request in 3s...")
-                                time.sleep(3)  # Short delay between query retries
+                if project_data.get('code') != 2000:
+                    logger.error(f"❌ Vizard API error for {title}: {project_data}")
+                    break  # Exit project attempt loop and try next movie
+                    
+                project_id = project_data.get('projectId')
+                if not project_id:
+                    logger.error(f"❌ No project ID returned for {title}")
+                    break  # Exit project attempt loop and try next movie
+                    
+                logger.info(f"   ✅ Vizard project created: {project_id}")
+                
+                # Step 2: Wait for Vizard AI to complete processing (SYNCHRONOUS - like HeyGen)
+                query_url = f"https://elb-api.vizard.ai/hvizard-server-front/open-api/v1/project/query/{project_id}"
+                max_attempts = 60  # 10 minutes max wait time (10s intervals) - increased for video processing
+                attempt = 0
+                project_failed = False  # Flag to trigger new project creation
+                
+                logger.info(f"   ⏳ WAITING FOR VIZARD AI COMPLETION: {title}")
+                logger.info(f"   🎬 Processing will block until clips are ready (like HeyGen workflow)")
+                logger.info(f"   📡 Waiting for code 2000 (complete) with videos array")
+                logger.info(f"   ⏰ Maximum wait time: 10 minutes")
+                
+                clip_ready = False
+                start_time = time.time()
+                
+                while attempt < max_attempts and not clip_ready and not project_failed:
+                    attempt += 1
+                    
+                    # Wait before checking (except first attempt)
+                    if attempt > 1:
+                        wait_time = 10  # Consistent 10-second intervals for predictable timing
+                        logger.info(f"   ⏱️ Waiting 10s before next check... (attempt {attempt}/{max_attempts})")
+                        time.sleep(wait_time)
+                    
+                    # Retry mechanism for the API request itself (max 3 tries per polling attempt)
+                    query_success = False
+                    query_data = None
+                    
+                    for query_retry in range(1, 4):  # Maximum 3 tries per polling attempt
+                        try:
+                            # Query project status
+                            query_response = requests.get(query_url, headers=project_headers, timeout=30)
                             
-                    except requests.exceptions.Timeout:
-                        logger.warning(f"   ⏰ Query timeout on retry {query_retry}/3")
-                        if query_retry < 3:
-                            time.sleep(3)  # Short delay before retry
-                    except requests.exceptions.RequestException as e:
-                        logger.warning(f"   ⚠️ Query request error on retry {query_retry}/3: {str(e)}")
-                        if query_retry < 3:
-                            time.sleep(3)  # Short delay before retry
+                            if query_response.status_code == 200:
+                                query_data = query_response.json()
+                                query_success = True
+                                logger.debug(f"   📡 Query successful on retry {query_retry}/3 (attempt {attempt}/{max_attempts})")
+                                break
+                            else:
+                                logger.warning(f"   ⚠️ Query retry {query_retry}/3 failed: HTTP {query_response.status_code}")
+                                if query_retry < 3:
+                                    logger.info(f"   🔄 Retrying query request in 3s...")
+                                    time.sleep(3)  # Short delay between query retries
+                            
+                        except requests.exceptions.Timeout:
+                            logger.warning(f"   ⏰ Query timeout on retry {query_retry}/3")
+                            if query_retry < 3:
+                                time.sleep(3)  # Short delay before retry
+                        except requests.exceptions.RequestException as e:
+                            logger.warning(f"   ⚠️ Query request error on retry {query_retry}/3: {str(e)}")
+                            if query_retry < 3:
+                                time.sleep(3)  # Short delay before retry
                 
                 # If all query retries failed, skip this polling attempt
                 if not query_success or not query_data:
@@ -3004,16 +3016,15 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                                 logger.error(f"   ❌ Code 2000 received but no video URL - API error")
                                 break
                         else:
-                            # Code 2000 but no videos - retry with exponential backoff
+                            # Code 2000 but no videos - CREATE NEW PROJECT with YouTube URL
                             logger.warning(f"   ⚠️ Code 2000 received but no videos in response (attempt {attempt}/{max_attempts})")
-                            logger.warning(f"   🔄 This can happen occasionally with Vizard API - will retry...")
+                            logger.warning(f"   🔄 Creating NEW project with YouTube URL instead of retrying same query...")
                             
-                            # Add a retry mechanism for this specific case
                             if attempt < max_attempts:
-                                retry_delay = min(20, 10 + (attempt * 2))  # Exponential backoff: 10s, 12s, 14s...
-                                logger.info(f"   ⏳ Waiting {retry_delay}s before retrying (empty videos array)...")
-                                time.sleep(retry_delay)
-                                continue
+                                logger.info(f"   🚀 CREATING NEW PROJECT with YouTube URL: {trailer_url}")
+                                # Break out of polling loop to create completely new project
+                                project_failed = True
+                                break
                             else:
                                 logger.error(f"   ❌ Max attempts reached: Code 2000 but no videos after {max_attempts} tries")
                                 logger.error(f"   📊 Final response: {query_data}")
@@ -3037,14 +3048,24 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                     logger.warning(f"   ⚠️ Unexpected error on attempt {attempt}: {str(e)}")
                     continue
             
-            # Check if we successfully got the clip or timed out
-            if not clip_ready:
-                total_wait_time = time.time() - start_time
-                logger.error(f"   ❌ VIZARD TIMEOUT: {title}")
-                logger.error(f"   ⏰ Total wait time: {total_wait_time:.1f}s (max: 600s)")
-                logger.error(f"   🔄 Attempts made: {attempt}/{max_attempts}")
-                logger.error(f"   💡 This trailer may take longer to process or have issues")
-                # Continue to next movie instead of failing the entire batch
+                # Check if we successfully got the clip, need to restart, or timed out
+                if clip_ready:
+                    # Successfully processed this movie
+                    movie_processed = True
+                    logger.info(f"   ✅ Movie successfully processed: {title}")
+                elif project_failed:
+                    # Need to restart with new project - continue the project attempt loop
+                    logger.info(f"   🔄 Project failed due to Code 2000 + no videos - will restart project creation")
+                    continue  # Go to next project_attempt iteration
+                else:
+                    # Timeout without success or restart flag
+                    total_wait_time = time.time() - start_time
+                    logger.error(f"   ❌ VIZARD TIMEOUT: {title}")
+                    logger.error(f"   ⏰ Total wait time: {total_wait_time:.1f}s (max: 600s)")
+                    logger.error(f"   🔄 Attempts made: {attempt}/{max_attempts}")
+                    logger.error(f"   💡 This trailer may take longer to process or have issues")
+                    # Exit project attempt loop and try next movie
+                    break
                 
         except Exception as e:
             logger.error(f"❌ Error processing trailer for movie {i+1} ({title}): {str(e)}")

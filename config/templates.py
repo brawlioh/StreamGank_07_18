@@ -30,7 +30,7 @@ HEYGEN_TEMPLATES = {
     
     # Comedy Templates  
     'comedy': {
-        'id': '9186cef35dde4505bdccb1ec5c312339',
+        'id': '0786b31e7a8b4e8c97799b913b1e39ea',
         'name': 'Comedy Template', 
         'description': 'Optimized template for comedy and humorous content',
         'genres': ['Comedy', 'Comédie']
@@ -38,7 +38,7 @@ HEYGEN_TEMPLATES = {
     
     # Action Templates
     'action': {
-        'id': 'e4549f9f3d5e43dbaac26146e32e2a1f',
+        'id': '7f8db20ddcd94a33a1235599aa8bf473',
         'name': 'Action Template',
         'description': 'High-energy template for action and adventure content',
         'genres': ['Action', 'Action & Adventure', 'Action & Aventure']
@@ -72,10 +72,10 @@ def get_heygen_template_id(genre: str = None) -> str:
         
     Examples:
         >>> get_heygen_template_id('Horror')
-        'e2ad0e5c7e71483991536f5c93594e42'
+        'ed21a309a5c84b0d873fde68642adea3'
         
         >>> get_heygen_template_id('comedy')  # Case insensitive
-        '15d9eadcb46a45dbbca1834aa0a23ede'
+        '0786b31e7a8b4e8c97799b913b1e39ea'
         
         >>> get_heygen_template_id('Drama')   # Uses default
         'cc6718c5363e42b282a123f99b94b335'

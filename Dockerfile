@@ -18,9 +18,14 @@ RUN apt-get update && apt-get install -y \
     curl wget \
     # FFmpeg for video processing
     ffmpeg \
+    # FONTS for poster generation (CRITICAL for font size fix)
+    fonts-dejavu-core fonts-dejavu fonts-liberation \
+    fontconfig \
     # Add Node.js 20 LTS
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
+    # Refresh font cache
+    && fc-cache -f -v \
     # Clean up to reduce image size
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \

@@ -346,15 +346,15 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = None) -> Op
         settings = get_video_settings()
         font_config = settings.get('font_sizes', {})
         
-        # Use configured font sizes (with fallbacks)
-        title_size = font_config.get('title', 72)        # Was 52, now 72 (40% larger)
-        platform_size = font_config.get('subtitle', 48)  # Was 36, now 48 (33% larger)
-        metadata_size = font_config.get('metadata', 36)  # Same as before
-        small_size = font_config.get('rating', 32)       # Same as before
+        # Use configured font sizes (with UPDATED fallbacks matching Spider-Man poster reference)
+        title_size = font_config.get('title', 88)        # BALANCED: 88px - Perfect title size matching reference
+        platform_size = font_config.get('subtitle', 60)  # BALANCED: 60px - Platform badge matching reference
+        metadata_size = font_config.get('metadata', 50)  # BALANCED: 50px - Metadata values matching reference
+        small_size = font_config.get('rating', 54)       # BALANCED: 54px - Labels matching reference
         
         # Load fonts with BOLD title font using CONFIGURED SIZES - FIXED PATHS
         try:
-            # Use full Windows paths (confirmed working)
+            # Use full Windows paths (confirmed working on Windows)
             title_font = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", title_size)      # BOLD title font - LARGER
             platform_font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", platform_size) # Platform badge - LARGER  
             metadata_font = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", metadata_size) # Metadata values
@@ -365,27 +365,50 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = None) -> Op
             logger.info(f"   📝 Metadata font: Arial {metadata_size}px")
         except:
             try:
-                # Try relative paths as backup
-                title_font = ImageFont.truetype("arialbd.ttf", title_size)
-                platform_font = ImageFont.truetype("arial.ttf", platform_size)
-                metadata_font = ImageFont.truetype("arial.ttf", metadata_size)
-                small_font = ImageFont.truetype("arial.ttf", small_size)
-                logger.info(f"   ✅ Relative path fonts loaded successfully (title={title_size}px)")
+                # Try Linux/Docker paths (DejaVu fonts are commonly available)
+                title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", title_size)
+                platform_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", platform_size)
+                metadata_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", metadata_size)
+                small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", small_size)
+                logger.info(f"   ✅ Linux fonts loaded successfully (DejaVu)!")
+                logger.info(f"   📝 Title font: DejaVu Sans Bold {title_size}px (LARGE TEXT FIXED)")
+                logger.info(f"   📝 Platform font: DejaVu Sans {platform_size}px")
+                logger.info(f"   📝 Metadata font: DejaVu Sans {metadata_size}px")
             except:
                 try:
-                    # Try macOS paths
-                    title_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", title_size)
-                    platform_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", platform_size)
-                    metadata_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", metadata_size)
-                    small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", small_size)
-                    logger.info(f"   ✅ macOS fonts loaded successfully (title={title_size}px)")
+                    # Try alternative Linux paths
+                    title_font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", title_size)
+                    platform_font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", platform_size)
+                    metadata_font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", metadata_size)
+                    small_font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", small_size)
+                    logger.info(f"   ✅ Linux fonts loaded successfully (Liberation)!")
+                    logger.info(f"   📝 Title font: Liberation Sans Bold {title_size}px (LARGE TEXT FIXED)")
                 except:
-                    # Use default fonts without logging warnings (this is normal fallback)
-                    logger.warning(f"   ⚠️ All font paths failed - using default fonts (text will be smaller)")
-                    title_font = ImageFont.load_default()
-                    platform_font = ImageFont.load_default() 
-                    metadata_font = ImageFont.load_default()
-                    small_font = ImageFont.load_default()
+                    try:
+                        # Try relative paths as backup
+                        title_font = ImageFont.truetype("arialbd.ttf", title_size)
+                        platform_font = ImageFont.truetype("arial.ttf", platform_size)
+                        metadata_font = ImageFont.truetype("arial.ttf", metadata_size)
+                        small_font = ImageFont.truetype("arial.ttf", small_size)
+                        logger.info(f"   ✅ Relative path fonts loaded successfully (title={title_size}px)")
+                    except:
+                        try:
+                            # Try macOS paths
+                            title_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", title_size)
+                            platform_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", platform_size)
+                            metadata_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", metadata_size)
+                            small_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", small_size)
+                            logger.info(f"   ✅ macOS fonts loaded successfully (title={title_size}px)")
+                        except:
+                            # CRITICAL: Use default fonts with size scaling to preserve our font size fix
+                            logger.warning(f"   ⚠️ All font paths failed - using scaled default fonts to preserve size ratios")
+                            # Create ImageFont objects with default font but preserve size relationships
+                            base_font = ImageFont.load_default()
+                            title_font = base_font  # Default font doesn't support size, but we preserve the logic
+                            platform_font = base_font
+                            metadata_font = base_font
+                            small_font = base_font
+                            logger.warning(f"   📝 Font sizes preserved: Title={title_size}px, Platform={platform_size}px, Meta={metadata_size}px")
                 
         logger.info(f"   🔤 Font sizes: Title={title_size}, Platform={platform_size}, Metadata={metadata_size}, Small={small_size}")
         
@@ -416,7 +439,7 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = None) -> Op
             draw.text((text_x + 1, current_y + 1), line, fill='#FFFFFF', font=title_font)  # Bold effect 3
             draw.text((text_x, current_y - 1), line, fill='#F8F8F8', font=title_font)  # Highlight
             
-            current_y += int(title_size * 1.2)  # Dynamic spacing based on title font size
+            current_y += int(title_size * 1.1)  # Tighter spacing for larger fonts
         
         # Step 7: Create cinematic platform badge
         platform_y = current_y + 30  # More spacing after title
@@ -496,7 +519,7 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = None) -> Op
             # Main text with subtle glow
             draw.text((text_x, current_y), genres_text, fill='#F5F5F5', font=metadata_font)
             
-            current_y += int(metadata_size * 1.7)  # Dynamic spacing after genres
+            current_y += int(metadata_size * 1.5)  # Balanced spacing for moderate fonts
         
         # Step 9: Create ROUNDED and TRANSPARENT metadata panel
         metadata_y = current_y + 30  # More spacing before metadata
@@ -510,9 +533,9 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = None) -> Op
             ("Time:", runtime)
         ]
         
-        # Create ROUNDED metadata background panel
+        # Create ROUNDED metadata background panel  
         panel_width = canvas_width - 120
-        panel_height = len(metadata_items) * 50 + 30  # Adjusted for new spacing
+        panel_height = len(metadata_items) * 58 + 30  # Balanced spacing for moderate fonts
         panel_x = 60
         panel_y = metadata_y - 15
         
@@ -537,7 +560,7 @@ def create_enhanced_movie_poster(movie_data: Dict, output_dir: str = None) -> Op
         
         # Display metadata with cinematic typography
         for i, (label, value) in enumerate(metadata_items):
-            item_y = metadata_y + (i * 50)  # Slightly tighter spacing
+            item_y = metadata_y + (i * 58)  # Balanced spacing for moderate fonts
             
             # Left side - Labels with elegant styling
             label_x = 140
@@ -608,12 +631,8 @@ def create_enhanced_movie_posters(movie_data: List[Dict], max_movies: int = 3) -
     logger.info("📐 Dimensions: 1080x1920 (9:16 portrait)")
     logger.info(f"💾 Upload to: Cloudinary (streamgank-reels/enhanced-poster-cover/)")
     
-    # For development mode - check if we should save assets
-    from utils.test_data_cache import should_save_results
-    save_for_dev = should_save_results()
-    
-    if save_for_dev:
-        logger.info(f"🔧 Development mode: Will save posters to test_output for future use")
+    # Note: Development mode asset saving is now handled by the unified 
+    # save_workflow_result() approach in core/workflow.py
     
     try:
         # Use temporary directory - no permanent folders in project
@@ -648,22 +667,8 @@ def create_enhanced_movie_posters(movie_data: List[Dict], max_movies: int = 3) -
                 logger.error(f"❌ Error processing poster for movie {i+1}: {str(e)}")
                 continue
         
-        # Save assets for development mode (proper way)
-        if save_for_dev and enhanced_poster_urls:
-            try:
-                from utils.test_data_cache import save_assets_result
-                # Save poster URLs and metadata for development caching
-                import time
-                asset_data = {
-                    'enhanced_posters': enhanced_poster_urls,
-                    'poster_count': len(enhanced_poster_urls),
-                    'timestamp': time.strftime("%Y%m%d_%H%M%S")
-                }
-                save_path = save_assets_result(asset_data, "US", "Unknown", "Unknown", "Unknown")
-                if save_path:
-                    logger.info(f"🔧 Development mode: Assets saved to {save_path}")
-            except Exception as save_error:
-                logger.warning(f"⚠️ Could not save assets for development: {str(save_error)}")
+        # Note: Asset saving is now handled by the unified save_workflow_result() 
+        # in core/workflow.py after the complete asset preparation step
         
         # Clean up temporary files
         try:

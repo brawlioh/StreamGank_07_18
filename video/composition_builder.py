@@ -128,7 +128,8 @@ def build_video_composition(heygen_video_urls: Dict[str, str],
                            movie_clips: Optional[List[str]] = None,
                            scroll_video_url: Optional[str] = None,
                            scripts: Optional[Dict] = None,
-                           poster_timing_mode: str = "heygen_last3s") -> Dict[str, Any]:
+                           poster_timing_mode: str = "heygen_last3s",
+                           background_music_url: Optional[str] = None) -> Dict[str, Any]:
     """
     Build complete video composition for Creatomate.
     
@@ -142,6 +143,7 @@ def build_video_composition(heygen_video_urls: Dict[str, str],
         scroll_video_url (str): Optional scroll video URL
         scripts (Dict): Optional script data for duration calculation
         poster_timing_mode (str): Poster timing strategy
+        background_music_url (str): Optional background music URL for audio elements
         
     Returns:
         Dict[str, Any]: Complete Creatomate composition
@@ -230,7 +232,8 @@ def build_video_composition(heygen_video_urls: Dict[str, str],
         poster_timings,
         heygen_durations,
         clip_durations,
-        scroll_video_url
+        scroll_video_url,
+        background_music_url
     )
     
     # Final validation of composition
@@ -260,6 +263,9 @@ def build_video_composition(heygen_video_urls: Dict[str, str],
     
     if scroll_video_url:
         logger.info(f"   📜 scroll_video: {scroll_video_url}")
+    
+    if background_music_url:
+        logger.info(f"   🎵 background_music: {background_music_url}")
     
     logger.info("✅ STRICT video composition completed - ready for Creatomate render")
     
@@ -377,7 +383,8 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                                poster_timings: Dict[str, Dict[str, float]],
                                heygen_durations: Dict[str, float],
                                clip_durations: Dict[str, float],
-                               scroll_video_url: Optional[str]) -> Dict[str, Any]:
+                               scroll_video_url: Optional[str],
+                               background_music_url: Optional[str] = None) -> Dict[str, Any]:
     """Build the complete Creatomate composition with all detailed elements."""
     
     # ═══════════════════════════════════════════════════════════════
@@ -733,7 +740,7 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                         "track": 1,
                         "time": 0,
                         "duration": intro_duration + heygen_durations["heygen1"] + heygen1_audio_timing,
-                        "source": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3",
+                        "source": background_music_url,
                         "volume": audio_volume
                     },
                     # AUDIO 2 - Start with 2nd HeyGen video, duration matches HeyGen2
@@ -743,7 +750,7 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                         "track": 1,
                         "time": intro_duration + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen2_audio_timing,
                         "duration": heygen_durations["heygen2"],
-                        "source": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3",
+                        "source": background_music_url,
                         "volume": audio_volume
                     },
                     # AUDIO 3 - Start with 3rd HeyGen video, duration matches HeyGen3
@@ -753,7 +760,7 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                         "track": 1,
                         "time": intro_duration + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + heygen3_audio_timing,
                         "duration": heygen_durations["heygen3"],
-                        "source": "https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3",
+                        "source": background_music_url,
                         "volume": audio_volume
                     }
                 ]
