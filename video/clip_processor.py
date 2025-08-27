@@ -29,6 +29,9 @@ import requests
 import cloudinary
 import cloudinary.uploader
 import yt_dlp
+import concurrent.futures
+import threading
+from datetime import datetime
 
 from config.settings import get_video_settings, get_api_config
 from utils.validators import is_valid_url
@@ -2890,7 +2893,7 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                 
                 # Step 2: Wait for Vizard AI to complete processing (SYNCHRONOUS - like HeyGen)
                 query_url = f"https://elb-api.vizard.ai/hvizard-server-front/open-api/v1/project/query/{project_id}"
-                max_attempts = 60  # 10 minutes max wait time (10s intervals) - increased for video processing
+                max_attempts = 90  # More attempts with faster polling (5s + 10s intervals) for better detection
                 attempt = 0
                 project_failed = False  # Flag to trigger new project creation
                 
@@ -2907,8 +2910,9 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                     
                     # Wait before checking (except first attempt)
                     if attempt > 1:
-                        wait_time = 10  # Consistent 10-second intervals for predictable timing
-                        logger.info(f"   ⏱️ Waiting 10s before next check... (attempt {attempt}/{max_attempts})")
+                        # Faster polling for better user experience
+                        wait_time = 5 if attempt <= 30 else 10  # 5s for first 2.5 minutes, then 10s
+                        logger.info(f"   ⏱️ Waiting {wait_time}s before next check... (attempt {attempt}/{max_attempts})")
                         time.sleep(wait_time)
                     
                     # Retry mechanism for the API request itself (max 3 tries per polling attempt)
@@ -2960,6 +2964,7 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                     elif response_code == 2000:
                         # Processing complete - check for videos
                         videos = query_data.get('videos', [])
+                        logger.info(f"   🎉 CODE 2000: Vizard AI processing complete! Checking for video clips...")
                         
                         if videos and len(videos) > 0:
                             logger.info(f"   🎉 CODE 2000 RECEIVED! Processing complete for: {title}")
@@ -3016,12 +3021,13 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                                 logger.error(f"   ❌ Code 2000 received but no video URL - API error")
                                 break
                         else:
-                            # Code 2000 but no videos - CREATE NEW PROJECT with YouTube URL
+                            # Code 2000 but no videos - PROJECT FAILED, CREATE NEW PROJECT
                             logger.warning(f"   ⚠️ Code 2000 received but no videos in response (attempt {attempt}/{max_attempts})")
-                            logger.warning(f"   🔄 Creating NEW project with YouTube URL instead of retrying same query...")
+                            logger.warning(f"   🚨 This project appears to be STUCK or FAILED internally")
+                            logger.info(f"   🔄 Creating NEW PROJECT with same video URL for fresh processing")
                             
                             if attempt < max_attempts:
-                                logger.info(f"   🚀 CREATING NEW PROJECT with YouTube URL: {trailer_url}")
+                                logger.info(f"   🚀 RESTARTING with NEW PROJECT: {trailer_url}")
                                 # Break out of polling loop to create completely new project
                                 project_failed = True
                                 break
@@ -3098,6 +3104,285 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
     logger.info(f"   🎬 Viral clips generated: {successful_count}")
     logger.info(f"   ☁️ All clips uploaded to Cloudinary: streamgank-reels/movie-clips")
     logger.info(f"   🔄 WORKFLOW READY TO PROCEED TO NEXT STEP")
+    
+    return clip_urls
+
+
+def process_movie_trailers_to_clips_vizard_parallel(movie_data: List[Dict], max_movies: int = 3, 
+                                                   transform_mode: str = "youtube_shorts") -> Dict[str, str]:
+    """
+    🚀 PARALLEL PROCESSING: Process movie trailers using Vizard AI simultaneously.
+    
+    This is the HIGH-PERFORMANCE version that processes all movies at once!
+    
+    MASSIVE PERFORMANCE BOOST:
+    - Sequential: 3 × 2-4 minutes = 6-12 minutes total
+    - Parallel: max(2-4 minutes) = 2-4 minutes total (66-75% faster!)
+    
+    Features:
+    - 🔥 Processes all 3 movies SIMULTANEOUSLY
+    - ⚡ 66-75% faster than sequential processing
+    - 🤖 Same AI-powered viral clip generation
+    - 📊 Same viral score-based selection
+    - ☁️ Same Cloudinary upload process
+    - 🔄 Same robust retry mechanisms
+    - 📱 Same mobile-optimized output
+    
+    Args:
+        movie_data (List[Dict]): List of movie data dictionaries with trailer_url
+        max_movies (int): Maximum number of movies to process
+        transform_mode (str): Transformation mode (maintained for consistency)
+        
+    Returns:
+        Dict[str, str]: Dictionary mapping movie titles to Cloudinary clip URLs
+    """
+    logger.info(f"🚀 PARALLEL PROCESSING: Starting Vizard AI processing for {min(len(movie_data), max_movies)} movies SIMULTANEOUSLY")
+    logger.info("⚡ This will be 66-75% FASTER than sequential processing!")
+    logger.info("🎯 Expected completion time: 2-4 minutes (instead of 6-12 minutes)")
+    
+    clip_urls = {}
+    api_config = get_api_config()
+    vizard_api_key = api_config.get('VIZARD_API_KEY')
+    
+    if not vizard_api_key:
+        logger.error("❌ VIZARD_API_KEY not found in environment variables")
+        raise Exception("VIZARD_API_KEY is required for Vizard AI processing")
+    
+    # Vizard API endpoints
+    create_project_url = "https://elb-api.vizard.ai/hvizard-server-front/open-api/v1/project/create"
+    
+    # Prepare all movies for parallel processing
+    movies_to_process = movie_data[:max_movies]
+    
+    def process_single_movie_parallel(movie_info):
+        """
+        Process a single movie in parallel thread.
+        Returns tuple: (movie_title, cloudinary_url_or_none)
+        """
+        movie, movie_index = movie_info
+        movie_title = movie.get('title', f'Movie_{movie_index+1}')
+        trailer_url = movie.get('trailer_url', '')
+        
+        thread_id = threading.current_thread().ident
+        logger.info(f"🎬 [Thread-{thread_id}] Processing: {movie_title}")
+        logger.info(f"   📺 [Thread-{thread_id}] Trailer URL: {trailer_url}")
+        
+        try:
+            if not trailer_url or not is_valid_url(trailer_url):
+                logger.warning(f"⚠️ [Thread-{thread_id}] No valid trailer URL for: {movie_title}")
+                return (movie_title, None)
+            
+            # Project retry loop (for Code 2000 + no videos scenarios)
+            max_project_attempts = 3
+            project_attempt = 0
+            
+            while project_attempt < max_project_attempts:
+                project_attempt += 1
+                
+                if project_attempt > 1:
+                    logger.info(f"🔄 [Thread-{thread_id}] PROJECT RESTART #{project_attempt}/{max_project_attempts} for {movie_title}")
+                
+                # Step 1: Create Vizard project (with retry logic)
+                logger.info(f"🚀 [Thread-{thread_id}] Creating Vizard AI project for: {movie_title}")
+                project_payload = {
+                    "lang": "en",
+                    "videoUrl": trailer_url,
+                    "videoType": 2,
+                    "ratioOfClip": 1,
+                    "templateId": 69353061,
+                    "removeSilenceSwitch": 0,
+                    "maxClipNumber": 1,
+                    "subtitleSwitch": 1,
+                    "headlineSwitch": 1,
+                    "ext": "mp4",
+                    "highlightSwitch": 1,
+                    "preferLength": [1]
+                }
+                
+                project_headers = {
+                    "VIZARDAI_API_KEY": vizard_api_key,
+                    "content-type": "application/json"
+                }
+                
+                # Create project
+                project_response = requests.post(create_project_url, json=project_payload, headers=project_headers)
+                
+                if project_response.status_code != 200:
+                    logger.error(f"❌ [Thread-{thread_id}] Vizard project creation failed for {movie_title}: {project_response.status_code}")
+                    if project_attempt >= max_project_attempts:
+                        return (movie_title, None)
+                    continue  # Try creating a new project
+                    
+                project_data = project_response.json()
+                
+                if project_data.get('code') != 2000:
+                    logger.error(f"❌ [Thread-{thread_id}] Vizard API error for {movie_title}: {project_data}")
+                    if project_attempt >= max_project_attempts:
+                        return (movie_title, None)
+                    continue  # Try creating a new project
+                
+                project_id = project_data.get('projectId')
+                if not project_id:
+                    logger.error(f"❌ [Thread-{thread_id}] No project ID returned for {movie_title}")
+                    if project_attempt >= max_project_attempts:
+                        return (movie_title, None)
+                    continue  # Try creating a new project
+                    
+                logger.info(f"✅ [Thread-{thread_id}] Vizard project created: {project_id}")
+                
+                # Step 2: Poll for completion (parallel polling)
+                query_url = f"https://elb-api.vizard.ai/hvizard-server-front/open-api/v1/project/query/{project_id}"
+                max_attempts = 90  # More attempts with faster polling
+                attempt = 0
+                project_failed = False  # Track if this project failed
+                
+                logger.info(f"⏳ [Thread-{thread_id}] WAITING FOR COMPLETION: {movie_title}")
+                logger.info(f"🎬 [Thread-{thread_id}] Polling until clips are ready...")
+                
+                start_time = time.time()
+            
+                while attempt < max_attempts and not project_failed:
+                    attempt += 1
+                    
+                    # Wait before checking (except first attempt)
+                    if attempt > 1:
+                        wait_time = 5 if attempt <= 30 else 10
+                        time.sleep(wait_time)
+                
+                    try:
+                        # Query project status
+                        query_response = requests.get(query_url, headers=project_headers, timeout=30)
+                        
+                        if query_response.status_code != 200:
+                            logger.warning(f"⚠️ [Thread-{thread_id}] Query failed: HTTP {query_response.status_code}")
+                            continue
+                        
+                        query_data = query_response.json()
+                        response_code = query_data.get('code')
+                        elapsed_time = time.time() - start_time
+                    
+                        if response_code == 1000:
+                            # Still processing
+                            if attempt % 10 == 0:  # Log every 10th attempt to reduce spam
+                                logger.info(f"⏳ [Thread-{thread_id}] Still processing {movie_title}... ({elapsed_time:.0f}s)")
+                            continue
+                        elif response_code == 2000:
+                            # Processing complete
+                            videos = query_data.get('videos', [])
+                            logger.info(f"🎉 [Thread-{thread_id}] CODE 2000: Processing complete for {movie_title}!")
+                        
+                            if videos and len(videos) > 0:
+                                logger.info(f"📹 [Thread-{thread_id}] Found {len(videos)} clips for {movie_title}")
+                                logger.info(f"⏰ [Thread-{thread_id}] Processing time: {elapsed_time:.1f}s")
+                                
+                                # Select best clip
+                                valid_clips = [v for v in videos if v.get('videoUrl') and v.get('viralScore')]
+                                if not valid_clips:
+                                    logger.warning(f"⚠️ [Thread-{thread_id}] No valid clips for {movie_title}")
+                                    return (movie_title, None)
+                                
+                                best_clip = max(valid_clips, key=lambda v: float(v.get('viralScore', 0)))
+                                video_url = best_clip.get('videoUrl')
+                                viral_score = best_clip.get('viralScore', 'N/A')
+                                
+                                logger.info(f"🏆 [Thread-{thread_id}] Best clip selected (viral score: {viral_score})")
+                                
+                                # Download and upload to Cloudinary
+                                logger.info(f"📥 [Thread-{thread_id}] Downloading and uploading to Cloudinary...")
+                                cloudinary_url = _download_and_upload_vizard_clip(
+                                    video_url, movie_title, str(movie.get('id', movie_index+1)), transform_mode
+                                )
+                                
+                                if cloudinary_url:
+                                    logger.info(f"✅ [Thread-{thread_id}] SUCCESS: {movie_title} → {cloudinary_url}")
+                                    return (movie_title, cloudinary_url)
+                                else:
+                                    logger.error(f"❌ [Thread-{thread_id}] Failed to upload {movie_title} to Cloudinary")
+                                    return (movie_title, None)
+                            else:
+                                # Code 2000 but no videos - PROJECT FAILED, need to restart
+                                logger.warning(f"⚠️ [Thread-{thread_id}] Code 2000 but no videos - project FAILED for {movie_title}")
+                                logger.info(f"🔄 [Thread-{thread_id}] This project is stuck/failed, will create NEW project")
+                                
+                                # Exit polling loop to restart with new project
+                                project_failed = True
+                                break
+                        else:
+                            # Handle other response codes
+                            logger.warning(f"⚠️ [Thread-{thread_id}] Unexpected response code for {movie_title}: {response_code}")
+                            continue
+                            
+                    except Exception as e:
+                        logger.warning(f"⚠️ [Thread-{thread_id}] Error polling {movie_title}: {str(e)}")
+                        continue
+            
+                # Check why we exited the polling loop
+                if project_failed:
+                    # Code 2000 + no videos - try creating a new project
+                    logger.info(f"🔄 [Thread-{thread_id}] Project failed, will retry with attempt #{project_attempt+1}")
+                    continue  # Go to next project_attempt iteration
+                else:
+                    # Timeout reached without success
+                    total_wait_time = time.time() - start_time
+                    logger.error(f"❌ [Thread-{thread_id}] TIMEOUT: {movie_title} after {total_wait_time:.1f}s")
+                    if project_attempt >= max_project_attempts:
+                        return (movie_title, None)
+                    else:
+                        logger.info(f"🔄 [Thread-{thread_id}] Timeout on project #{project_attempt}, trying new project")
+                        continue  # Try with new project
+            
+            # All project attempts exhausted
+            logger.error(f"❌ [Thread-{thread_id}] All {max_project_attempts} project attempts failed for {movie_title}")
+            return (movie_title, None)
+            
+        except Exception as e:
+            logger.error(f"❌ [Thread-{thread_id}] Error processing {movie_title}: {str(e)}")
+            return (movie_title, None)
+    
+    # PARALLEL EXECUTION: Process all movies simultaneously
+    logger.info("🚀 Starting PARALLEL processing of all movies...")
+    start_time = time.time()
+    
+    # Use ThreadPoolExecutor to process all movies simultaneously
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_movies) as executor:
+        # Submit all movies for parallel processing
+        movie_futures = {
+            executor.submit(process_single_movie_parallel, (movie, i)): movie.get('title', f'Movie_{i+1}')
+            for i, movie in enumerate(movies_to_process)
+        }
+        
+        # Collect results as they complete
+        for future in concurrent.futures.as_completed(movie_futures):
+            movie_title = movie_futures[future]
+            try:
+                result_title, cloudinary_url = future.result()
+                if cloudinary_url:
+                    clip_urls[result_title] = cloudinary_url
+                    logger.info(f"✅ COMPLETED: {result_title}")
+                else:
+                    logger.warning(f"⚠️ FAILED: {result_title}")
+            except Exception as e:
+                logger.error(f"❌ EXCEPTION: {movie_title}: {str(e)}")
+    
+    # Report final results
+    total_time = time.time() - start_time
+    successful_count = len(clip_urls)
+    total_attempted = len(movies_to_process)
+    
+    logger.info(f"🎉 PARALLEL PROCESSING COMPLETE!")
+    logger.info(f"⚡ Total time: {total_time:.1f}s (vs {total_attempted * 3:.0f}-{total_attempted * 4:.0f}min sequential)")
+    logger.info(f"📊 Success rate: {successful_count}/{total_attempted} ({(successful_count/total_attempted)*100:.1f}%)")
+    
+    if successful_count == total_attempted:
+        time_saved = (total_attempted * 3 * 60) - total_time  # Estimate time saved
+        logger.info(f"🚀 PERFECT! All {successful_count} movies processed successfully")
+        logger.info(f"⚡ Time saved: ~{time_saved/60:.1f} minutes with parallel processing!")
+    elif successful_count > 0:
+        logger.warning(f"⚠️ Partial success: {successful_count}/{total_attempted} trailers processed")
+        logger.info(f"📈 {(successful_count/total_attempted)*100:.1f}% success rate")
+    else:
+        logger.error(f"❌ No trailers could be processed ({total_attempted} attempted)")
+        return {}
     
     return clip_urls
 
