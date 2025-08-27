@@ -2331,15 +2331,18 @@ class VideoQueueManager {
         this.activeMonitoring.add(jobId);
 
         let attempts = 0;
-        const maxAttempts = 8; // Reduced from 15 to prevent excessive monitoring
-        let checkInterval = 60000; // Start with 60 seconds
-        const maxInterval = 180000; // Max 3 minutes between checks
+        const maxAttempts = 4; // Reduced to 4 - webhooks handle most cases
+        let checkInterval = 300000; // Start with 5 minutes (webhook backup only)
+        const maxInterval = 600000; // Max 10 minutes between checks
         let lastLoggedStatus = null;
         let lastProgressUpdate = 0;
 
         // Single startup log
         console.log(
-            `🎬 Monitoring [${this.activeMonitoring.size}/${this.maxConcurrentMonitoring}]: ${jobId} → ${creatomateId}`
+            `🎬 Starting webhook-backup monitoring [${this.activeMonitoring.size}/${this.maxConcurrentMonitoring}]: ${jobId} → ${creatomateId}`
+        );
+        console.log(
+            `🔗 Primary: Webhook notifications | 🔄 Backup: ${maxAttempts} checks over ${Math.round((maxAttempts * checkInterval) / 60000)}min`
         );
 
         const checkStatus = async () => {
@@ -2374,11 +2377,13 @@ class VideoQueueManager {
                 } else if (response.success && response.status) {
                     const status = response.status.toLowerCase();
 
-                    // SMART LOGGING: Only log status changes OR every 5th attempt
-                    const shouldLog = status !== lastLoggedStatus || attempts % 5 === 0 || attempts === 1;
+                    // WEBHOOK-BACKUP LOGGING: Less frequent since webhooks handle most updates
+                    const shouldLog = status !== lastLoggedStatus || attempts === 1;
 
                     if (shouldLog) {
-                        console.log(`⏳ ${jobId}: ${status} [${attempts}/${maxAttempts}]`);
+                        console.log(
+                            `⏳ Backup check ${jobId}: ${status} [${attempts}/${maxAttempts}] (webhook primary)`
+                        );
                         lastLoggedStatus = status;
                     }
 
@@ -2425,8 +2430,8 @@ class VideoQueueManager {
             }
         };
 
-        // Start monitoring with 10 second delay to avoid startup spam
-        setTimeout(checkStatus, 10000);
+        // Start backup monitoring with longer delay - webhooks handle immediate updates
+        setTimeout(checkStatus, 120000); // 2 minute delay for webhook backup
     }
 
     /**

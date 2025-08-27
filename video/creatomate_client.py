@@ -54,6 +54,32 @@ def _get_creatomate_headers() -> Optional[Dict[str, str]]:
         raise RuntimeError(error_msg)
 
 
+def _get_webhook_url() -> Optional[str]:
+    """
+    Get webhook URL for Creatomate render completion notifications.
+    
+    Returns:
+        str: Webhook URL or None if not configured
+    """
+    try:
+        # Get the base webhook URL from environment or use localhost for development
+        base_url = os.getenv('WEBHOOK_BASE_URL', 'http://localhost:3000')
+        webhook_endpoint = '/api/webhooks/creatomate-completion'  # Using original reliable endpoint
+        
+        webhook_url = f"{base_url}{webhook_endpoint}"
+        
+        # Validate URL format
+        if not webhook_url.startswith(('http://', 'https://')):
+            logger.error(f"❌ Invalid webhook URL format: {webhook_url}")
+            return None
+            
+        return webhook_url
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting webhook URL: {str(e)}")
+        return None
+
+
 def _get_creatomate_config() -> Dict[str, Any]:
     """Get Creatomate API configuration."""
     try:
@@ -173,12 +199,22 @@ def send_creatomate_request(composition: Dict[str, Any]) -> Optional[str]:
         logger.info(f"   Elements: {len(composition.get('elements', []))}")
         logger.info(f"   Duration: {composition.get('duration', 'auto')}")
         
+        # Get webhook URL for completion notifications
+        webhook_url = _get_webhook_url()
+        
         # Prepare payload to match legacy format EXACTLY  
         payload = {
             "source": composition,  # Raw JSON composition must be wrapped in "source"
             "output_format": "mp4", # Must match legacy payload exactly
             "render_scale": 1       # Must match legacy payload exactly  
         }
+        
+        # Add webhook URL for completion notifications (avoids polling)
+        if webhook_url:
+            payload["webhook_url"] = webhook_url
+            logger.info(f"🔗 Webhook URL configured: {webhook_url}")
+        else:
+            logger.warning("⚠️ No webhook URL configured - falling back to polling")
         
         # Submit request with retry logic
         for attempt in range(config.get('retry_attempts', 3)):

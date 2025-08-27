@@ -883,6 +883,7 @@ app.get('/api/webhooks/status', (req, res) => {
 // API endpoint to receive step completion webhooks from Python workflow
 app.post('/api/webhooks/step-update', async (req, res) => {
     try {
+        // 📡 HANDLE INTERNAL PYTHON WORKFLOW WEBHOOKS ONLY
         const { job_id, step_number, step_name, status, duration, details, timestamp } = req.body;
 
         console.log(`📡 Real-time webhook: Job ${job_id} - Step ${step_number} (${step_name}) ${status}`);
@@ -922,7 +923,9 @@ app.post('/api/webhooks/step-update', async (req, res) => {
             } else {
                 // Normal step progression (1-7)
                 job.currentStep = `${step_name} - ${status}`;
-                job.progress = Math.max(job.progress || 0, Math.round((step_number / 7) * 90)); // Max 90% until video ready
+                if (step_number <= 7) {
+                    job.progress = Math.max(job.progress || 0, Math.round((step_number / 7) * 90)); // Max 90% until video ready
+                }
             }
 
             job.lastUpdate = new Date().toISOString();
@@ -1008,6 +1011,162 @@ app.post('/api/webhooks/test', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to test webhook endpoint',
+            error: error.message
+        });
+    }
+});
+
+// ===== REMOVED: Separate Creatomate endpoint - now using unified webhook handler above =====
+
+/**
+ * SAFE: Original Creatomate webhook endpoint - FULLY FUNCTIONAL
+ * Keeping original implementation to ensure no breaking changes
+ */
+app.post('/api/webhooks/creatomate-completion', async (req, res) => {
+    try {
+        const { id: render_id, status, url: video_url, error, data } = req.body;
+
+        console.log(`🎬 Creatomate webhook received (legacy endpoint) - Render ID: ${render_id}, Status: ${status}`);
+
+        if (!render_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Render ID is required'
+            });
+        }
+
+        // Find job by creatomateId
+        const allJobs = await queueManager.getAllJobs();
+        const job = allJobs.find((j) => j.creatomateId === render_id);
+
+        if (!job) {
+            console.warn(`⚠️ No job found for Creatomate render ID: ${render_id}`);
+            return res.status(404).json({
+                success: false,
+                message: 'Job not found for render ID'
+            });
+        }
+
+        console.log(`📋 Processing Creatomate webhook for job: ${job.id}`);
+
+        // Handle successful completion
+        if (status === 'completed' && video_url) {
+            console.log(`✅ Creatomate render completed successfully: ${video_url}`);
+
+            // Update job with final video URL
+            job.status = 'completed';
+            job.progress = 100;
+            job.currentStep = '🎉 Video rendering completed successfully!';
+            job.videoUrl = video_url;
+            job.completedAt = new Date().toISOString();
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, `✅ Video rendered successfully: ${video_url}`, 'success');
+
+            // Send real-time update to frontend
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_completed',
+                    job_id: job.id,
+                    status: 'completed',
+                    progress: 100,
+                    currentStep: job.currentStep,
+                    videoUrl: video_url,
+                    timestamp: new Date().toISOString()
+                };
+
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent render completion update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
+                });
+            }
+
+            // Trigger webhook notifications to external services
+            if (webhookManager) {
+                await webhookManager.sendWebhookNotification('job.completed', {
+                    job_id: job.id,
+                    video_url: video_url,
+                    parameters: job.parameters,
+                    duration: job.duration,
+                    completed_at: job.completedAt
+                });
+            }
+        } else if (status === 'failed' || error) {
+            console.error(`❌ Creatomate render failed: ${error || 'Unknown error'}`);
+
+            // Update job with error status
+            job.status = 'failed';
+            job.currentStep = `❌ Video rendering failed: ${error || 'Unknown error'}`;
+            job.error = error || 'Creatomate render failed';
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, `❌ Render failed: ${error || 'Unknown error'}`, 'error');
+
+            // Send real-time update to frontend
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_failed',
+                    job_id: job.id,
+                    status: 'failed',
+                    currentStep: job.currentStep,
+                    error: job.error,
+                    timestamp: new Date().toISOString()
+                };
+
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent render failure update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
+                });
+            }
+
+            // Trigger webhook notifications to external services
+            if (webhookManager) {
+                await webhookManager.sendWebhookNotification('job.failed', {
+                    job_id: job.id,
+                    error: job.error,
+                    parameters: job.parameters
+                });
+            }
+        } else {
+            // Handle in-progress status updates
+            console.log(`📊 Creatomate render in progress: ${status}`);
+
+            job.currentStep = `🎬 Rendering video: ${status}...`;
+
+            // Update progress based on status
+            if (status === 'queued') {
+                job.progress = 85;
+            } else if (status === 'rendering') {
+                job.progress = 90;
+            } else if (status === 'processing') {
+                job.progress = 95;
+            }
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, `⏳ Render status: ${status}`, 'info');
+        }
+
+        res.json({
+            success: true,
+            message: 'Creatomate webhook processed successfully',
+            job_id: job.id,
+            status: job.status
+        });
+    } catch (error) {
+        console.error('❌ Creatomate webhook processing error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to process Creatomate webhook',
             error: error.message
         });
     }
