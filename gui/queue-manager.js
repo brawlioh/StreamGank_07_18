@@ -2374,6 +2374,24 @@ class VideoQueueManager {
                     await this.updateJobWithVideo(jobId, response.url);
                     this.finishMonitoring(jobId);
                     return;
+                } else if (response.success && (response.status === 'failed' || response.status === 'error')) {
+                    // CRITICAL FIX: Handle failed render by triggering webhook notification
+                    console.log(`❌ MONITORING DETECTED: Render failed for ${jobId} → Status: ${response.status}`);
+
+                    // Get detailed error information from Creatomate response
+                    let errorMessage = 'Render failed';
+                    if (response.error) {
+                        errorMessage = response.error;
+                    } else if (response.data && response.data.error) {
+                        errorMessage = response.data.error;
+                    } else if (response.data && response.data.message) {
+                        errorMessage = response.data.message;
+                    }
+
+                    console.log(`❌ Error details: ${errorMessage}`);
+                    await this.markJobAsRenderFailed(jobId, creatomateId, errorMessage);
+                    this.finishMonitoring(jobId);
+                    return;
                 } else if (response.success && response.status) {
                     const status = response.status.toLowerCase();
 
@@ -2432,6 +2450,70 @@ class VideoQueueManager {
 
         // Start backup monitoring with longer delay - webhooks handle immediate updates
         setTimeout(checkStatus, 120000); // 2 minute delay for webhook backup
+    }
+
+    /**
+     * Mark job as render failed and send webhook notification (triggered by monitoring)
+     * @param {string} jobId - Job ID
+     * @param {string} creatomateId - Creatomate render ID
+     * @param {string} error - Error message
+     */
+    async markJobAsRenderFailed(jobId, creatomateId, error) {
+        try {
+            console.log(`❌ MONITORING FAILURE: Marking job ${jobId} as render failed`);
+
+            const job = await this.getJob(jobId);
+            if (!job) {
+                console.error(`❌ Job not found: ${jobId}`);
+                return;
+            }
+
+            // Update job status to failed
+            job.status = 'failed';
+            job.currentStep = `❌ Video rendering failed: ${error}`;
+            job.error = error;
+            job.failedAt = new Date().toISOString();
+
+            await this.updateJob(job);
+            await this.addJobLog(job.id, `❌ Render failed: ${error}`, 'error');
+
+            console.log(`📝 Job ${jobId} marked as failed: ${error}`);
+
+            // Send real-time update to frontend (same as webhook endpoint)
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_failed',
+                    job_id: job.id,
+                    status: 'failed',
+                    currentStep: job.currentStep,
+                    error: job.error,
+                    timestamp: new Date().toISOString()
+                };
+
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 MONITORING: Sent render failure update to job ${job.id} frontend client`);
+                    } catch (sseError) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, sseError.message);
+                    }
+                });
+            }
+
+            // Trigger external webhook notifications
+            if (this.webhookManager) {
+                await this.webhookManager.sendWebhookNotification('job.failed', {
+                    job_id: job.id,
+                    error: job.error,
+                    parameters: job.parameters
+                });
+            }
+
+            console.log(`✅ MONITORING: Job ${jobId} failure notifications sent`);
+        } catch (error) {
+            console.error(`❌ Failed to mark job ${jobId} as render failed:`, error);
+        }
     }
 
     /**

@@ -615,9 +615,9 @@ def select_background_music(genre: str) -> str:
         'comedy': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218702/comedy_uju3dv.mp3',
         
         # Action & Adventure genres  
-        'action': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218054/action_y1zm5x.mp3',
-        'action & adventure': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218054/action_y1zm5x.mp3',
-        'action & aventure': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218054/action_y1zm5x.mp3',
+        'action': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'action & adventure': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'action & aventure': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
         
         # Horror genres
         'horror': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
@@ -626,7 +626,7 @@ def select_background_music(genre: str) -> str:
         'mystery & thriller': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
         
         # Default fallback (using Action as default)
-        'default': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/action_y1zm5x.mp3'
+        'default': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3'
     }
     
     if not genre:
