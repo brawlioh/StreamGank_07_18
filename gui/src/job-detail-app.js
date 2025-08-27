@@ -1552,6 +1552,49 @@ export class JobDetailApp {
                 }
                 break;
 
+            case 'render_completed':
+                console.log('🎬 INSTANT: Creatomate render completed via webhook!', data);
+                
+                // Update job data immediately with video URL
+                if (this.jobData) {
+                    this.jobData.status = 'completed';
+                    this.jobData.progress = 100;
+                    this.jobData.currentStep = '🎉 Video rendering completed successfully!';
+                    this.jobData.videoUrl = data.videoUrl;
+                    this.jobData.completedAt = data.timestamp;
+                    
+                    console.log('✅ Job data updated with video URL:', data.videoUrl);
+                    
+                    // Update UI immediately to show video
+                    this.updateUI();
+                    this.showCreatomateVideoResult();
+                    
+                    // Stop all polling since video is ready
+                    this.stopRealTimeUpdates();
+                    
+                    console.log('🎬 Video displayed instantly via webhook!');
+                }
+                break;
+
+            case 'render_failed':
+                console.log('❌ INSTANT: Creatomate render failed via webhook!', data);
+                
+                // Update job data immediately with error
+                if (this.jobData) {
+                    this.jobData.status = 'failed';
+                    this.jobData.currentStep = `❌ Video rendering failed: ${data.error}`;
+                    this.jobData.error = data.error;
+                    
+                    console.log('❌ Job marked as failed:', data.error);
+                    
+                    // Update UI to show failure
+                    this.updateUI();
+                    
+                    // Stop polling
+                    this.stopRealTimeUpdates();
+                }
+                break;
+
             case 'heartbeat':
                 // Keep connection alive - no action needed
                 break;
