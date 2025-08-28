@@ -790,8 +790,8 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing Creatomate data from cache
         cached_creatomate_data = load_test_data('creatomate', country, genre, platform)
         
-        #if cached_creatomate_data and should_use_cache():
-        if False:
+        if cached_creatomate_data and should_use_cache():
+        # if False:
             print("   📂 Using cached Creatomate data from test_output...")
             
             # Extract data from cached result (with safe fallbacks)
