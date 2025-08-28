@@ -7,7 +7,7 @@ including filtering, processing, and data transformation for video generation.
 
 import logging
 import random
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from database.connection import DatabaseConnection
 from database.filters import build_movie_query, apply_filters
 from database.validators import validate_extraction_params, validate_movie_response, process_movie_data
@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 def extract_movie_data(num_movies: int = 3, 
                       country: Optional[str] = None, 
-                      genre: Optional[str] = None, 
-                      platform: Optional[str] = None, 
+                      genre: Optional[Union[str, List[str]]] = None, 
+                      platform: Optional[Union[str, List[str]]] = None, 
                       content_type: Optional[str] = None, 
                       debug: bool = False) -> Optional[List[Dict[str, Any]]]:
     """
@@ -33,8 +33,8 @@ def extract_movie_data(num_movies: int = 3,
     Args:
         num_movies (int): Number of movies to extract
         country (str): Country code for filtering (e.g., 'US', 'FR')
-        genre (str): Genre to filter by (e.g., 'Horror', 'Comedy')
-        platform (str): Platform to filter by (e.g., 'Netflix', 'Max')
+        genre (str or list): Genre(s) to filter by (e.g., 'Horror', ['Horror', 'Comedy'])
+        platform (str or list): Platform(s) to filter by (e.g., 'Netflix', ['Netflix', 'Hulu'])
         content_type (str): Content type to filter by (e.g., 'Film', 'Série')
         debug (bool): Enable debug output and logging
         
@@ -63,13 +63,14 @@ def extract_movie_data(num_movies: int = 3,
         
         try:
             # Build query with joins and filters
-            query = build_movie_query(db.get_client())
+            query = build_movie_query(db.get_client(), genre_filter=genre)
             
             # Apply filters if provided
             query = apply_filters(query, content_type, country, platform, genre)
             
             # Execute query with ordering and limit
             logger.debug(f"🔍 Executing database query with {num_movies} limit")
+            
             response = query.order("imdb_score", desc=True).limit(num_movies).execute()
             
             # Validate response
@@ -387,3 +388,66 @@ def get_movies_sample(limit: int = 5) -> Optional[List[Dict[str, Any]]]:
             logger.error(f"❌ Failed to get movie sample: {str(e)}")
             logger.warning("⚠️ Falling back to simulated data")
             return simulate_movie_data(limit)
+
+
+# =============================================================================
+# COMMAND LINE INTERFACE FOR PREVIEW API
+# =============================================================================
+
+if __name__ == "__main__":
+    import argparse
+    import json
+    import sys
+    
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Extract movies for preview')
+    parser.add_argument('--country', required=True, help='Country code (e.g., US, FR)')
+    parser.add_argument('--platform', required=True, help='Platform name(s), comma-separated')
+    parser.add_argument('--genre', required=True, help='Genre name')
+    parser.add_argument('--content-type', help='Content type (Film, Série) - omit for all content types')
+    parser.add_argument('--limit', type=int, default=3, help='Number of movies to extract')
+    parser.add_argument('--preview-only', action='store_true', help='Preview mode flag')
+    
+    args = parser.parse_args()
+    
+    try:
+        # Handle multiple platforms and genres
+        platforms = args.platform.split(',') if ',' in args.platform else args.platform
+        genres = args.genre.split(',') if ',' in args.genre else args.genre
+        
+        # Extract movies using the existing function
+        movies = extract_movie_data(
+            num_movies=args.limit,
+            country=args.country,
+            genre=genres,
+            platform=platforms,
+            content_type=args.content_type,  # Will be None if not provided (for "All")
+            debug=False
+        )
+        
+        # Format output for API consumption
+        result = {
+            'success': True,
+            'movies': movies or [],
+            'count': len(movies) if movies else 0,
+            'filters': {
+                'country': args.country,
+                'platforms': platforms,
+                'genres': genres,
+                'contentType': args.content_type
+            }
+        }
+        
+        # Output JSON result
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        
+    except Exception as e:
+        # Output error as JSON
+        error_result = {
+            'success': False,
+            'error': str(e),
+            'movies': [],
+            'count': 0
+        }
+        print(json.dumps(error_result, ensure_ascii=False, indent=2))
+        sys.exit(1)

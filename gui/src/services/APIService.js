@@ -247,7 +247,9 @@ export class APIService {
     async getGenres(country, platform) {
         // If platform is provided, filter genres by platform
         if (platform) {
-            return this.get(`/api/genres/${country}?platform=${platform}`);
+            // Properly encode the platform parameter to avoid URL issues
+            const encodedPlatform = encodeURIComponent(platform);
+            return this.get(`/api/genres/${country}?platform=${encodedPlatform}`);
         }
         // Otherwise get all genres for country
         return this.get(`/api/genres/${country}`);

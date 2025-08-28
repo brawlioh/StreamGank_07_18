@@ -63,21 +63,35 @@ def validate_extraction_params(num_movies: int,
         else:
             validation_result['corrected_params']['country'] = country.upper()
     
-    # Validate genre (if provided)
+    # Validate genre (if provided) - now supports both string and list
     if genre is not None:
-        if not isinstance(genre, str):
-            validation_result['errors'].append('genre must be a string')
-        elif len(genre.strip()) == 0:
-            validation_result['warnings'].append('genre is empty, will be ignored')
-            validation_result['corrected_params']['genre'] = None
+        if isinstance(genre, str):
+            if len(genre.strip()) == 0:
+                validation_result['warnings'].append('genre is empty, will be ignored')
+                validation_result['corrected_params']['genre'] = None
+        elif isinstance(genre, list):
+            if len(genre) == 0:
+                validation_result['warnings'].append('genre list is empty, will be ignored')
+                validation_result['corrected_params']['genre'] = None
+            elif not all(isinstance(g, str) and len(g.strip()) > 0 for g in genre):
+                validation_result['errors'].append('all genres in list must be non-empty strings')
+        else:
+            validation_result['errors'].append('genre must be a string or list of strings')
     
-    # Validate platform (if provided)
+    # Validate platform (if provided) - now supports both string and list
     if platform is not None:
-        if not isinstance(platform, str):
-            validation_result['errors'].append('platform must be a string')
-        elif len(platform.strip()) == 0:
-            validation_result['warnings'].append('platform is empty, will be ignored')
-            validation_result['corrected_params']['platform'] = None
+        if isinstance(platform, str):
+            if len(platform.strip()) == 0:
+                validation_result['warnings'].append('platform is empty, will be ignored')
+                validation_result['corrected_params']['platform'] = None
+        elif isinstance(platform, list):
+            if len(platform) == 0:
+                validation_result['warnings'].append('platform list is empty, will be ignored')
+                validation_result['corrected_params']['platform'] = None
+            elif not all(isinstance(p, str) and len(p.strip()) > 0 for p in platform):
+                validation_result['errors'].append('all platforms in list must be non-empty strings')
+        else:
+            validation_result['errors'].append('platform must be a string or list of strings')
     
     # Validate content_type (if provided)
     if content_type is not None:

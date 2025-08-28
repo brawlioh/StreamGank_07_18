@@ -18,6 +18,7 @@ Version: 1.0.0 - Test Data Caching System
 import os
 import json
 import logging
+import re
 import time
 from typing import Any, Optional, Dict
 
@@ -53,15 +54,18 @@ def should_use_cache() -> bool:
     
     # Use cache in local development, not in production
     if app_env == 'local':
+        logger.info(f"🌍 LOCAL MODE: Cache reading ENABLED - will use cached data")
         return True
     elif app_env in ['prod', 'production']:
+        logger.info(f"🌍 PRODUCTION MODE: Cache reading DISABLED - will generate fresh data")
         return False
     elif app_env in ['dev', 'development']:
         # Development mode - use APIs but will save results
+        logger.info(f"🌍 DEVELOPMENT MODE: Cache reading DISABLED - will generate fresh data and save results")
         return False  # Don't read cache initially, but will save
     else:
         # For other environments (staging, test, etc.), use cache by default
-        logger.info(f"Unknown APP_ENV '{app_env}', defaulting to cache enabled")
+        logger.info(f"🌍 UNKNOWN APP_ENV '{app_env}': Defaulting to cache reading ENABLED")
         return True
 
 
@@ -75,11 +79,14 @@ def should_save_results() -> bool:
     app_env = get_app_env()
     
     if app_env in ['local', 'dev', 'development']:
+        logger.info(f"🌍 APP_ENV='{app_env}': Cache saving ENABLED - will save all results")
         return True
     elif app_env in ['prod', 'production']:
+        logger.info(f"🌍 APP_ENV='{app_env}': Cache saving DISABLED - will not save results")
         return False
     else:
         # For other environments, default to saving
+        logger.info(f"🌍 APP_ENV='{app_env}': Cache saving ENABLED (default)")
         return True
 
 
@@ -193,9 +200,159 @@ def save_test_data(data: Any, data_type: str, country: str, genre: str, platform
         return ""
 
 
+def try_load_from_workflow(data_type: str, country: str, genre: str, platform: str) -> Optional[Any]:
+    """
+    Try to extract specific data from existing workflow files as fallback.
+    
+    Args:
+        data_type (str): Type of data to extract
+        country (str): Country parameter
+        genre (str): Genre parameter  
+        platform (str): Platform parameter
+        
+    Returns:
+        Any: Extracted data or None if not found
+    """
+    try:
+        # Construct workflow file path - FIXED ORDER: Replace & with 'and' BEFORE removing special chars
+        country_clean = re.sub(r'[^\w\s-]', '', country.strip()).replace(' ', '_').lower()
+        genre_clean = genre.strip().replace('&', 'and').replace(' ', '_').lower()
+        genre_clean = re.sub(r'[^\w-]', '', genre_clean)  # Clean after replacements
+        platform_clean = re.sub(r'[^\w\s-]', '', platform.strip()).replace(' ', '_').lower()
+        
+        workflow_filename = f"workflow_{country_clean}_{genre_clean}_{platform_clean}.json"
+        workflow_path = os.path.join('test_output', workflow_filename)
+        
+        logger.info(f"🔍 CONSTRUCTED filename: {workflow_filename}")
+        logger.info(f"   Parameters: country='{country}' -> '{country_clean}', genre='{genre}' -> '{genre_clean}', platform='{platform}' -> '{platform_clean}'")
+        logger.info(f"🔍 WORKFLOW FALLBACK: Looking for {data_type} in {workflow_filename}")
+        
+        if not os.path.exists(workflow_path):
+            logger.warning(f"❌ WORKFLOW FILE NOT FOUND: {workflow_path}")
+            return None
+            
+        with open(workflow_path, 'r', encoding='utf-8') as f:
+            workflow_file = json.load(f)
+        
+        # Handle the actual structure with "data" wrapper
+        if isinstance(workflow_file, dict) and 'data' in workflow_file:
+            workflow_data = workflow_file['data']
+            logger.info(f"✅ Found workflow data structure with 'data' wrapper")
+        else:
+            workflow_data = workflow_file
+            logger.info(f"✅ Using direct workflow data structure")
+        
+        logger.info(f"🔍 Available keys in workflow_data: {list(workflow_data.keys()) if isinstance(workflow_data, dict) else 'Not a dict'}")
+        
+        # Extract specific data based on type - NEW ORGANIZED STEP STRUCTURE ONLY
+        if data_type == 'script_result':
+            logger.info(f"🔍 Looking for script_result data...")
+            # Check if script data exists in step 2
+            if 'step_2_script_generation' in workflow_data:
+                step_data = workflow_data['step_2_script_generation']
+                logger.info(f"✅ FOUND script data in step_2_script_generation!")
+                result = {
+                    'combined_script': step_data.get('combined_script', ''),
+                    'script_file_path': step_data.get('script_file_path', ''),
+                    'individual_scripts': step_data.get('individual_scripts', {})
+                }
+                logger.info(f"✅ RETURNING script data with {len(result['individual_scripts'])} individual scripts")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_2_script_generation' found in workflow data")
+                
+        elif data_type == 'assets':
+            logger.info(f"🔍 Looking for assets data...")
+            # Check if asset data exists in step 3
+            if 'step_3_asset_preparation' in workflow_data:
+                step_data = workflow_data['step_3_asset_preparation']
+                logger.info(f"✅ FOUND asset data in step_3_asset_preparation!")
+                result = {
+                    'enhanced_posters': step_data.get('enhanced_posters', {}),
+                    'dynamic_clips': step_data.get('dynamic_clips', {}),
+                    'movie_covers': step_data.get('movie_covers', []),
+                    'movie_clips': step_data.get('movie_clips', []),
+                    'background_music_url': step_data.get('background_music_url', ''),
+                    'background_music_info': step_data.get('background_music_info', {})
+                }
+                logger.info(f"✅ RETURNING asset data with {len(result['enhanced_posters'])} posters and {len(result['dynamic_clips'])} clips")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_3_asset_preparation' found in workflow data")
+                
+        elif data_type == 'heygen':
+            logger.info(f"🔍 Looking for heygen data...")
+            # Check if heygen data exists in step 4
+            if 'step_4_heygen_creation' in workflow_data:
+                step_data = workflow_data['step_4_heygen_creation']
+                logger.info(f"✅ FOUND heygen data in step_4_heygen_creation!")
+                result = {
+                    'video_ids': step_data.get('heygen_video_ids', {}),
+                    'template_id': step_data.get('template_id_used', '')
+                }
+                logger.info(f"✅ RETURNING heygen data with {len(result['video_ids'])} video IDs")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_4_heygen_creation' found in workflow data")
+                
+        elif data_type == 'heygen_urls':
+            logger.info(f"🔍 Looking for heygen URLs data...")
+            # Check if heygen URLs exist in step 5
+            if 'step_5_heygen_processing' in workflow_data:
+                step_data = workflow_data['step_5_heygen_processing']
+                logger.info(f"✅ FOUND heygen URLs in step_5_heygen_processing!")
+                result = {
+                    'video_urls': step_data.get('heygen_video_urls', {})
+                }
+                logger.info(f"✅ RETURNING heygen URLs with {len(result['video_urls'])} URLs")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_5_heygen_processing' found in workflow data")
+                
+        elif data_type == 'scroll_video':
+            logger.info(f"🔍 Looking for scroll video data...")
+            # Check if scroll video exists in step 6
+            if 'step_6_scroll_generation' in workflow_data:
+                step_data = workflow_data['step_6_scroll_generation']
+                logger.info(f"✅ FOUND scroll video in step_6_scroll_generation!")
+                result = {
+                    'scroll_video_url': step_data.get('scroll_video_url')
+                }
+                logger.info(f"✅ RETURNING scroll video URL")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_6_scroll_generation' found in workflow data")
+                
+        elif data_type == 'creatomate':
+            logger.info(f"🔍 Looking for creatomate data...")
+            # Check if creatomate data exists in step 7
+            if 'step_7_creatomate_assembly' in workflow_data:
+                step_data = workflow_data['step_7_creatomate_assembly']
+                logger.info(f"✅ FOUND creatomate data in step_7_creatomate_assembly!")
+                result = {
+                    'render_id': step_data.get('creatomate_id', '')
+                }
+                logger.info(f"✅ RETURNING creatomate render ID")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_7_creatomate_assembly' found in workflow data")
+        
+        logger.warning(f"❌ No data found for type '{data_type}' in workflow file")
+        return None
+            
+    except Exception as e:
+        logger.error(f"❌ EXCEPTION in try_load_from_workflow({data_type}): {str(e)}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return None
+
+
 def load_test_data(data_type: str, country: str, genre: str, platform: str) -> Optional[Any]:
     """
-    Load test data from test_output directory based on APP_ENV.
+    Load test data from unified workflow files in test_output directory.
+    
+    NEW ARCHITECTURE: All data is saved in single workflow files.
+    Direct extraction from workflow_*.json files based on data_type.
     
     Args:
         data_type (str): Type of data to load
@@ -213,43 +370,28 @@ def load_test_data(data_type: str, country: str, genre: str, platform: str) -> O
             logger.info(f"🚫 Cache disabled for APP_ENV='{app_env}' - will generate fresh data")
             return None
         
-        file_path = get_test_data_path(data_type, country, genre, platform)
+        app_env = get_app_env()
+        logger.info(f"🔍 Loading {data_type} from workflow file for APP_ENV='{app_env}'")
         
-        if not os.path.exists(file_path):
-            app_env = get_app_env()
-            if is_local_mode():
-                # In local mode, missing data is a problem since we can't generate fresh data
-                logger.error(f"❌ REQUIRED: No cached data found for LOCAL MODE: {file_path}")
-                logger.error(f"   💡 Run with APP_ENV=development first to generate and cache data")
-                raise FileNotFoundError(f"Local mode requires cached data: {file_path}")
-            else:
-                logger.info(f"📁 No existing test data found: {file_path} (APP_ENV='{app_env}')")
-            return None
+        # Load directly from workflow file (new unified system)
+        workflow_data = try_load_from_workflow(data_type, country, genre, platform)
+        if workflow_data:
+            logger.info(f"✅ Loaded {data_type} from workflow file")
+            return workflow_data
         
-        with open(file_path, 'r', encoding='utf-8') as f:
-            loaded_data = json.load(f)
-        
-        # Extract the actual data (handle both old format and new format with metadata)
-        if isinstance(loaded_data, dict) and 'data' in loaded_data:
-            # New format with metadata
-            data = loaded_data['data']
-            metadata = loaded_data.get('metadata', {})
-            
-            # Log metadata info
-            saved_time = metadata.get('saved_datetime', 'Unknown')
-            app_env = get_app_env()
-            logger.info(f"📂 Loaded {data_type} test data from: {file_path} (APP_ENV='{app_env}')")
-            logger.info(f"   💡 Data saved: {saved_time}")
-            
-            return data
+        # If no workflow data found
+        if is_local_mode():
+            logger.error(f"❌ LOCAL MODE: No workflow data found for {data_type}")
+            logger.error(f"   💡 Run with APP_ENV=development first to generate and save workflow data")
         else:
-            # Old format without metadata (backward compatibility)
-            app_env = get_app_env()
-            logger.info(f"📂 Loaded {data_type} test data from: {file_path} (legacy format, APP_ENV='{app_env}')")
-            return loaded_data
+            logger.info(f"📁 No workflow data found for {data_type} - will generate fresh")
+        
+        return None
         
     except Exception as e:
         logger.error(f"❌ Error loading test data: {str(e)}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         return None
 
 

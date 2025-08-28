@@ -48,9 +48,11 @@ def main():
     parser.add_argument("--process-heygen", help="Process existing HeyGen video IDs from JSON file")
     parser.add_argument("--check-creatomate", help="Check Creatomate render status by ID")
     parser.add_argument("--wait-creatomate", help="Wait for Creatomate render completion by ID")
+
     
     # Parameters
     parser.add_argument("--num-movies", type=int, default=3, help="Number of movies to extract (default: 3)")
+
     parser.add_argument("--country", help="Country code for filtering")
     parser.add_argument("--genre", help="Genre to filter")
     parser.add_argument("--platform", help="Platform to filter")

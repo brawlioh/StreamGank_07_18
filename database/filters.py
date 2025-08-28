@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # QUERY BUILDING FUNCTIONS
 # =============================================================================
 
-def build_movie_query(supabase_client: Client):
+def build_movie_query(supabase_client: Client, genre_filter=None):
     """
     Build the base movie query with all necessary joins.
     
@@ -26,13 +26,15 @@ def build_movie_query(supabase_client: Client):
     
     Args:
         supabase_client (Client): Supabase client instance
+        genre_filter: Genre filter (not used in this simplified version)
         
     Returns:
         Query: Base query object ready for filtering and execution
     """
     logger.debug("🔨 Building base movie query with joins")
     
-    # Build comprehensive query with all needed fields
+    # Use inner joins for both localizations and genres
+    # The key is to handle the filtering correctly, not avoid the joins
     query = supabase_client.from_("movies").select("""
         movie_id,
         content_type,
@@ -50,7 +52,8 @@ def build_movie_query(supabase_client: Client):
             streaming_url
         ),
         movie_genres!inner(
-            genre
+            genre,
+            country_code
         )
     """)
     
@@ -80,25 +83,103 @@ def apply_filters(query,
     
     filters_applied = []
     
-    # Apply content type filter
+    # Apply content type filter with normalization
     if content_type:
-        query = query.eq("content_type", content_type)
-        filters_applied.append(f"content_type={content_type}")
+        logger.debug(f"🎬 Applying content type filter: {content_type}")
+        
+        # Normalize content type variations (same logic as apply_content_filters)
+        content_type_mapping = {
+            'Movie': 'Film',
+            'Movies': 'Film',
+            'Series': 'Série',
+            'Serie': 'Série',
+            'TV Show': 'Série',
+            'TV Shows': 'Série',
+            'Show': 'Série'
+        }
+        
+        normalized_type = content_type_mapping.get(content_type, content_type)
+        
+        if normalized_type != content_type:
+            logger.debug(f"📝 Content type normalized: {content_type} -> {normalized_type}")
+        
+        query = query.eq("content_type", normalized_type)
+        filters_applied.append(f"content_type={content_type} (normalized to {normalized_type})")
     
     # Apply country filter (via localization join)
     if country:
         query = query.eq("movie_localizations.country_code", country)
         filters_applied.append(f"country={country}")
     
-    # Apply platform filter (via localization join)
+    # Apply platform filter (via localization join) - supports multiple platforms
     if platform:
-        query = query.eq("movie_localizations.platform_name", platform)
-        filters_applied.append(f"platform={platform}")
+        logger.debug(f"📺 Applying platform filter: {platform} (type: {type(platform)})")
+        
+        # Map platform names to exact database values
+        platform_mapping = {
+            'Netflix': 'Netflix',
+            'Hulu': 'Hulu',
+            'Crunchyroll': 'Crunchyroll',
+            'Kanopy': 'Kanopy',
+            'Apple TV+': 'Apple TV+',
+            'Disney+': 'Disney+',
+            'Disney Plus': 'Disney Plus',
+            'Rakuten TV': 'Rakuten TV',
+            'Amazon Prime Video': 'Amazon Prime Video',
+            'Prime': 'Amazon Prime Video',  # Map "Prime" to full name
+            'HBO Max': 'HBO Max',
+            'free': 'free',
+            'Sky Go': 'Sky Go',
+            'Max': 'Max'
+        }
+        
+        # Handle both single platform (string) and multiple platforms (list)
+        if isinstance(platform, list):
+            # Multiple platforms - use OR condition
+            mapped_platforms = []
+            for p in platform:
+                mapped_p = platform_mapping.get(p, p)
+                mapped_platforms.append(mapped_p)
+            
+            logger.debug(f"📺 Mapped platforms: {platform} -> {mapped_platforms}")
+            
+            if len(mapped_platforms) == 1:
+                query = query.eq("movie_localizations.platform_name", mapped_platforms[0])
+            else:
+                query = query.in_("movie_localizations.platform_name", mapped_platforms)
+            filters_applied.append(f"platforms={platform} (mapped to {mapped_platforms})")
+        else:
+            # Single platform (backward compatibility)
+            mapped_platform = platform_mapping.get(platform, platform)
+            logger.debug(f"📺 Single platform mapped: {platform} -> {mapped_platform}")
+            query = query.eq("movie_localizations.platform_name", mapped_platform)
+            filters_applied.append(f"platform={platform} (mapped to {mapped_platform})")
     
-    # Apply genre filter (via genre join)
+    # Apply genre filter - now using left join, in_() should work properly
     if genre:
-        query = query.eq("movie_genres.genre", genre)
-        filters_applied.append(f"genre={genre}")
+        logger.debug(f"🎭 Applying genre filter: {genre} (type: {type(genre)})")
+        
+        # IMPORTANT: movie_genres table also has country_code, so we need to filter by country too!
+        if country:
+            logger.debug(f"🎭 Adding country filter to movie_genres: {country}")
+            query = query.eq("movie_genres.country_code", country)
+        
+        # Handle both single genre (string) and multiple genres (list)
+        if isinstance(genre, list):
+            if len(genre) == 1:
+                # Single genre from list
+                logger.debug(f"🎭 Single genre from list: {genre[0]}")
+                query = query.eq("movie_genres.genre", genre[0])
+            else:
+                # Multiple genres - use in_() with left join (should work now)
+                logger.debug(f"🎭 Multiple genres with IN: {genre}")
+                query = query.in_("movie_genres.genre", genre)
+            filters_applied.append(f"genres={genre}")
+        else:
+            # Single genre (backward compatibility)
+            logger.debug(f"🎭 Single genre string: {genre}")
+            query = query.eq("movie_genres.genre", genre)
+            filters_applied.append(f"genre={genre}")
     
     if filters_applied:
         logger.debug(f"✅ Applied filters: {', '.join(filters_applied)}")
@@ -127,8 +208,11 @@ def apply_content_filters(query, content_type: Optional[str] = None):
     # Normalize content type variations
     content_type_mapping = {
         'Movie': 'Film',
+        'Movies': 'Film',
         'Series': 'Série',
+        'Serie': 'Série',
         'TV Show': 'Série',
+        'TV Shows': 'Série',
         'Show': 'Série'
     }
     

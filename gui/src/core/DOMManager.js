@@ -243,10 +243,20 @@ export class DOMManager {
      * @returns {Object} Form data
      */
     getFormData() {
+        // Get selected platforms (checkboxes)
+        const platformCheckboxes = document.querySelectorAll('input[name="platforms"]:checked');
+        const platforms = Array.from(platformCheckboxes).map((cb) => cb.value);
+
+        // Get selected genres (checkboxes)
+        const genreCheckboxes = document.querySelectorAll('input[name="genres"]:checked');
+        const genres = Array.from(genreCheckboxes).map((cb) => cb.value);
+
         const formData = {
             country: this.get('countrySelect')?.value,
-            platform: this.get('platformSelect')?.value,
-            genre: this.get('genreSelect')?.value,
+            platform: platforms[0] || '', // Keep backward compatibility
+            platforms: platforms,
+            genre: genres[0] || '', // Keep backward compatibility
+            genres: genres,
             template: this.get('templateSelect')?.value,
             contentType: this.getSelectedContentType()
         };

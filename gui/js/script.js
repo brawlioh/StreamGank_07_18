@@ -650,11 +650,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Get selected options
         const country = countrySelect.value;
-        const platform = platformSelect.value; // Send platform value as-is
-        const genre = genreSelect.value;
+
+        // Get selected platforms (multiple checkboxes)
+        const selectedPlatforms = [];
+        const platformCheckboxes = document.querySelectorAll('input[name="platforms"]:checked');
+        platformCheckboxes.forEach((checkbox) => {
+            selectedPlatforms.push(checkbox.value);
+        });
+        const platform = selectedPlatforms.length > 0 ? selectedPlatforms : []; // Send as array
+
+        // Get selected genres (multiple checkboxes)
+        const selectedGenres = [];
+        const genreCheckboxes = document.querySelectorAll('input[name="genres"]:checked');
+        genreCheckboxes.forEach((checkbox) => {
+            selectedGenres.push(checkbox.value);
+        });
+        const genre = selectedGenres.length > 0 ? selectedGenres : []; // Send as array
         const template = templateSelect.value; // Get selected template ID
         const contentTypeElement = document.querySelector('input[name="contentType"]:checked');
-        const contentType = contentTypeElement ? contentTypeElement.value : 'Serie';
+        let contentType = contentTypeElement ? contentTypeElement.value : 'Série';
+
+        // Handle "All" - don't send contentType parameter if "All" is selected
+        if (contentType === 'All') {
+            contentType = null; // This will be handled in the backend
+        }
         const pauseAfterExtraction = document.getElementById('pauseAfterExtraction').checked;
 
         // Build target URL for validation
