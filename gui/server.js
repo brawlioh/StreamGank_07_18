@@ -308,7 +308,8 @@ app.post('/api/generate', async (req, res) => {
             pauseAfterExtraction
         });
 
-        if (!country || !platform || !genre || !contentType) {
+        // Validate required parameters (contentType is optional for "All")
+        if (!country || !platform || !genre) {
             return res.status(400).json({
                 success: false,
                 message: 'Missing required parameters',
@@ -523,7 +524,7 @@ app.get('/api/job/:jobId', async (req, res) => {
 
         // PRODUCTION: Shorter timeout to fail fast and use cache fallback
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Redis request timeout')), 2000); // 2 second timeout
+            setTimeout(() => reject(new Error('Redis request timeout')), 5000); // 5 second timeout for production
         });
 
         const jobPromise = queueManager.getJob(jobId);
@@ -1708,6 +1709,106 @@ app.delete('/api/queue/job/:jobId/delete', async (req, res) => {
     }
 });
 
+// Preview movies endpoint - fetch filtered movies without generating video
+app.post('/api/movies/preview', async (req, res) => {
+    try {
+        const { country, platforms, genre, contentType } = req.body;
+
+        console.log('📋 Movie preview request:', { country, platforms, genre, contentType });
+
+        // Validate required parameters
+        if (
+            !country ||
+            !platforms ||
+            platforms.length === 0 ||
+            !genre ||
+            (Array.isArray(genre) && genre.length === 0)
+        ) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required parameters: country, platforms, and genre are required'
+            });
+        }
+
+        // Call the Python movie extraction directly (preview only, not video generation)
+        const pythonScript = path.join(__dirname, '..', 'database', 'movie_extractor.py');
+        // Build Python arguments, skip content-type if "All" or null
+        const pythonArgs = [
+            '--country',
+            country,
+            '--platform',
+            Array.isArray(platforms) ? platforms.join(',') : platforms,
+            '--genre',
+            Array.isArray(genre) ? genre.join(',') : genre
+        ];
+
+        // Only add content-type if it's not "All" or null
+        if (contentType && contentType !== 'All') {
+            pythonArgs.push('--content-type', contentType);
+        }
+
+        pythonArgs.push('--limit', '3', '--preview-only');
+
+        console.log('🐍 Executing Python script:', pythonScript, pythonArgs);
+
+        const { spawn } = require('child_process');
+        const pythonProcess = spawn('python', [pythonScript, ...pythonArgs], {
+            cwd: path.join(__dirname, '..'),
+            env: { ...process.env, PYTHONPATH: path.join(__dirname, '..') }
+        });
+
+        let outputData = '';
+        let errorData = '';
+
+        pythonProcess.stdout.on('data', (data) => {
+            outputData += data.toString();
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+            errorData += data.toString();
+        });
+
+        pythonProcess.on('close', (code) => {
+            if (code !== 0) {
+                console.error('❌ Python script failed:', errorData);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to fetch movie preview',
+                    details: errorData
+                });
+            }
+
+            try {
+                // Parse the JSON output from Python script
+                const result = JSON.parse(outputData.trim());
+
+                console.log(`✅ Found ${result.movies?.length || 0} movies for preview`);
+
+                res.json({
+                    success: true,
+                    movies: result.movies || [],
+                    count: result.movies?.length || 0,
+                    filters: { country, platforms, genre, contentType }
+                });
+            } catch (parseError) {
+                console.error('❌ Failed to parse Python output:', parseError);
+                res.status(500).json({
+                    success: false,
+                    error: 'Failed to parse movie data',
+                    details: parseError.message
+                });
+            }
+        });
+    } catch (error) {
+        console.error('❌ Movie preview error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error',
+            details: error.message
+        });
+    }
+});
+
 // API endpoint to get available platforms by region from database
 app.get('/api/platforms/:country', async (req, res) => {
     try {
@@ -1716,8 +1817,36 @@ app.get('/api/platforms/:country', async (req, res) => {
 
         // Use the exact platform data provided by the user
         const availablePlatforms = {
-            FR: ['Prime', 'Apple TV+', 'Disney+', 'Max', 'Netflix', 'Free'],
-            US: ['Prime', 'Apple TV+', 'Disney+', 'Hulu', 'Max', 'Netflix', 'Free']
+            FR: [
+                'Netflix',
+                'Hulu',
+                'Crunchyroll',
+                'Kanopy',
+                'Apple TV+',
+                'Disney+',
+                'Disney Plus',
+                'Rakuten TV',
+                'Amazon Prime Video',
+                'HBO Max',
+                'free',
+                'Sky Go',
+                'Max'
+            ],
+            US: [
+                'Netflix',
+                'Hulu',
+                'Crunchyroll',
+                'Kanopy',
+                'Apple TV+',
+                'Disney+',
+                'Disney Plus',
+                'Rakuten TV',
+                'Amazon Prime Video',
+                'HBO Max',
+                'free',
+                'Sky Go',
+                'Max'
+            ]
         };
 
         const platforms = availablePlatforms[country] || availablePlatforms['US']; // Default to US if country not found
@@ -1747,29 +1876,8 @@ app.get('/api/genres/:country', async (req, res) => {
         const { country } = req.params;
         console.log(`🎭 Fetching genres for country: ${country}`);
 
-        // Use the exact genre data for the system - Updated to match StreamGank
+        // Use the exact genre data provided by user
         const availableGenres = {
-            FR: [
-                'Action & Aventure',
-                'Animation',
-                'Comédie',
-                'Comédie Romantique',
-                'Crime & Thriller',
-                'Documentaire',
-                'Drame',
-                'Fantastique',
-                'Film de guerre',
-                'Histoire',
-                'Horreur',
-                'Musique & Comédie Musicale',
-                'Mystère & Thriller',
-                'Pour enfants',
-                'Reality TV',
-                'Réalisé en Europe',
-                'Science-Fiction',
-                'Sport & Fitness',
-                'Western'
-            ],
             US: [
                 'Action & Adventure',
                 'Animation',

@@ -431,7 +431,7 @@ class VideoQueueManager {
         try {
             // Add timeout protection specifically for Redis operations
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error(`Redis timeout for job ${jobId.slice(-8)}`)), 2000);
+                setTimeout(() => reject(new Error(`Redis timeout for job ${jobId.slice(-8)}`)), 5000);
             });
 
             const redisPromise = this.executeWithPool(this.getNextClient().hget, [this.keys.jobs, jobId], 'hget_job');

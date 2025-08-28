@@ -14,7 +14,9 @@ export class FormManager {
         this.formState = {
             country: '',
             platform: '',
+            platforms: [],
             genre: '',
+            genres: [],
             template: '',
             contentType: ''
         };
@@ -151,6 +153,9 @@ export class FormManager {
         // Refresh form state once - all dropdowns are now populated
         this.refreshFormState();
 
+        // Initialize Generate button as disabled until movies are loaded
+        this.disableGenerateButton();
+
         console.log('✅ Platform data initialization complete');
     }
 
@@ -267,19 +272,22 @@ export class FormManager {
             });
         }
 
-        // Genre selection
-        const genreSelect = document.getElementById('genre');
-        if (genreSelect) {
-            genreSelect.addEventListener('change', (e) => {
-                this.handleGenreChange(e.target.value);
-            });
-        }
+        // Genre selection (checkboxes handled in populateGenreSelect)
+        // Event listeners are added dynamically when checkboxes are created
 
         // Template selection
         const templateSelect = document.getElementById('template');
         if (templateSelect) {
             templateSelect.addEventListener('change', (e) => {
                 this.handleTemplateChange(e.target.value);
+            });
+        }
+
+        // Movie preview refresh button
+        const refreshPreviewBtn = document.getElementById('refresh-preview-btn');
+        if (refreshPreviewBtn) {
+            refreshPreviewBtn.addEventListener('click', () => {
+                this.loadMoviePreview();
             });
         }
 
@@ -361,8 +369,8 @@ export class FormManager {
         console.log('📋 Form state updated');
         console.log('📋 Final form data:', this.formState);
 
-        // Update preview with current state
-        this.updatePreview();
+        // Update preview with current state and load initial movie preview
+        this.updatePreviewWithMovies();
     }
 
     /**
@@ -454,41 +462,53 @@ export class FormManager {
      * Handle platform selection change
      * @param {string} platformValue - Selected platform value
      */
-    async handlePlatformChange(platformValue) {
-        console.log(`📋 Platform changed: ${platformValue}`);
+    async handlePlatformChange() {
+        // Handle multiple platform selection with checkboxes
+        const selectedPlatforms = [];
+        const checkboxes = document.querySelectorAll('input[name="platforms"]:checked');
 
-        this.formState.platform = platformValue;
+        checkboxes.forEach((checkbox) => {
+            selectedPlatforms.push(checkbox.value);
+        });
+
+        console.log('📺 Platform selection changed:', selectedPlatforms);
+
+        this.formState.platforms = selectedPlatforms;
+        this.formState.platform = selectedPlatforms[0] || ''; // Keep first platform for backward compatibility
 
         // Reset dependent fields
         this.resetGenreSelection();
         this.resetTemplateSelection();
 
-        // Clear genre cache for this platform to force refresh
-        const cacheKey = `genres_${this.formState.country}_${platformValue}`;
-        this.validationCache.delete(cacheKey);
-
-        if (this.formState.country && platformValue) {
-            await this.updateGenres(this.formState.country, platformValue);
-        }
-
-        this.updatePreview();
+        // Don't call updateGenres - genres are not platform-dependent
+        // Update the preview and reload movies since platform affects movie selection
+        this.updatePreviewWithMovies();
     }
 
     /**
-     * Handle genre selection change
-     * @param {string} genreValue - Selected genre value
+     * Handle genre checkbox changes (multiple selection)
      */
-    handleGenreChange(genreValue) {
-        console.log(`📋 Genre changed: ${genreValue}`);
+    handleGenreChange() {
+        const selectedGenres = [];
+        const checkboxes = document.querySelectorAll('input[name="genres"]:checked');
 
-        this.formState.genre = genreValue;
+        checkboxes.forEach((checkbox) => {
+            selectedGenres.push(checkbox.value);
+        });
+
+        console.log('🎭 Genre selection changed:', selectedGenres);
+
+        this.formState.genres = selectedGenres;
+        this.formState.genre = selectedGenres[0] || ''; // Keep first genre for backward compatibility
+
+        // Reset template selection when genre changes
         this.resetTemplateSelection();
 
-        if (genreValue) {
-            this.updateTemplates(genreValue);
+        if (selectedGenres.length > 0) {
+            this.updateTemplates(selectedGenres[0]); // Use first genre for template loading
         }
 
-        this.updatePreview();
+        this.updatePreviewWithMovies();
     }
 
     /**
@@ -510,7 +530,7 @@ export class FormManager {
         console.log(`📋 Content type changed: ${contentType}`);
 
         this.formState.contentType = contentType;
-        this.updatePreview();
+        this.updatePreviewWithMovies();
     }
 
     // === Form Update Methods ===
@@ -535,34 +555,53 @@ export class FormManager {
     }
 
     /**
-     * Populate platform select with options
+     * Populate platform checkboxes with options
      * @param {Array} platforms - Array of platform strings
      */
     populatePlatformSelect(platforms) {
-        const platformSelect = document.getElementById('platform');
-        if (!platformSelect) {
-            console.error('❌ Platform select element not found!');
+        const platformContainer = document.getElementById('platform-checkboxes');
+        if (!platformContainer) {
+            console.error('❌ Platform checkboxes container not found!');
             return;
         }
 
         console.log('📋 Populating platforms:', platforms);
 
-        // Clear existing options (except first)
-        while (platformSelect.children.length > 1) {
-            platformSelect.removeChild(platformSelect.lastChild);
-        }
+        // Clear existing checkboxes
+        platformContainer.innerHTML = '';
 
-        // Add platform options (handle string array from API)
-        platforms.forEach((platform) => {
-            const option = document.createElement('option');
-            option.value = platform; // Platform is a string
-            option.textContent = platform; // Platform is a string
-            platformSelect.appendChild(option);
+        // Add platform checkboxes
+        platforms.forEach((platform, index) => {
+            const checkboxItem = document.createElement('div');
+            checkboxItem.className = 'checkbox-item';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `platform-${index}`;
+            checkbox.value = platform;
+            checkbox.name = 'platforms';
+
+            // Pre-select Netflix if available
+            if (platform.toLowerCase().includes('netflix')) {
+                checkbox.checked = true;
+                this.formState.platforms = [platform];
+            }
+
+            const label = document.createElement('label');
+            label.htmlFor = `platform-${index}`;
+            label.textContent = platform;
+
+            // Add change event listener
+            checkbox.addEventListener('change', (e) => {
+                this.handlePlatformChange();
+            });
+
+            checkboxItem.appendChild(checkbox);
+            checkboxItem.appendChild(label);
+            platformContainer.appendChild(checkboxItem);
         });
 
-        console.log('✅ Platform dropdown populated with', platforms.length, 'options');
-
-        // Don't refresh here - will be done once at end of initialization
+        console.log('✅ Platform checkboxes populated with', platforms.length, 'options');
     }
 
     /**
@@ -586,20 +625,20 @@ export class FormManager {
      * @param {string} countryCode - Country code
      * @param {string} platformValue - Platform value
      */
-    async updateGenres(countryCode, platformValue) {
-        // Use platform-specific caching
-        const cacheKey = `genres_${countryCode}_${platformValue}`;
+    async updateGenres(countryCode, platformValue = null) {
+        // Use country-specific caching (genres are not platform-specific)
+        const cacheKey = `genres_${countryCode}`;
         if (this.validationCache.has(cacheKey)) {
-            console.log(`📋 Using cached genres for ${countryCode}/${platformValue}`);
+            console.log(`📋 Using cached genres for ${countryCode}`);
             return;
         }
 
         try {
-            console.log(`📋 Loading genres for ${countryCode}/${platformValue}...`);
-            const result = await APIService.getGenres(countryCode, platformValue);
+            console.log(`📋 Loading genres for ${countryCode}...`);
+            const result = await APIService.getGenres(countryCode); // Don't pass platform
 
             if (result.success && result.genres) {
-                console.log(`📋 API returned ${result.genres.length} genres for ${platformValue}:`, result.genres);
+                console.log(`📋 API returned ${result.genres.length} genres for ${countryCode}:`, result.genres);
                 this.populateGenreSelect(result.genres);
                 this.validationCache.set(cacheKey, true); // Cache successful result
                 return;
@@ -614,32 +653,53 @@ export class FormManager {
     }
 
     /**
-     * Populate genre select from API data
+     * Populate genre checkboxes from API data
      * @param {Array} genres - Array of genre strings
      */
     populateGenreSelect(genres) {
-        const genreSelect = document.getElementById('genre');
-        if (!genreSelect) {
-            console.error('❌ Genre select element not found!');
+        const genreContainer = document.getElementById('genre-checkboxes');
+        if (!genreContainer) {
+            console.error('❌ Genre checkboxes container not found!');
             return;
         }
 
         console.log('📋 Populating genres:', genres);
 
-        // Clear existing options (except first)
-        while (genreSelect.children.length > 1) {
-            genreSelect.removeChild(genreSelect.lastChild);
-        }
+        // Clear existing checkboxes
+        genreContainer.innerHTML = '';
 
-        // Add genre options (handle string array from API)
-        genres.forEach((genre) => {
-            const option = document.createElement('option');
-            option.value = genre; // Genre is a string
-            option.textContent = genre; // Genre is a string
-            genreSelect.appendChild(option);
+        // Add genre checkboxes
+        genres.forEach((genre, index) => {
+            const checkboxItem = document.createElement('div');
+            checkboxItem.className = 'checkbox-item';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `genre-${index}`;
+            checkbox.value = genre;
+            checkbox.name = 'genres';
+
+            // Pre-select Horror if available
+            if (genre.toLowerCase().includes('horror')) {
+                checkbox.checked = true;
+                this.formState.genres = [genre];
+            }
+
+            const label = document.createElement('label');
+            label.htmlFor = `genre-${index}`;
+            label.textContent = genre;
+
+            // Add change event listener
+            checkbox.addEventListener('change', (e) => {
+                this.handleGenreChange();
+            });
+
+            checkboxItem.appendChild(checkbox);
+            checkboxItem.appendChild(label);
+            genreContainer.appendChild(checkboxItem);
         });
 
-        console.log('✅ Genre dropdown populated with', genres.length, 'options');
+        console.log('✅ Genre checkboxes populated with', genres.length, 'options');
 
         // Don't refresh here - will be done once at end of initialization
     }
@@ -917,6 +977,203 @@ export class FormManager {
         UIManager.updateFormPreviewFromState(this.formState);
 
         console.log('📋 Preview updated');
+    }
+
+    /**
+     * Update preview and reload movie data (for filter changes)
+     */
+    updatePreviewWithMovies() {
+        // Update the form preview display
+        this.updatePreview();
+
+        // Load movie preview when filters change
+        this.loadMoviePreview();
+
+        console.log('📋 Preview updated with movie reload');
+    }
+
+    /**
+     * Load movie preview based on current filters
+     */
+    async loadMoviePreview() {
+        const country = this.formState.country;
+        const platforms = this.formState.platforms || [];
+        const genres = this.formState.genres || [];
+        const contentType = this.formState.contentType;
+
+        // Don't load preview if essential filters are missing
+        if (!country || platforms.length === 0 || genres.length === 0) {
+            this.hideMoviePreview();
+            return;
+        }
+
+        console.log('🎬 Loading movie preview:', { country, platforms, genres, contentType });
+
+        this.showMoviePreviewLoading();
+
+        try {
+            const response = await fetch('/api/movies/preview', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    country,
+                    platforms,
+                    genre: genres, // Send as array
+                    contentType: contentType === 'All' ? null : contentType // Don't send contentType if "All"
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.movies && data.movies.length > 0) {
+                this.displayMoviePreview(data.movies);
+            } else {
+                this.showMoviePreviewEmpty();
+            }
+        } catch (error) {
+            console.error('❌ Failed to load movie preview:', error);
+            this.showMoviePreviewEmpty();
+        }
+    }
+
+    /**
+     * Display movie preview cards
+     */
+    displayMoviePreview(movies) {
+        const container = document.getElementById('movie-preview-container');
+        const grid = document.getElementById('movie-preview-grid');
+        const loading = document.getElementById('movie-preview-loading');
+        const empty = document.getElementById('movie-preview-empty');
+
+        if (!container || !grid) return;
+
+        // Hide loading and empty states
+        loading.style.display = 'none';
+        empty.style.display = 'none';
+
+        // Clear existing content
+        grid.innerHTML = '';
+
+        // Create movie cards
+        movies.forEach((movie, index) => {
+            const movieCard = this.createMovieCard(movie, index);
+            grid.appendChild(movieCard);
+        });
+
+        // Show the preview container
+        container.style.display = 'block';
+
+        // Enable Generate button since we have movies
+        this.enableGenerateButton();
+
+        console.log(`✅ Displayed ${movies.length} movie preview cards`);
+    }
+
+    /**
+     * Create a movie card element
+     */
+    createMovieCard(movie, index) {
+        const col = document.createElement('div');
+        col.className = 'col-md-4';
+
+        const card = document.createElement('div');
+        card.className = 'movie-card';
+
+        const posterUrl =
+            movie.poster_url || movie.backdrop_url || 'https://via.placeholder.com/300x450/333/fff?text=No+Image';
+        const title = movie.title || 'Unknown Title';
+
+        card.innerHTML = `
+            <img src="${posterUrl}" alt="${title}" class="movie-poster" 
+                 onerror="this.src='https://via.placeholder.com/300x450/333/fff?text=No+Image'">
+            <div class="movie-title-large">${title}</div>
+        `;
+
+        col.appendChild(card);
+        return col;
+    }
+
+    /**
+     * Show movie preview loading state
+     */
+    showMoviePreviewLoading() {
+        const container = document.getElementById('movie-preview-container');
+        const loading = document.getElementById('movie-preview-loading');
+        const grid = document.getElementById('movie-preview-grid');
+        const empty = document.getElementById('movie-preview-empty');
+
+        if (!container || !loading) return;
+
+        container.style.display = 'block';
+        loading.style.display = 'block';
+        grid.innerHTML = '';
+        empty.style.display = 'none';
+
+        // Disable Generate button while loading
+        this.disableGenerateButton();
+    }
+
+    /**
+     * Show movie preview empty state
+     */
+    showMoviePreviewEmpty() {
+        const container = document.getElementById('movie-preview-container');
+        const loading = document.getElementById('movie-preview-loading');
+        const grid = document.getElementById('movie-preview-grid');
+        const empty = document.getElementById('movie-preview-empty');
+
+        if (!container || !empty) return;
+
+        container.style.display = 'block';
+        loading.style.display = 'none';
+        grid.innerHTML = '';
+        empty.style.display = 'block';
+
+        // Disable Generate button since there are no movies
+        this.disableGenerateButton();
+    }
+
+    /**
+     * Hide movie preview section
+     */
+    hideMoviePreview() {
+        const container = document.getElementById('movie-preview-container');
+        if (container) {
+            container.style.display = 'none';
+        }
+
+        // Disable Generate button since preview is hidden
+        this.disableGenerateButton();
+    }
+
+    /**
+     * Enable the Generate Video button
+     */
+    enableGenerateButton() {
+        const generateButton = document.getElementById('generate-video');
+        if (generateButton) {
+            generateButton.disabled = false;
+            generateButton.classList.remove('btn-secondary');
+            generateButton.classList.add('btn-primary');
+            generateButton.innerHTML = '<span class="icon">🎬</span> Generate Video';
+            console.log('✅ Generate button enabled');
+        }
+    }
+
+    /**
+     * Disable the Generate Video button
+     */
+    disableGenerateButton() {
+        const generateButton = document.getElementById('generate-video');
+        if (generateButton) {
+            generateButton.disabled = true;
+            generateButton.classList.remove('btn-primary');
+            generateButton.classList.add('btn-secondary');
+            generateButton.innerHTML = '<span class="icon">⚠️</span> No Movies Available';
+            console.log('🚫 Generate button disabled');
+        }
     }
 
     /**

@@ -269,10 +269,26 @@ def _create_advanced_scroll_video(filtered_url: str,
                 os.remove(os.path.join(frames_dir, file))
         
         with sync_playwright() as p:
-            # Always use headless mode in Docker containers (detect by checking if we're in a container)
+            # Always use headless mode in production environments and containers
             # This is separate from APP_ENV which controls HeyGen API vs local URLs
             is_in_container = os.path.exists('/.dockerenv') or os.getenv('PYTHONPATH') == '/app'
-            browser = p.chromium.launch(headless=is_in_container)
+            is_production = os.getenv('APP_ENV') == 'production' or os.getenv('NODE_ENV') == 'production'
+            is_railway = os.getenv('RAILWAY_ENVIRONMENT') is not None
+            
+            # Use headless mode in containers, production, or Railway environments
+            use_headless = is_in_container or is_production or is_railway
+            
+            browser = p.chromium.launch(
+                headless=use_headless,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor'
+                ] if use_headless else []
+            )
             
             # Use mobile device simulation
             device = p.devices[device_name]

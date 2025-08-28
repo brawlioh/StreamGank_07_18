@@ -338,15 +338,20 @@ export class UIManager {
     updateFormPreviewFromState(formState) {
         // Get display text from DOM elements for proper labels
         const countryText = this.getSelectDisplayText('countrySelect', formState.country) || '-';
-        const platformText = this.getSelectDisplayText('platformSelect', formState.platform) || '-';
-        const genreText = this.getSelectDisplayText('genreSelect', formState.genre) || '-';
+
+        // Handle multiple platforms - show selected platforms as comma-separated list
+        const platformText = this.getSelectedCheckboxText('platforms') || '-';
+
+        // Handle multiple genres - show selected genres as comma-separated list
+        const genreText = this.getSelectedCheckboxText('genres') || '-';
+
         const templateText = this.getSelectDisplayText('templateSelect', formState.template) || '-';
 
         // Map contentType values to display text
         const contentTypeMap = {
             Film: 'Movies',
-            Serie: 'Serie',
-            all: 'All'
+            Série: 'TV Shows',
+            All: 'All'
         };
         const typeText = contentTypeMap[formState.contentType] || formState.contentType || '-';
 
@@ -380,12 +385,29 @@ export class UIManager {
     }
 
     /**
+     * Get selected checkbox text as comma-separated string
+     * @param {string} checkboxName - Name attribute of checkboxes
+     * @returns {string} Comma-separated list of selected checkbox labels
+     */
+    getSelectedCheckboxText(checkboxName) {
+        const checkboxes = document.querySelectorAll(`input[name="${checkboxName}"]:checked`);
+        if (checkboxes.length === 0) return '';
+
+        const selectedTexts = Array.from(checkboxes).map((checkbox) => {
+            const label = document.querySelector(`label[for="${checkbox.id}"]`);
+            return label ? label.textContent : checkbox.value;
+        });
+
+        return selectedTexts.join(', ');
+    }
+
+    /**
      * Generate StreamGang URL from form data
      * @param {Object} formData - Form data object
      * @returns {string} Generated URL
      */
     generateStreamGankUrl(formData) {
-        if (!formData.country || !formData.platform || !formData.contentType) {
+        if (!formData.country || !formData.platforms || formData.platforms.length === 0 || !formData.contentType) {
             return 'Select all parameters to generate URL';
         }
 
@@ -394,33 +416,30 @@ export class UIManager {
 
         // Use exact format: country, platforms (plural), genres (plural), type
         if (formData.country) params.set('country', formData.country);
-        if (formData.platform) params.set('platforms', formData.platform.toLowerCase());
 
-        // Only add genre if not 'all' (use plural 'genres') - map to English
-        if (formData.genre && formData.genre !== 'all') {
-            const genreMapping = {
-                Horreur: 'Horror',
-                Comédie: 'Comedy',
-                'Action & Aventure': 'Action',
-                Animation: 'Animation'
-            };
-            const englishGenre = genreMapping[formData.genre] || formData.genre;
-            params.set('genres', englishGenre);
+        // Handle multiple platforms - properly encoded
+        if (formData.platforms && formData.platforms.length > 0) {
+            const platformsString = formData.platforms.join(',');
+            params.set('platforms', platformsString);
         }
 
-        // Only add content type if not 'all' - map to clean English
-        if (formData.contentType && formData.contentType !== 'all') {
-            const typeMapping = {
-                movies: 'Film',
-                series: 'Serie',
-                tvshows: 'Serie',
-                'tv-shows': 'Serie'
-            };
-            const cleanType = typeMapping[formData.contentType.toLowerCase()] || formData.contentType;
-            params.set('type', cleanType);
+        // Handle multiple genres - properly encoded
+        if (formData.genres && formData.genres.length > 0) {
+            const genresString = formData.genres.join(',');
+            params.set('genres', genresString);
         }
 
-        return `${baseUrl}?${params.toString()}`;
+        // Only add content type if not 'all' - use actual selected value
+        if (formData.contentType && formData.contentType !== 'All') {
+            params.set('type', formData.contentType);
+        }
+
+        const finalUrl = `${baseUrl}?${params.toString()}`;
+
+        // Ensure the URL is properly encoded for browser use
+        const encodedUrl = encodeURI(finalUrl);
+        console.log('🔗 Generated URL (encoded):', encodedUrl);
+        return encodedUrl;
     }
 
     // === Video Results Management ===

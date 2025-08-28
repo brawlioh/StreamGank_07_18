@@ -3513,7 +3513,7 @@ def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duratio
         base_name = os.path.splitext(video_path)[0]
         trimmed_path = f"{base_name}_trimmed_{max_duration:.0f}s.mp4"
         
-        # Use FFmpeg to trim video
+        # Use FFmpeg to trim video with improved compatibility
         ffmpeg_cmd = [
             'ffmpeg',
             '-i', video_path,
@@ -3522,6 +3522,10 @@ def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duratio
             '-c:a', 'aac',      # Audio codec
             '-preset', 'fast',  # Encoding speed
             '-crf', '23',       # Quality (lower = better quality)
+            '-movflags', '+faststart',  # Optimize for streaming
+            '-pix_fmt', 'yuv420p',  # Ensure compatible pixel format
+            '-max_muxing_queue_size', '1024',  # Handle large videos
+            '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
             '-y',               # Overwrite output file
             trimmed_path
         ]
