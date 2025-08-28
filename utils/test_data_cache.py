@@ -54,15 +54,18 @@ def should_use_cache() -> bool:
     
     # Use cache in local development, not in production
     if app_env == 'local':
+        logger.info(f"🌍 LOCAL MODE: Cache reading ENABLED - will use cached data")
         return True
     elif app_env in ['prod', 'production']:
+        logger.info(f"🌍 PRODUCTION MODE: Cache reading DISABLED - will generate fresh data")
         return False
     elif app_env in ['dev', 'development']:
         # Development mode - use APIs but will save results
+        logger.info(f"🌍 DEVELOPMENT MODE: Cache reading DISABLED - will generate fresh data and save results")
         return False  # Don't read cache initially, but will save
     else:
         # For other environments (staging, test, etc.), use cache by default
-        logger.info(f"Unknown APP_ENV '{app_env}', defaulting to cache enabled")
+        logger.info(f"🌍 UNKNOWN APP_ENV '{app_env}': Defaulting to cache reading ENABLED")
         return True
 
 
@@ -76,11 +79,14 @@ def should_save_results() -> bool:
     app_env = get_app_env()
     
     if app_env in ['local', 'dev', 'development']:
+        logger.info(f"🌍 APP_ENV='{app_env}': Cache saving ENABLED - will save all results")
         return True
     elif app_env in ['prod', 'production']:
+        logger.info(f"🌍 APP_ENV='{app_env}': Cache saving DISABLED - will not save results")
         return False
     else:
         # For other environments, default to saving
+        logger.info(f"🌍 APP_ENV='{app_env}': Cache saving ENABLED (default)")
         return True
 
 
@@ -238,53 +244,98 @@ def try_load_from_workflow(data_type: str, country: str, genre: str, platform: s
         
         logger.info(f"🔍 Available keys in workflow_data: {list(workflow_data.keys()) if isinstance(workflow_data, dict) else 'Not a dict'}")
         
-        # Extract specific data based on type
+        # Extract specific data based on type - NEW ORGANIZED STEP STRUCTURE ONLY
         if data_type == 'script_result':
             logger.info(f"🔍 Looking for script_result data...")
-            # Check if script data exists
-            if 'combined_script' in workflow_data:
-                logger.info(f"✅ FOUND combined_script in workflow data!")
+            # Check if script data exists in step 2
+            if 'step_2_script_generation' in workflow_data:
+                step_data = workflow_data['step_2_script_generation']
+                logger.info(f"✅ FOUND script data in step_2_script_generation!")
                 result = {
-                    'combined_script': workflow_data.get('combined_script', ''),
-                    'script_file_path': workflow_data.get('script_file_path', ''),
-                    'individual_scripts': workflow_data.get('individual_scripts', {})
+                    'combined_script': step_data.get('combined_script', ''),
+                    'script_file_path': step_data.get('script_file_path', ''),
+                    'individual_scripts': step_data.get('individual_scripts', {})
                 }
                 logger.info(f"✅ RETURNING script data with {len(result['individual_scripts'])} individual scripts")
                 return result
             else:
-                logger.warning(f"❌ No 'combined_script' found in workflow data")
+                logger.warning(f"❌ No 'step_2_script_generation' found in workflow data")
+                
         elif data_type == 'assets':
-            # Check if asset data exists
-            if 'enhanced_posters' in workflow_data or 'dynamic_clips' in workflow_data:
-                return {
-                    'enhanced_posters': workflow_data.get('enhanced_posters', {}),
-                    'dynamic_clips': workflow_data.get('dynamic_clips', {})
+            logger.info(f"🔍 Looking for assets data...")
+            # Check if asset data exists in step 3
+            if 'step_3_asset_preparation' in workflow_data:
+                step_data = workflow_data['step_3_asset_preparation']
+                logger.info(f"✅ FOUND asset data in step_3_asset_preparation!")
+                result = {
+                    'enhanced_posters': step_data.get('enhanced_posters', {}),
+                    'dynamic_clips': step_data.get('dynamic_clips', {}),
+                    'movie_covers': step_data.get('movie_covers', []),
+                    'movie_clips': step_data.get('movie_clips', []),
+                    'background_music_url': step_data.get('background_music_url', ''),
+                    'background_music_info': step_data.get('background_music_info', {})
                 }
+                logger.info(f"✅ RETURNING asset data with {len(result['enhanced_posters'])} posters and {len(result['dynamic_clips'])} clips")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_3_asset_preparation' found in workflow data")
+                
         elif data_type == 'heygen':
-            # Check if heygen data exists
-            if 'heygen_video_ids' in workflow_data or 'heygen_template_id' in workflow_data:
-                return {
-                    'video_ids': workflow_data.get('heygen_video_ids', {}),
-                    'template_id': workflow_data.get('heygen_template_id', '')
+            logger.info(f"🔍 Looking for heygen data...")
+            # Check if heygen data exists in step 4
+            if 'step_4_heygen_creation' in workflow_data:
+                step_data = workflow_data['step_4_heygen_creation']
+                logger.info(f"✅ FOUND heygen data in step_4_heygen_creation!")
+                result = {
+                    'video_ids': step_data.get('heygen_video_ids', {}),
+                    'template_id': step_data.get('template_id_used', '')
                 }
+                logger.info(f"✅ RETURNING heygen data with {len(result['video_ids'])} video IDs")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_4_heygen_creation' found in workflow data")
+                
         elif data_type == 'heygen_urls':
-            # Check if heygen URLs exist
-            if 'heygen_video_urls' in workflow_data:
-                return {
-                    'video_urls': workflow_data.get('heygen_video_urls', {})
+            logger.info(f"🔍 Looking for heygen URLs data...")
+            # Check if heygen URLs exist in step 5
+            if 'step_5_heygen_processing' in workflow_data:
+                step_data = workflow_data['step_5_heygen_processing']
+                logger.info(f"✅ FOUND heygen URLs in step_5_heygen_processing!")
+                result = {
+                    'video_urls': step_data.get('heygen_video_urls', {})
                 }
+                logger.info(f"✅ RETURNING heygen URLs with {len(result['video_urls'])} URLs")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_5_heygen_processing' found in workflow data")
+                
         elif data_type == 'scroll_video':
-            # Check if scroll video exists
-            if 'scroll_video_url' in workflow_data:
-                return {
-                    'scroll_video_url': workflow_data.get('scroll_video_url')
+            logger.info(f"🔍 Looking for scroll video data...")
+            # Check if scroll video exists in step 6
+            if 'step_6_scroll_generation' in workflow_data:
+                step_data = workflow_data['step_6_scroll_generation']
+                logger.info(f"✅ FOUND scroll video in step_6_scroll_generation!")
+                result = {
+                    'scroll_video_url': step_data.get('scroll_video_url')
                 }
+                logger.info(f"✅ RETURNING scroll video URL")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_6_scroll_generation' found in workflow data")
+                
         elif data_type == 'creatomate':
-            # Check if creatomate data exists
-            if 'creatomate_id' in workflow_data:
-                return {
-                    'render_id': workflow_data.get('creatomate_id', '')
+            logger.info(f"🔍 Looking for creatomate data...")
+            # Check if creatomate data exists in step 7
+            if 'step_7_creatomate_assembly' in workflow_data:
+                step_data = workflow_data['step_7_creatomate_assembly']
+                logger.info(f"✅ FOUND creatomate data in step_7_creatomate_assembly!")
+                result = {
+                    'render_id': step_data.get('creatomate_id', '')
                 }
+                logger.info(f"✅ RETURNING creatomate render ID")
+                return result
+            else:
+                logger.warning(f"❌ No 'step_7_creatomate_assembly' found in workflow data")
         
         logger.warning(f"❌ No data found for type '{data_type}' in workflow file")
         return None

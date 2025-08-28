@@ -458,8 +458,13 @@ class VideoQueueManager {
                 if (this.jobCache.size > 1000) {
                     const now = Date.now();
                     for (const [key, value] of this.jobCache) {
-                        if (now - value.timestamp > 600000) {
-                            // 10 minutes
+                        // Use shorter TTL for active jobs to ensure real-time accuracy
+                        const ttl =
+                            value.job && ['pending', 'processing', 'rendering'].includes(value.job.status)
+                                ? 30000 // 30 seconds for active jobs
+                                : 600000; // 10 minutes for completed/failed jobs
+
+                        if (now - value.timestamp > ttl) {
                             this.jobCache.delete(key);
                         }
                     }
@@ -495,16 +500,28 @@ class VideoQueueManager {
         try {
             await this.hsetAsync(this.keys.jobs, job.id, JSON.stringify(job));
 
-            // PRODUCTION OPTIMIZATION: Invalidate cache when job is updated
+            // PRODUCTION OPTIMIZATION: Update cache with fresh data when job is updated
             const cacheKey = `job_${job.id}`;
             if (this.jobCache && this.jobCache.has(cacheKey)) {
-                // Update cache with fresh data instead of invalidating
+                // Update cache with fresh data and reset timestamp
                 this.jobCache.set(cacheKey, {
                     job: job,
                     timestamp: Date.now()
                 });
-                console.log(`📋 Job cache updated for ${job.id.slice(-8)}`);
+                console.log(`📋 Job cache updated for ${job.id.slice(-8)} with fresh data`);
             }
+
+            // Also clear any related cache entries to ensure consistency
+            const relatedCacheKeys = [
+                `job_${job.id.slice(-8)}`, // Short job ID format
+                `job_${job.id}` // Full job ID format
+            ];
+
+            relatedCacheKeys.forEach((key) => {
+                if (this.jobCache && this.jobCache.has(key)) {
+                    this.jobCache.delete(key);
+                }
+            });
         } catch (error) {
             console.error(`❌ Failed to update job ${job.id}:`, error);
         }

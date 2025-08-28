@@ -20,8 +20,8 @@ const getCacheTTL = (job) => {
         return 300000; // 5 minutes for finished jobs
     }
 
-    // Active/pending jobs change frequently - shorter cache
-    return 30000; // 30 seconds for active jobs
+    // Active/pending jobs change frequently - much shorter cache for real-time accuracy
+    return 5000; // 5 seconds for active jobs (reduced from 30s for better sync)
 };
 
 // Production-level optimizations for web deployment
@@ -940,10 +940,28 @@ app.post('/api/webhooks/step-update', async (req, res) => {
 
             await queueManager.updateJob(job);
 
-            // Clear job cache to force fresh data on next request
+            // CRITICAL FIX: Immediately clear job cache to ensure UI shows real-time updates
+            // This prevents the UI from showing stale data while workflow progresses
             if (jobCache.has(job_id)) {
                 jobCache.delete(job_id);
+                console.log(`🗑️ Cleared job cache for ${job_id} to ensure real-time accuracy`);
             }
+
+            // Also clear any related cache keys to prevent stale data
+            const cacheKeysToClear = [
+                `job_${job_id}`,
+                `job_${job_id.slice(-8)}`, // Short job ID format
+                `queue_status` // Clear queue status cache too
+            ];
+
+            cacheKeysToClear.forEach((key) => {
+                if (jobCache.has(key)) {
+                    jobCache.delete(key);
+                }
+                if (statusCache.has(key)) {
+                    statusCache.delete(key);
+                }
+            });
 
             console.log(`✅ Real-time update: Job ${job_id} - ${job.progress}% - ${job.currentStep}`);
 

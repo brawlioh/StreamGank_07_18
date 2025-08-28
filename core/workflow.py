@@ -142,7 +142,15 @@ def run_full_workflow(num_movies: int = 3,
             'content_type': content_type
         },
         'steps_completed': [],
-        'start_time': time.time()
+        'start_time': time.time(),
+        # Initialize step-specific data containers
+        'step_1_database_extraction': {},
+        'step_2_script_generation': {},
+        'step_3_asset_preparation': {},
+        'step_4_heygen_creation': {},
+        'step_5_heygen_processing': {},
+        'step_6_scroll_generation': {},
+        'step_7_creatomate_assembly': {}
     }
     
     # Initialize webhook client for real-time step updates
@@ -231,7 +239,13 @@ def run_full_workflow(num_movies: int = 3,
             print(f"     - Try a different country")
             raise Exception(error_message)
         
-        workflow_results['raw_movies'] = raw_movies
+        # Save step 1 data in organized structure
+        workflow_results['step_1_database_extraction'] = {
+            'raw_movies': raw_movies,
+            'movies_found': len(raw_movies),
+            'step_duration': time.time() - step_start,
+            'step_status': 'completed'
+        }
         workflow_results['steps_completed'].append('database_extraction')
         
         # Save incremental progress in development mode
@@ -345,9 +359,16 @@ def run_full_workflow(num_movies: int = 3,
             
             # Script results saved via save_workflow_result() call below
         
-        workflow_results['combined_script'] = combined_script
-        workflow_results['script_file_path'] = script_file_path
-        workflow_results['individual_scripts'] = individual_scripts
+        # Save step 2 data in organized structure
+        workflow_results['step_2_script_generation'] = {
+            'combined_script': combined_script,
+            'script_file_path': script_file_path,
+            'individual_scripts': individual_scripts,
+            'scripts_generated': len(individual_scripts),
+            'step_duration': time.time() - step_start,
+            'step_status': 'completed',
+            'from_cache': should_use_cache() and cached_script_data is not None
+        }
         workflow_results['steps_completed'].append('script_generation')
         
         # Save incremental progress in development mode
@@ -482,16 +503,57 @@ def run_full_workflow(num_movies: int = 3,
         print(f"   ✅ Selected {background_music_info['type']} background music for {genre}")
         print(f"   🔗 Music URL: {background_music_url}")
         
-        # Extract URLs for Creatomate
-        movie_covers = list(enhanced_posters.values())[:3]
-        movie_clips = list(dynamic_clips.values())[:3]
+        # Extract URLs for Creatomate - FIXED ORDERING BASED ON ORIGINAL MOVIE EXTRACTION
+        # Ensure clips and posters follow the same order as the extracted movies
+        movie_covers = []
+        movie_clips = []
         
-        workflow_results['movie_covers'] = movie_covers
-        workflow_results['movie_clips'] = movie_clips
-        workflow_results['enhanced_posters'] = enhanced_posters
-        workflow_results['dynamic_clips'] = dynamic_clips
-        workflow_results['background_music_url'] = background_music_url
-        workflow_results['background_music_info'] = background_music_info
+        # Get the first 3 movies from the original extraction (this is the correct order)
+        ordered_movies = raw_movies[:3]
+        
+        for movie in ordered_movies:
+            movie_title = movie.get('title', 'Unknown')
+            
+            # Get poster for this movie (in order)
+            if movie_title in enhanced_posters:
+                movie_covers.append(enhanced_posters[movie_title])
+            else:
+                logger.warning(f"⚠️ No poster found for movie: {movie_title}")
+                if movie_covers:  # Duplicate last poster if available
+                    movie_covers.append(movie_covers[-1])
+            
+            # Get clip for this movie (in order)
+            if movie_title in dynamic_clips:
+                movie_clips.append(dynamic_clips[movie_title])
+            else:
+                logger.warning(f"⚠️ No clip found for movie: {movie_title}")
+                if movie_clips:  # Duplicate last clip if available
+                    movie_clips.append(movie_clips[-1])
+        
+        # Log the ordering for verification
+        logger.info(f"🎬 ASSET ORDERING for Creatomate:")
+        for i, movie in enumerate(ordered_movies):
+            title = movie.get('title', 'Unknown')
+            poster_status = "✅" if title in enhanced_posters else "❌"
+            clip_status = "✅" if title in dynamic_clips else "❌"
+            logger.info(f"   {i+1}. {title} - Poster: {poster_status}, Clip: {clip_status}")
+        
+        logger.info(f"📋 Final counts - Covers: {len(movie_covers)}, Clips: {len(movie_clips)}")
+        
+        # Save step 3 data in organized structure
+        workflow_results['step_3_asset_preparation'] = {
+            'movie_covers': movie_covers,
+            'movie_clips': movie_clips,
+            'enhanced_posters': enhanced_posters,
+            'dynamic_clips': dynamic_clips,
+            'background_music_url': background_music_url,
+            'background_music_info': background_music_info,
+            'posters_created': len(movie_covers),
+            'clips_processed': len(movie_clips),
+            'step_duration': time.time() - step_start,
+            'step_status': 'completed',
+            'from_cache': should_use_cache() and cached_assets_data is not None
+        }
         workflow_results['steps_completed'].append('asset_preparation')
         
         # Save incremental progress in development mode
@@ -568,7 +630,15 @@ def run_full_workflow(num_movies: int = 3,
             
             # HeyGen results saved via save_workflow_result() call below
         
-        workflow_results['heygen_video_ids'] = heygen_video_ids
+        # Save step 4 data in organized structure
+        workflow_results['step_4_heygen_creation'] = {
+            'heygen_video_ids': heygen_video_ids,
+            'template_id_used': template_id_used if 'template_id_used' in locals() else heygen_template_id,
+            'videos_created': len(heygen_video_ids),
+            'step_duration': time.time() - step_start,
+            'step_status': 'completed',
+            'from_cache': should_use_cache() and cached_heygen_data is not None
+        }
         workflow_results['steps_completed'].append('heygen_creation')
         
         # Save incremental progress in development mode
@@ -643,7 +713,14 @@ def run_full_workflow(num_movies: int = 3,
             
             # HeyGen URLs saved via save_workflow_result() call below
         
-        workflow_results['heygen_video_urls'] = heygen_video_urls
+        # Save step 5 data in organized structure
+        workflow_results['step_5_heygen_processing'] = {
+            'heygen_video_urls': heygen_video_urls,
+            'urls_retrieved': len(heygen_video_urls),
+            'step_duration': time.time() - step_start,
+            'step_status': 'completed',
+            'from_cache': should_use_cache() and cached_heygen_urls_data is not None
+        }
         workflow_results['steps_completed'].append('heygen_processing')
         
         # Save incremental progress in development mode
@@ -722,9 +799,24 @@ def run_full_workflow(num_movies: int = 3,
                     # Scroll video results saved via save_workflow_result() call below
             
             if scroll_video_url:
-                workflow_results['scroll_video_url'] = scroll_video_url
+                # Save step 6 data in organized structure
+                workflow_results['step_6_scroll_generation'] = {
+                    'scroll_video_url': scroll_video_url,
+                    'step_duration': time.time() - step_start,
+                    'step_status': 'completed',
+                    'from_cache': should_use_cache() and cached_scroll_data is not None,
+                    'smooth_scroll': smooth_scroll,
+                    'scroll_distance': scroll_distance
+                }
                 print(f"✅ STEP 6 COMPLETED - {'Loaded' if should_use_cache() and cached_scroll_data and cached_scroll_data.get('scroll_video_url') else 'Generated'} scroll video in {time.time() - step_start:.1f}s")
             else:
+                # Save step 6 data in organized structure (skipped)
+                workflow_results['step_6_scroll_generation'] = {
+                    'scroll_video_url': None,
+                    'step_duration': time.time() - step_start,
+                    'step_status': 'skipped',
+                    'reason': 'not available in cache' if is_local_mode() else 'generation failed'
+                }
                 print(f"⚠️ STEP 6 SKIPPED - Scroll video {'not available in cache' if is_local_mode() else 'generation failed'}, continuing without it")
                 
             # Send real-time webhook update
@@ -787,36 +879,152 @@ def run_full_workflow(num_movies: int = 3,
             'cache_enabled': cache_enabled
         })
         
-        # Try to load existing Creatomate data from cache
-        cached_creatomate_data = load_test_data('creatomate', country, genre, platform)
+        # FIXED ORDERING: Ensure all assets follow the same order as extracted movies
+        # This should run REGARDLESS of cache status to ensure correct ordering
+        print("   🔄 Fixing asset ordering to match extracted movie order...")
         
-        if cached_creatomate_data and should_use_cache():
-        # if False:
-            print("   📂 Using cached Creatomate data from test_output...")
+        # Get the first 3 movies from the original extraction (this is the correct order)
+        ordered_movies = raw_movies[:3]
+        
+        # Fix movie covers and clips ordering
+        ordered_movie_covers = []
+        ordered_movie_clips = []
+        
+        for movie in ordered_movies:
+            movie_title = movie.get('title', 'Unknown')
             
-            # Extract data from cached result (with safe fallbacks)
-            creatomate_id = cached_creatomate_data.get('render_id', '') if isinstance(cached_creatomate_data, dict) else ''
-            
-            if creatomate_id and not creatomate_id.startswith('error'):
-                print(f"   📋 Loaded cached Creatomate render ID: {creatomate_id}")
+            # Get poster for this movie (in order)
+            if movie_title in enhanced_posters:
+                ordered_movie_covers.append(enhanced_posters[movie_title])
             else:
-                raise Exception(f"LOCAL MODE: Invalid cached Creatomate data: {creatomate_id}")
+                logger.warning(f"⚠️ No poster found for movie: {movie_title}")
+                if ordered_movie_covers:  # Duplicate last poster if available
+                    ordered_movie_covers.append(ordered_movie_covers[-1])
             
-        else:
-            if is_local_mode():
+            # Get clip for this movie (in order)
+            if movie_title in dynamic_clips:
+                ordered_movie_clips.append(dynamic_clips[movie_title])
+            else:
+                logger.warning(f"⚠️ No clip found for movie: {movie_title}")
+                if ordered_movie_clips:  # Duplicate last clip if available
+                    ordered_movie_clips.append(ordered_movie_clips[-1])
+        
+        # Fix scripts and HeyGen URLs ordering
+        ordered_individual_scripts = {}
+        ordered_heygen_urls = {}
+        
+        # Use the data that was generated in this workflow run
+        # The variables should already be available from Steps 2 and 5
+        # In development mode, these variables are generated in the same workflow run
+        # In local mode, they would be loaded from cache
+        if 'individual_scripts' not in locals() or not individual_scripts:
+            logger.warning("⚠️ individual_scripts not available - this should not happen")
+            # Try to load from workflow file as fallback
+            workflow_data = load_test_data('workflow', country, genre, platform)
+            if workflow_data and 'step_2_script_generation' in workflow_data:
+                individual_scripts = workflow_data['step_2_script_generation'].get('individual_scripts', {})
+                logger.info(f"✅ Loaded {len(individual_scripts)} scripts from workflow file")
+            else:
+                individual_scripts = {}
+                logger.error("❌ No script data found anywhere")
+        
+        if 'heygen_video_urls' not in locals() or not heygen_video_urls:
+            logger.warning("⚠️ heygen_video_urls not available - this should not happen")
+            # Try to load from workflow file as fallback
+            workflow_data = load_test_data('workflow', country, genre, platform)
+            if workflow_data and 'step_5_heygen_processing' in workflow_data:
+                heygen_video_urls = workflow_data['step_5_heygen_processing'].get('heygen_video_urls', {})
+                logger.info(f"✅ Loaded {len(heygen_video_urls)} HeyGen URLs from workflow file")
+            else:
+                heygen_video_urls = {}
+                logger.error("❌ No HeyGen URL data found anywhere")
+        
+        # Map movie titles to their position (movie1, movie2, movie3)
+        for i, movie in enumerate(ordered_movies, 1):
+            movie_title = movie.get('title', 'Unknown')
+            movie_key = f"movie{i}"
+            
+            # Get script for this movie (in order) - check both title and position key
+            if movie_title in individual_scripts:
+                ordered_individual_scripts[movie_title] = individual_scripts[movie_title]
+            elif movie_key in individual_scripts:
+                ordered_individual_scripts[movie_title] = individual_scripts[movie_key]
+            else:
+                logger.warning(f"⚠️ No script found for movie: {movie_title} (key: {movie_key})")
+                if ordered_individual_scripts:  # Duplicate last script if available
+                    last_script = list(ordered_individual_scripts.values())[-1]
+                    ordered_individual_scripts[movie_title] = last_script
+            
+            # Get HeyGen URL for this movie (in order) - check both title and position key
+            if movie_title in heygen_video_urls:
+                ordered_heygen_urls[movie_title] = heygen_video_urls[movie_title]
+            elif movie_key in heygen_video_urls:
+                ordered_heygen_urls[movie_title] = heygen_video_urls[movie_key]
+            else:
+                logger.warning(f"⚠️ No HeyGen URL found for movie: {movie_title} (key: {movie_key})")
+                if ordered_heygen_urls:  # Duplicate last URL if available
+                    last_url = list(ordered_heygen_urls.values())[-1]
+                    ordered_heygen_urls[movie_title] = last_url
+        
+        # Convert HeyGen URLs to the format expected by Creatomate (movie1, movie2, movie3)
+        creatomate_heygen_urls = {}
+        for i, movie in enumerate(ordered_movies, 1):
+            movie_title = movie.get('title', 'Unknown')
+            if movie_title in ordered_heygen_urls:
+                creatomate_heygen_urls[f"movie{i}"] = ordered_heygen_urls[movie_title]
+            else:
+                logger.warning(f"⚠️ No HeyGen URL for movie {i}: {movie_title}")
+                # Use a placeholder if available
+                if creatomate_heygen_urls:
+                    last_url = list(creatomate_heygen_urls.values())[-1]
+                    creatomate_heygen_urls[f"movie{i}"] = last_url
+        
+        # Log the ordering for verification
+        logger.info(f"🎬 FINAL ASSET ORDERING for Creatomate:")
+        for i, movie in enumerate(ordered_movies):
+            title = movie.get('title', 'Unknown')
+            poster_status = "✅" if title in enhanced_posters else "❌"
+            clip_status = "✅" if title in dynamic_clips else "❌"
+            script_status = "✅" if title in individual_scripts else "❌"
+            heygen_status = "✅" if title in heygen_video_urls else "❌"
+            logger.info(f"   {i+1}. {title} - Poster: {poster_status}, Clip: {clip_status}, Script: {script_status}, HeyGen: {heygen_status}")
+        
+        logger.info(f"📋 Final counts - Covers: {len(ordered_movie_covers)}, Clips: {len(ordered_movie_clips)}, Scripts: {len(ordered_individual_scripts)}, HeyGen URLs: {len(ordered_heygen_urls)}")
+        
+        # Create Creatomate video based on environment
+        if is_local_mode():
+            # LOCAL MODE: Try to use cached Creatomate data
+            cached_creatomate_data = load_test_data('creatomate', country, genre, platform)
+            
+            if cached_creatomate_data:
+                print("   📂 Using cached Creatomate data from test_output...")
+                
+                # Extract data from cached result (with safe fallbacks)
+                creatomate_id = cached_creatomate_data.get('render_id', '') if isinstance(cached_creatomate_data, dict) else ''
+                
+                if creatomate_id and not creatomate_id.startswith('error'):
+                    print(f"   📋 Loaded cached Creatomate render ID: {creatomate_id}")
+                else:
+                    raise Exception(f"LOCAL MODE: Invalid cached Creatomate data: {creatomate_id}")
+            else:
                 raise Exception("LOCAL MODE: No cached Creatomate data available. Run with APP_ENV=development first to generate and cache data.")
-            
-            print("   🔄 No cached Creatomate data found, creating new video...")
+        
+        else:
+            # DEVELOPMENT/PRODUCTION MODE: Always create new video
+            print("   🔄 Creating new Creatomate video...")
             print("   Using Creatomate API for final video assembly...")
             
+            # Get background music URL from step 3 asset preparation
+            background_music_url = workflow_results['step_3_asset_preparation'].get('background_music_url')
+            
             creatomate_id = create_creatomate_video(
-                heygen_video_urls=heygen_video_urls,
-                movie_covers=movie_covers,
-                movie_clips=movie_clips,
+                heygen_video_urls=creatomate_heygen_urls,
+                movie_covers=ordered_movie_covers,
+                movie_clips=ordered_movie_clips,
                 scroll_video_url=scroll_video_url,
-                scripts=individual_scripts,
+                scripts=ordered_individual_scripts,
                 poster_timing_mode=poster_timing_mode,
-                background_music_url=workflow_results.get('background_music_url')
+                background_music_url=background_music_url
             )
             
             if not creatomate_id or creatomate_id.startswith('error'):
@@ -824,7 +1032,14 @@ def run_full_workflow(num_movies: int = 3,
             
             # Creatomate results saved via save_workflow_result() call below
         
-        workflow_results['creatomate_id'] = creatomate_id
+        # Save step 7 data in organized structure
+        workflow_results['step_7_creatomate_assembly'] = {
+            'creatomate_id': creatomate_id,
+            'step_duration': time.time() - step_start,
+            'step_status': 'completed',
+            'from_cache': should_use_cache() and cached_creatomate_data is not None,
+            'poster_timing_mode': poster_timing_mode
+        }
         workflow_results['steps_completed'].append('creatomate_assembly')
         
         # Save incremental progress in development mode
