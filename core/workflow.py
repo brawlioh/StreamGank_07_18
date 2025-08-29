@@ -111,6 +111,24 @@ def run_full_workflow(num_movies: int = 3,
     # Enhanced environment logging
     if is_local_mode():
         print(f"🌍 Environment: APP_ENV='{app_env}' (LOCAL: Cache only, no API calls)")
+        
+        # 🛑 STRICT LOCAL MODE: Pre-check all required cached data before starting workflow
+        print(f"🔍 LOCAL MODE: Pre-checking required cached data availability...")
+        required_data_types = ['script_result', 'assets', 'heygen', 'heygen_urls', 'creatomate']
+        missing_cache = []
+        
+        for data_type in required_data_types:
+            cached_data = load_test_data(data_type, country, genre, platform)
+            if not cached_data:
+                missing_cache.append(data_type)
+        
+        if missing_cache:
+            print(f"   ❌ LOCAL MODE: Missing cached data: {', '.join(missing_cache)}")
+            print(f"   💡 SOLUTION: Run with APP_ENV=development first to generate complete cache")
+            raise Exception(f"🛑 LOCAL MODE STRICT: Missing cached data types: {missing_cache}. Process STOPPED to prevent API calls.")
+        
+        print(f"   ✅ LOCAL MODE: All required cached data found - proceeding with cached workflow")
+        
     elif is_development_mode():
         print(f"🌍 Environment: APP_ENV='{app_env}' (DEVELOPMENT: API calls + save results)")
     elif is_production_mode():
@@ -326,9 +344,31 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing script data from test_output
         cached_script_data = load_test_data('script_result', country, genre, platform)
         
-        # For testing intelligent highlights, we want to use cached scripts if available
-        if cached_script_data and should_use_cache():
-        #if True:
+        if is_local_mode():
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+            if not cached_script_data:
+                print("   ❌ LOCAL MODE: No cached script data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached script data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached script data from test_output...")
+            
+            # Extract data from cached result (with safe fallbacks)
+            combined_script = cached_script_data.get('combined_script', '') if isinstance(cached_script_data, dict) else ''
+            script_file_path = cached_script_data.get('script_file_path', '') if isinstance(cached_script_data, dict) else ''
+            individual_scripts = cached_script_data.get('individual_scripts', {}) if isinstance(cached_script_data, dict) else {}
+            
+            # Validate cached data completeness
+            if not combined_script or not individual_scripts:
+                print("   ❌ LOCAL MODE: Cached script data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached script data. Process STOPPED to prevent API calls.")
+            
+            script_result = (combined_script, script_file_path, individual_scripts)
+            print(f"   ✅ LOCAL MODE: Successfully loaded {len(individual_scripts)} cached scripts")
+            
+        elif cached_script_data and should_use_cache():
+            # DEVELOPMENT/PRODUCTION MODE: Use cache if available
             print("   📂 Using cached script data from test_output...")
             
             # Extract data from cached result (with safe fallbacks)
@@ -337,10 +377,10 @@ def run_full_workflow(num_movies: int = 3,
             individual_scripts = cached_script_data.get('individual_scripts', {}) if isinstance(cached_script_data, dict) else {}
             
             script_result = (combined_script, script_file_path, individual_scripts)
-            
             print(f"   📋 Loaded {len(individual_scripts)} cached scripts")
             
         else:
+            # DEVELOPMENT/PRODUCTION MODE: Generate fresh scripts via API
             print("   🔄 No cached data found, generating new scripts...")
             print("   Using modular script generation...")
             
@@ -418,7 +458,16 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing asset data from test_output
         cached_assets_data = load_test_data('assets', country, genre, platform)
         
-        if cached_assets_data and should_use_cache():
+        if is_local_mode():
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+            if not cached_assets_data:
+                print("   ❌ LOCAL MODE: No cached asset data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached asset data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached asset data from test_output...")
+            
+        elif cached_assets_data and should_use_cache():
         # if False: # TESTING POSTER UPLOAD TO streamgank-reels/enhanced-poster-cover
             print("   📂 Using cached asset data from test_output...")
             
@@ -607,7 +656,16 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing HeyGen data from cache
         cached_heygen_data = load_test_data('heygen', country, genre, platform)
         
-        if cached_heygen_data and should_use_cache():
+        if is_local_mode():
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+            if not cached_heygen_data:
+                print("   ❌ LOCAL MODE: No cached HeyGen data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached HeyGen data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached HeyGen data from test_output...")
+            
+        elif cached_heygen_data and should_use_cache():
             print("   📂 Using cached HeyGen data from test_output...")
             
             # Extract data from cached result (with safe fallbacks)
@@ -691,7 +749,16 @@ def run_full_workflow(num_movies: int = 3,
         # Try to load existing HeyGen URLs from cache
         cached_heygen_urls_data = load_test_data('heygen_urls', country, genre, platform)
         
-        if cached_heygen_urls_data and should_use_cache():
+        if is_local_mode():
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+            if not cached_heygen_urls_data:
+                print("   ❌ LOCAL MODE: No cached HeyGen URL data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached HeyGen URL data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached HeyGen URLs from test_output...")
+            
+        elif cached_heygen_urls_data and should_use_cache():
             print("   📂 Using cached HeyGen URLs from test_output...")
             
             # Extract data from cached result (with safe fallbacks)
@@ -766,7 +833,16 @@ def run_full_workflow(num_movies: int = 3,
             # Try to load existing scroll video data from cache
             cached_scroll_data = load_test_data('scroll_video', country, genre, platform)
             
-            if cached_scroll_data and should_use_cache():
+            if is_local_mode():
+                # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+                if not cached_scroll_data:
+                    print("   ❌ LOCAL MODE: No cached scroll video data found")
+                    print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                    raise Exception("🛑 LOCAL MODE STRICT: No cached scroll video data available. Process STOPPED to prevent API calls.")
+                
+                print("   📂 LOCAL MODE: Using cached scroll video data from test_output...")
+                
+            elif cached_scroll_data and should_use_cache():
                 print("   📂 Using cached scroll video data from test_output...")
                 
                 # Extract data from cached result (with safe fallbacks)
@@ -983,21 +1059,25 @@ def run_full_workflow(num_movies: int = 3,
         
         # Create Creatomate video based on environment
         if is_local_mode():
-            # LOCAL MODE: Try to use cached Creatomate data
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
             cached_creatomate_data = load_test_data('creatomate', country, genre, platform)
             
-            if cached_creatomate_data:
-                print("   📂 Using cached Creatomate data from test_output...")
-                
-                # Extract data from cached result (with safe fallbacks)
-                creatomate_id = cached_creatomate_data.get('render_id', '') if isinstance(cached_creatomate_data, dict) else ''
-                
-                if creatomate_id and not creatomate_id.startswith('error'):
-                    print(f"   📋 Loaded cached Creatomate render ID: {creatomate_id}")
-                else:
-                    raise Exception(f"LOCAL MODE: Invalid cached Creatomate data: {creatomate_id}")
-            else:
-                raise Exception("LOCAL MODE: No cached Creatomate data available. Run with APP_ENV=development first to generate and cache data.")
+            if not cached_creatomate_data:
+                print("   ❌ LOCAL MODE: No cached Creatomate data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached Creatomate data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached Creatomate data from test_output...")
+            
+            # Extract data from cached result (with safe fallbacks)
+            creatomate_id = cached_creatomate_data.get('render_id', '') if isinstance(cached_creatomate_data, dict) else ''
+            
+            if not creatomate_id or creatomate_id.startswith('error'):
+                print("   ❌ LOCAL MODE: Cached Creatomate data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached Creatomate data. Process STOPPED to prevent API calls.")
+            
+            print(f"   ✅ LOCAL MODE: Successfully loaded cached Creatomate render ID: {creatomate_id}")
         
         else:
             # DEVELOPMENT/PRODUCTION MODE: Always create new video
@@ -1057,6 +1137,10 @@ def run_full_workflow(num_movies: int = 3,
                 'from_cache': should_use_cache() and cached_creatomate_data is not None
             }
         )
+        
+        # 🎬 CRITICAL FIX: Send immediate Creatomate ready notification for instant UI update
+        print(f"🚀 Sending immediate Creatomate ready notification...")
+        webhook_client.send_creatomate_ready(creatomate_id, step_duration)
         
         # =============================================================================
         # WORKFLOW COMPLETION

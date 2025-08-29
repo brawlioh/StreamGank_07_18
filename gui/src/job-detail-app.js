@@ -1555,6 +1555,30 @@ export class JobDetailApp {
 
             case 'step_update':
                 console.log(`📡 Real-time step update: Step ${data.step_number} ${data.status}`);
+                console.log(`   🔑 Step Key: ${data.step_key || 'N/A'}`);
+                console.log(`   📊 Sequence: ${data.sequence || 'N/A'}`);
+                console.log(`   ✅ Validated: ${data.validated || false}`);
+
+                // ✅ FRONTEND VALIDATION: Check if update should be processed
+                if (!data.validated) {
+                    console.warn(`⚠️ REJECTED: Non-validated step update for ${data.step_number} ${data.status}`);
+                    break;
+                }
+
+                // Check sequence order to prevent processing old updates
+                const lastSequence = this.lastStepSequence || 0;
+                const currentSequence = data.sequence || Date.now();
+
+                if (currentSequence < lastSequence) {
+                    console.warn(`⚠️ REJECTED: Out-of-order frontend update`);
+                    console.warn(`   Current: ${currentSequence}, Last: ${lastSequence}`);
+                    break;
+                }
+
+                // Update last sequence
+                this.lastStepSequence = currentSequence;
+
+                console.log(`✅ FRONTEND VALIDATED: Processing step ${data.step_number} ${data.status}`);
 
                 // Update job data with real-time info
                 if (this.jobData) {
@@ -1563,20 +1587,42 @@ export class JobDetailApp {
                         // Step is starting - track as currently active step
                         this.currentActiveStep = data.step_number;
                         this.jobData.currentStep = `Step ${data.step_number}/7: ${data.step_name} (Processing...)`;
-                        this.jobData.progress = Math.max(((data.step_number - 1) / 7) * 100, 0);
-                        console.log(`📋 Step ${data.step_number} started: ${data.step_name}`);
-                    } else if (data.status === 'completed') {
+                        // ✅ FIXED: Use backend progress calculation, don't override
+                        this.jobData.progress = data.progress || this.jobData.progress;
+                        console.log(
+                            `📋 Step ${data.step_number} started: ${data.step_name} (${this.jobData.progress}%)`
+                        );
+                    } else if (data.status === 'completed' || data.status === 'creatomate_ready') {
                         // Step completed - no longer active, update progress
                         if (this.currentActiveStep === data.step_number) {
                             this.currentActiveStep = null; // Step no longer active
                         }
                         this.jobData.currentStep = `Step ${data.step_number}/7: ${data.step_name} ✅`;
-                        this.jobData.progress = Math.min((data.step_number / 7) * 100, 100);
-                        console.log(`✅ Step ${data.step_number} completed: ${data.step_name}`);
+                        // ✅ FIXED: Use backend progress calculation, don't override
+                        this.jobData.progress = data.progress || this.jobData.progress;
+                        console.log(
+                            `✅ Step ${data.step_number} completed: ${data.step_name} (${this.jobData.progress}%)`
+                        );
 
-                        // 🎯 FIX: When step 7 completes, refresh job data to get Creatomate ID for video display
-                        if (data.step_number === 7) {
-                            console.log('🎬 Step 7 completed - refreshing job data to get Creatomate ID...');
+                        // 🎯 FIX: When step 7 completes or creatomate_ready, extract Creatomate ID immediately
+                        if (data.step_number === 7 || data.status === 'creatomate_ready') {
+                            console.log(`🎬 Step 7 ${data.status} - checking for immediate Creatomate ID...`);
+                            
+                            // 🚀 IMMEDIATE UPDATE: Check if creatomate_id is in the webhook details
+                            const creatomateId = data.details?.creatomate_id;
+                            if (creatomateId) {
+                                console.log(`🎬 IMMEDIATE: Got Creatomate ID from Step 7 webhook: ${creatomateId}`);
+                                this.jobData.creatomateId = creatomateId;
+                                
+                                // Immediately update Creatomate section with the new ID
+                                this.updateCreatomateSection();
+                                
+                                // Start monitoring if not already started
+                                console.log('🚀 Starting Creatomate monitoring with immediate ID...');
+                                setTimeout(() => {
+                                    this.startCreatomateMonitoring();
+                                }, 100);
+                            }
                             setTimeout(async () => {
                                 try {
                                     await this.refreshJobData();

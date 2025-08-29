@@ -884,8 +884,19 @@ app.get('/api/webhooks/status', (req, res) => {
 // API endpoint to receive step completion webhooks from Python workflow
 app.post('/api/webhooks/step-update', async (req, res) => {
     try {
-        // 📡 HANDLE INTERNAL PYTHON WORKFLOW WEBHOOKS ONLY
-        const { job_id, step_number, step_name, status, duration, details, timestamp } = req.body;
+        // 📡 HANDLE INTERNAL PYTHON WORKFLOW WEBHOOKS WITH STEP VALIDATION
+        const {
+            job_id,
+            step_number,
+            step_name,
+            status,
+            duration,
+            details,
+            timestamp,
+            step_key,
+            sequence,
+            workflow_stage
+        } = req.body;
 
         console.log(`📡 Real-time webhook: Job ${job_id} - Step ${step_number} (${step_name}) ${status}`);
 
@@ -894,9 +905,48 @@ app.post('/api/webhooks/step-update', async (req, res) => {
             fileLogger.logWebhookReceived(job_id, step_number, step_name, status, details);
         }
 
-        // Update job with step progress
+        // Update job with step progress - WITH STEP VALIDATION
         const job = await queueManager.getJob(job_id);
         if (job) {
+            // ✅ STEP VALIDATION: Prevent out-of-order step updates
+            const lastSequence = job.lastStepSequence || 0;
+            const currentSequence = sequence || Date.now();
+
+            if (currentSequence < lastSequence) {
+                console.warn(`⚠️ REJECTED: Out-of-order step update for ${job_id}`);
+                console.warn(`   Current sequence: ${currentSequence}, Last: ${lastSequence}`);
+                console.warn(`   Step ${step_number} ${status} SKIPPED to prevent UI desync`);
+                return res.json({
+                    success: false,
+                    message: 'Out-of-order step update rejected',
+                    reason: 'sequence_validation_failed'
+                });
+            }
+
+            // Update last sequence to prevent future out-of-order updates
+            job.lastStepSequence = currentSequence;
+
+            // ✅ STEP PROGRESSION VALIDATION: Ensure logical step progression
+            const currentStepNum = job.currentStepNumber || 0;
+
+            // Allow step progression or completion of current step
+            if (status === 'started' && step_number < currentStepNum) {
+                console.warn(`⚠️ REJECTED: Backward step progression for ${job_id}`);
+                console.warn(`   Trying to start step ${step_number}, but already on step ${currentStepNum}`);
+                return res.json({
+                    success: false,
+                    message: 'Backward step progression rejected',
+                    reason: 'step_progression_validation_failed'
+                });
+            }
+
+            // Update current step number tracking
+            if (status === 'started') {
+                job.currentStepNumber = step_number;
+            }
+
+            console.log(`✅ VALIDATED: Step ${step_number} ${status} (sequence: ${currentSequence})`);
+
             // Handle special cases for workflow start/completion
             if (step_number === 0 && step_name === 'Workflow Started') {
                 job.currentStep = '🚀 Workflow started - processing movies...';
@@ -922,10 +972,41 @@ app.post('/api/webhooks/step-update', async (req, res) => {
                 job.status = 'failed';
                 job.error = details?.error || 'Workflow failed';
             } else {
-                // Normal step progression (1-7)
-                job.currentStep = `${step_name} - ${status}`;
+                // 🎬 CRITICAL FIX: Handle Step 7 (Creatomate Assembly) completion to immediately store creatomate_id
+                if (
+                    step_number === 7 &&
+                    (status === 'completed' || status === 'creatomate_ready') &&
+                    details?.creatomate_id
+                ) {
+                    console.log(`🎬 Step 7 ${status} with Creatomate ID: ${details.creatomate_id}`);
+                    job.creatomateId = details.creatomate_id;
+
+                    if (status === 'creatomate_ready') {
+                        job.currentStep = `🚀 Creatomate ID ready - starting video rendering...`;
+                        job.status = 'rendering'; // Immediately set to rendering status
+                    } else {
+                        job.currentStep = `${step_name} - ✅ Completed (ID: ${details.creatomate_id.substring(0, 8)}...)`;
+                    }
+
+                    // 🚀 IMMEDIATE UPDATE: Trigger Creatomate monitoring right after step 7 completes
+                    console.log(`🚀 Starting immediate Creatomate monitoring for job ${job_id}...`);
+                    setTimeout(() => {
+                        queueManager.startCreatomateMonitoring(job_id, details.creatomate_id);
+                    }, 100); // Faster trigger for creatomate_ready
+                } else {
+                    // Normal step progression display
+                    job.currentStep = `${step_name} - ${status}`;
+                }
+
+                // Normal step progression (1-7) - UNIFIED progress calculation
                 if (step_number <= 7) {
-                    job.progress = Math.max(job.progress || 0, Math.round((step_number / 7) * 90)); // Max 90% until video ready
+                    // Standardized progress: started = (step-1)/7 * 85, completed = step/7 * 85
+                    // This matches frontend expectations and caps at 85% (leaving 15% for Creatomate)
+                    if (status === 'started') {
+                        job.progress = Math.max(job.progress || 0, Math.round(((step_number - 1) / 7) * 85));
+                    } else if (status === 'completed') {
+                        job.progress = Math.max(job.progress || 0, Math.round((step_number / 7) * 85));
+                    }
                 }
             }
 
@@ -982,7 +1063,16 @@ app.post('/api/webhooks/step-update', async (req, res) => {
                     status: status,
                     progress: job.progress,
                     currentStep: job.currentStep,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    // ✅ NEW: Step tracking for accuracy
+                    step_key: step_key,
+                    sequence: currentSequence,
+                    workflow_stage: workflow_stage,
+                    validated: true, // Indicates this update passed validation
+                    // 🎬 CRITICAL: Include details in SSE update for immediate frontend access
+                    details: details || {},
+                    // 🚀 IMMEDIATE ACCESS: If step 7 completed, include creatomate_id directly
+                    creatomate_id: step_number === 7 && status === 'completed' ? details?.creatomate_id : undefined
                 };
 
                 sseClients.forEach((client) => {

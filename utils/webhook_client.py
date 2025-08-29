@@ -57,6 +57,9 @@ class WebhookClient:
         
         webhook_url = f"{self.base_url}/api/webhooks/step-update"
         
+        # Generate unique step tracking key for accuracy
+        step_key = f"{self.job_id}_{step_number}_{status}_{int(time.time() * 1000)}"
+        
         payload = {
             'job_id': self.job_id,
             'step_number': step_number,
@@ -64,7 +67,10 @@ class WebhookClient:
             'status': status,
             'duration': duration,
             'details': details or {},
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'step_key': step_key,  # ✅ NEW: Unique tracking key
+            'sequence': int(time.time() * 1000),  # ✅ NEW: Microsecond sequence for ordering
+            'workflow_stage': f"step_{step_number}_{status}"  # ✅ NEW: Clear stage identifier
         }
         
         try:
@@ -119,6 +125,31 @@ class WebhookClient:
             step_name="Workflow Failed",
             status="failed",
             details={'error': error}
+        )
+    
+    def send_creatomate_ready(self, creatomate_id: str, step_duration: float = 0) -> bool:
+        """
+        Send immediate notification that Creatomate ID is ready and monitoring should start
+        
+        Args:
+            creatomate_id (str): The Creatomate render ID
+            step_duration (float): Duration of step 7 completion
+            
+        Returns:
+            bool: True if webhook sent successfully, False otherwise
+        """
+        logger.info(f"🎬 Sending immediate Creatomate ready notification: {creatomate_id}")
+        
+        return self.send_step_update(
+            step_number=7,
+            step_name="Creatomate Assembly",
+            status="creatomate_ready",  # Special status for immediate monitoring trigger
+            duration=step_duration,
+            details={
+                'creatomate_id': creatomate_id,
+                'immediate_monitoring': True,
+                'ready_for_rendering': True
+            }
         )
 
 

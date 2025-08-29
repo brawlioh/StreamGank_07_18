@@ -251,10 +251,23 @@ def try_load_from_workflow(data_type: str, country: str, genre: str, platform: s
             if 'step_2_script_generation' in workflow_data:
                 step_data = workflow_data['step_2_script_generation']
                 logger.info(f"✅ FOUND script data in step_2_script_generation!")
+                
+                # ✅ VALIDATION: Check if script data is actually populated
+                combined_script = step_data.get('combined_script', '')
+                individual_scripts = step_data.get('individual_scripts', {})
+                
+                if not combined_script and not individual_scripts:
+                    logger.warning(f"❌ INCOMPLETE CACHE: Script data exists but is empty - treating as cache miss")
+                    logger.warning(f"   Combined script length: {len(combined_script)}")
+                    logger.warning(f"   Individual scripts count: {len(individual_scripts)}")
+                    if is_local_mode():
+                        logger.error(f"💡 LOCAL MODE: Run with APP_ENV=development to regenerate complete script data")
+                    return None
+                
                 result = {
-                    'combined_script': step_data.get('combined_script', ''),
+                    'combined_script': combined_script,
                     'script_file_path': step_data.get('script_file_path', ''),
-                    'individual_scripts': step_data.get('individual_scripts', {})
+                    'individual_scripts': individual_scripts
                 }
                 logger.info(f"✅ RETURNING script data with {len(result['individual_scripts'])} individual scripts")
                 return result

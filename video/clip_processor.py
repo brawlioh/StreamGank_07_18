@@ -2996,13 +2996,13 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                             logger.info(f"     💡 Viral Reason: {viral_reason}")
                             logger.info(f"     🔗 URL: {video_url}")
                             
-                            # Check API duration before downloading - only download if MORE than 20 seconds
+                            # Check API duration before downloading - only download if MORE than 21 seconds
                             if not video_url:
                                 logger.error(f"   ❌ No video URL in Vizard response for: {title}")
                                 break
                             
-                            if duration_seconds <= 20.0:
-                                logger.info(f"   ⏭️ SKIPPING DOWNLOAD: Duration {duration_seconds:.1f}s ≤ 20.0s")
+                            if duration_seconds <= 20.9:
+                                logger.info(f"   ⏭️ SKIPPING DOWNLOAD: Duration {duration_seconds:.1f}s ≤ 21.0s")
                                 logger.info(f"     📋 Clip already optimal length - no trimming needed")
                                 logger.warning(f"   ⚠️ Vizard clip too short for processing: {title}")
                                 break
@@ -3524,30 +3524,47 @@ def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duratio
         base_name = os.path.splitext(video_path)[0]
         trimmed_path = f"{base_name}_trimmed_{max_duration:.0f}s.mp4"
         
-        # Use FFmpeg to trim video with improved compatibility
+        # Use FFmpeg to trim video with SPEED-OPTIMIZED settings
         ffmpeg_cmd = [
             'ffmpeg',
             '-i', video_path,
             '-t', str(max_duration),  # Trim to max_duration seconds
             '-c:v', 'libx264',  # Video codec
-            '-c:a', 'aac',      # Audio codec
-            '-preset', 'fast',  # Encoding speed
-            '-crf', '23',       # Quality (lower = better quality)
+            '-c:a', 'copy',     # Copy audio (no re-encoding = MUCH faster)
+            '-preset', 'ultrafast',  # Fastest encoding speed
+            '-crf', '28',       # Balanced quality/speed (was 23)
             '-movflags', '+faststart',  # Optimize for streaming
             '-pix_fmt', 'yuv420p',  # Ensure compatible pixel format
             '-max_muxing_queue_size', '1024',  # Handle large videos
             '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
+            '-threads', '0',    # Use all available CPU threads
             '-y',               # Overwrite output file
             trimmed_path
         ]
         
-        # Execute FFmpeg command
+        # Calculate dynamic timeout based on file size (larger files need more time)
+        try:
+            file_size_mb = os.path.getsize(video_path) / (1024 * 1024)  # Convert to MB
+            # Dynamic timeout: 30s base + 2s per MB, min 60s, max 300s (5 minutes)
+            dynamic_timeout = max(60, min(300, int(30 + (file_size_mb * 2))))
+            logger.info(f"   ⏱️ File size: {file_size_mb:.1f}MB, timeout: {dynamic_timeout}s")
+        except:
+            dynamic_timeout = 60  # Fallback to 60s if file size check fails
+        
+        # Execute FFmpeg command with dynamic timeout and performance monitoring
+        import time
+        start_time = time.time()
+        logger.info(f"   🚀 Starting FFmpeg trimming with {dynamic_timeout}s timeout...")
+        
         result = subprocess.run(
             ffmpeg_cmd,
             capture_output=True,
             text=True,
-            timeout=60  # 1 minute timeout
+            timeout=dynamic_timeout
         )
+        
+        processing_time = time.time() - start_time
+        logger.info(f"   ⏱️ FFmpeg processing completed in {processing_time:.1f}s")
         
         if result.returncode == 0:
             # Verify trimmed file exists and has reasonable size
@@ -3566,7 +3583,13 @@ def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duratio
             return video_path
             
     except subprocess.TimeoutExpired:
-        logger.error(f"   ❌ FFmpeg trimming timeout for {movie_title}")
+        logger.error(f"   ⏱️ FFmpeg trimming timeout ({dynamic_timeout}s) for {movie_title}")
+        logger.error(f"   📁 File size: {file_size_mb:.1f}MB - may need more processing time")
+        logger.warning(f"   🔄 Timeout can be caused by:")
+        logger.warning(f"      • Large file size ({file_size_mb:.1f}MB)")
+        logger.warning(f"      • CPU/memory constraints")
+        logger.warning(f"      • Complex video encoding")
+        logger.warning(f"   ⚠️ Using original clip without trimming to prevent workflow failure")
         return video_path
     except Exception as e:
         logger.error(f"   ❌ Error checking/trimming duration for {movie_title}: {str(e)}")
@@ -3597,7 +3620,7 @@ def _get_video_duration(video_path: str) -> Optional[float]:
             ffprobe_cmd,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=60  # Increased timeout for large files
         )
         
         if result.returncode == 0:
