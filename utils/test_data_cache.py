@@ -78,9 +78,12 @@ def should_save_results() -> bool:
     """
     app_env = get_app_env()
     
-    if app_env in ['local', 'dev', 'development']:
+    if app_env in ['dev', 'development']:
         logger.info(f"🌍 APP_ENV='{app_env}': Cache saving ENABLED - will save all results")
         return True
+    elif app_env == 'local':
+        logger.info(f"🌍 APP_ENV='local': Cache saving DISABLED - LOCAL mode only reads cache")
+        return False
     elif app_env in ['prod', 'production']:
         logger.info(f"🌍 APP_ENV='{app_env}': Cache saving DISABLED - will not save results")
         return False

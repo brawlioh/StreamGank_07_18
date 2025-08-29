@@ -467,6 +467,30 @@ def run_full_workflow(num_movies: int = 3,
             
             print("   📂 LOCAL MODE: Using cached asset data from test_output...")
             
+            # Extract cached data variables for LOCAL mode
+            enhanced_posters = cached_assets_data.get('enhanced_posters', {})
+            dynamic_clips = cached_assets_data.get('dynamic_clips', {})
+            
+            # Validate cached data completeness
+            if not enhanced_posters or not dynamic_clips:
+                print("   ❌ LOCAL MODE: Cached asset data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached asset data. Process STOPPED to prevent API calls.")
+            
+            print(f"   ✅ LOCAL MODE: Successfully loaded {len(enhanced_posters)} cached posters and {len(dynamic_clips)} cached clips")
+            
+            # Extract cached background music
+            if 'background_music_url' in cached_assets_data:
+                background_music_url = cached_assets_data['background_music_url']
+                background_music_info = cached_assets_data.get('background_music_info', 
+                    get_background_music_info(genre))
+                print(f"   ✅ LOCAL MODE: Loaded cached background music: {background_music_info['type']}")
+            else:
+                print("   ❌ LOCAL MODE: No cached background music found")
+                raise Exception("🛑 LOCAL MODE STRICT: Missing background music in cached data.")
+            
+            print(f"   🔗 Music URL: {background_music_url}")
+            
         elif cached_assets_data and should_use_cache():
         # if False: # TESTING POSTER UPLOAD TO streamgank-reels/enhanced-poster-cover
             print("   📂 Using cached asset data from test_output...")
@@ -665,6 +689,18 @@ def run_full_workflow(num_movies: int = 3,
             
             print("   📂 LOCAL MODE: Using cached HeyGen data from test_output...")
             
+            # Extract cached data variables for LOCAL mode
+            heygen_video_ids = cached_heygen_data.get('video_ids', {}) if isinstance(cached_heygen_data, dict) else {}
+            template_id_used = cached_heygen_data.get('template_id', heygen_template_id) if isinstance(cached_heygen_data, dict) else heygen_template_id
+            
+            # Validate cached data completeness
+            if not heygen_video_ids:
+                print("   ❌ LOCAL MODE: Cached HeyGen data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached HeyGen data. Process STOPPED to prevent API calls.")
+            
+            print(f"   ✅ LOCAL MODE: Successfully loaded {len(heygen_video_ids)} cached HeyGen video IDs")
+            
         elif cached_heygen_data and should_use_cache():
             print("   📂 Using cached HeyGen data from test_output...")
             
@@ -758,6 +794,17 @@ def run_full_workflow(num_movies: int = 3,
             
             print("   📂 LOCAL MODE: Using cached HeyGen URLs from test_output...")
             
+            # Extract cached data variables for LOCAL mode
+            heygen_video_urls = cached_heygen_urls_data.get('video_urls', {}) if isinstance(cached_heygen_urls_data, dict) else {}
+            
+            # Validate cached data completeness
+            if not heygen_video_urls:
+                print("   ❌ LOCAL MODE: Cached HeyGen URL data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached HeyGen URL data. Process STOPPED to prevent API calls.")
+            
+            print(f"   ✅ LOCAL MODE: Successfully loaded {len(heygen_video_urls)} cached HeyGen video URLs")
+            
         elif cached_heygen_urls_data and should_use_cache():
             print("   📂 Using cached HeyGen URLs from test_output...")
             
@@ -841,6 +888,17 @@ def run_full_workflow(num_movies: int = 3,
                     raise Exception("🛑 LOCAL MODE STRICT: No cached scroll video data available. Process STOPPED to prevent API calls.")
                 
                 print("   📂 LOCAL MODE: Using cached scroll video data from test_output...")
+                
+                # Extract cached data variables for LOCAL mode
+                scroll_video_url = cached_scroll_data.get('scroll_video_url', None) if isinstance(cached_scroll_data, dict) else None
+                
+                # Validate cached data completeness
+                if not scroll_video_url:
+                    print("   ❌ LOCAL MODE: Cached scroll video data is incomplete or corrupted")
+                    print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                    raise Exception("🛑 LOCAL MODE STRICT: Invalid cached scroll video data. Process STOPPED to prevent API calls.")
+                
+                print(f"   ✅ LOCAL MODE: Successfully loaded cached scroll video URL")
                 
             elif cached_scroll_data and should_use_cache():
                 print("   📂 Using cached scroll video data from test_output...")
@@ -1150,8 +1208,9 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['total_duration'] = total_duration
         workflow_results['end_time'] = time.time()
         
-        # Save complete workflow results for development mode
-        save_workflow_result(workflow_results, country, genre, platform)
+        # Save complete workflow results (only in development/production modes)
+        if save_enabled:
+            save_workflow_result(workflow_results, country, genre, platform)
         
         print(f"\n🎉 WORKFLOW COMPLETED SUCCESSFULLY!")
         print(f"   ⏱️ Total duration: {total_duration:.1f}s")
