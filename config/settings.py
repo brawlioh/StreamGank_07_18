@@ -26,11 +26,11 @@ from typing import Dict, Any
 API_SETTINGS = {
     # OpenAI Configuration  
     'openai': {
-        'model': 'gpt-4',  # Standard available model - change to 'gpt-4.1-mini' if you have access
+        'model': 'gpt-3.5-turbo',  # FASTER generation + optimized for 12-14s total video
         'temperature': 0.8,  # Creative but consistent
         'hook_max_tokens': 40,  # For short hooks (10-18 words)
-        'intro_max_tokens': 60,  # For intro scripts (15-25 words)
-        'timeout': 30,  # Request timeout in seconds
+        'intro_max_tokens': 30,  # Optimized for 10-12 word intros (12-14s total video)
+        'timeout': 15,  # Reduced timeout since gpt-3.5-turbo is faster
         'retry_attempts': 3
     },
     

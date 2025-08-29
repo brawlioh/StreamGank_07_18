@@ -72,7 +72,7 @@ Collection Details:
 
 Intro Requirements:
 - 1-2 sentences maximum
-- 15-25 words total
+- 10-12 words total (video duration 12-14 seconds)
 - Must be hooky and grab attention immediately
 - Create excitement for what's coming
 - Use viral language that makes viewers want to keep watching
@@ -140,7 +140,7 @@ Create something similar but more engaging and viral. Respond with ONLY the intr
 - Platform: {platform or 'streaming'}
 
 Hook Requirements:
-- 1 sentence maximum (15-25 words)
+- 1 sentence maximum (10-18 words)
 - Must be incredibly hooky and viral
 - Use one of these starters: {hook_starters}
 - Make viewers think "I NEED to watch this NOW!"

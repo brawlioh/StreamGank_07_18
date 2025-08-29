@@ -72,7 +72,7 @@ def generate_video_scripts(raw_movies: List[Dict],
     Process stops immediately if any script generation or processing fails.
     
     This is the main function for script generation that creates:
-    1. Collection intro script (15-25 words)
+    1. Collection intro script (10-12 words for total 12-14 seconds)
     2. Individual movie hook scripts (10-18 words each)
     3. Combined script for final video
     
@@ -315,7 +315,7 @@ def generate_intro_script(genre: Optional[str] = None,
         # Extract and clean intro
         intro = response.choices[0].message.content.strip()
         intro = sanitize_script_text(intro)
-        intro = format_intro_text(intro, max_words=25)
+        intro = format_intro_text(intro, max_words=12)
         
         # Validate intro
         if validate_script_content(intro, script_type='intro'):
@@ -1067,7 +1067,7 @@ Collection Details:
 
 Intro Requirements:
 - 1-2 sentences maximum
-- 15-25 words total
+- 10-12 words total (video duration 12-14 seconds)
 - Must be hooky and grab attention immediately
 - Create excitement for what's coming
 - Use viral language that makes viewers want to keep watching

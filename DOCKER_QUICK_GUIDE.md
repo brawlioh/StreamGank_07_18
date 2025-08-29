@@ -2,6 +2,8 @@
 
 **⚡ Fast commands to avoid re-downloading dependencies!**
 
+**🚨 IMPORTANT:** For code changes, use `vm-start` (rebuilds) NOT `vm-simple-restart` (doesn't rebuild)
+
 ---
 
 ## 🎯 **Most Common Operations (99% of the time)**
@@ -19,18 +21,35 @@ bash vm-docker-management.sh vm-start
 ### **🔄 Code Changes (JavaScript, Python, HTML, CSS)**
 
 ```bash
-# Stop containers
+# Stop containers (if running)
 docker-compose -f docker-compose.vm-optimized.yml down
 
-# Quick rebuild (uses cache - FAST!)
-bash vm-docker-management.sh vm-build
-
-# Start again
+# Start with rebuilt code (RECOMMENDED)
 bash vm-docker-management.sh vm-start
 ```
 
-**Time:** ~1-2 seconds (uses Docker cache)  
+**Time:** ~30-60 seconds (rebuilds with cache)  
 **Use when:** You modified any code files
+
+**Alternative (faster):**
+
+```bash
+# Update without stopping first
+bash vm-docker-management.sh vm-update
+```
+
+---
+
+### **🔄 Simple Restart (No Code Changes)**
+
+```bash
+# Fast restart without rebuilding (SAVES DISK SPACE!)
+bash vm-docker-management.sh vm-simple-restart
+```
+
+**Time:** ~10-15 seconds  
+**Use when:** Service issues, container problems, no code changes
+**Benefit:** Saves 50GB of Docker cache buildup!
 
 ---
 
@@ -77,13 +96,14 @@ bash vm-docker-management.sh vm-rebuild
 
 ## 📊 **Quick Decision Chart**
 
-| **What Changed?**                     | **Command**             | **Time** |
-| ------------------------------------- | ----------------------- | -------- |
-| 🔧 **Code files** (py, js, html, css) | `vm-build` → `vm-start` | 1-2 sec  |
-| 📝 **`.env` only**                    | `vm-start`              | 10 sec   |
-| 📦 **`requirements.txt`**             | `vm-rebuild`            | 3-5 min  |
-| 📦 **`package.json`**                 | `vm-rebuild`            | 3-5 min  |
-| 🐳 **`Dockerfile`**                   | `vm-rebuild`            | 3-5 min  |
+| **What Changed?**                     | **Command**         | **Time**  |
+| ------------------------------------- | ------------------- | --------- |
+| 🔧 **Code files** (py, js, html, css) | `vm-start`          | 30-60 sec |
+| 🔄 **Nothing** (just restart)         | `vm-simple-restart` | 10-15 sec |
+| 📝 **`.env` only**                    | `vm-start`          | 10 sec    |
+| 📦 **`requirements.txt`**             | `vm-rebuild`        | 3-5 min   |
+| 📦 **`package.json`**                 | `vm-rebuild`        | 3-5 min   |
+| 🐳 **`Dockerfile`**                   | `vm-rebuild`        | 3-5 min   |
 
 ---
 
@@ -162,21 +182,23 @@ docker builder prune -a
 
 ## 📱 **Quick Reference Card**
 
-| **Goal**     | **Fast Command**                 |
-| ------------ | -------------------------------- |
-| Start app    | `vm-start`                       |
-| Code changed | `down` → `vm-build` → `vm-start` |
-| .env changed | `down` → `vm-start`              |
-| Stop app     | `down`                           |
-| New packages | `vm-rebuild`                     |
+| **Goal**       | **Fast Command**    |
+| -------------- | ------------------- |
+| Start app      | `vm-start`          |
+| Code changed   | `down` → `vm-start` |
+| Simple restart | `vm-simple-restart` |
+| .env changed   | `down` → `vm-start` |
+| Stop app       | `down`              |
+| New packages   | `vm-rebuild`        |
 
 ---
 
 ## 🎯 **Remember**
 
--   **Code changes = `vm-build` (fast)**
+-   **Code changes = `vm-start` (rebuilds with code)**
+-   **Simple restart = `vm-simple-restart` (saves 50GB!)**
 -   **New packages = `vm-rebuild` (slow)**
--   **When in doubt, try `vm-build` first!**
+-   **When in doubt, try `vm-simple-restart` first!**
 
 ---
 

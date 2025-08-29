@@ -69,11 +69,11 @@ def validate_script_content(script: str, script_type: str = "general") -> bool:
                 return False
                 
         elif script_type == "intro":
-            if word_count > 30:
-                logger.debug(f"Intro validation failed: {word_count} words (max 30)")
+            if word_count > 14:
+                logger.debug(f"Intro validation failed: {word_count} words (max 14)")
                 return False
-            if word_count < 5:
-                logger.debug(f"Intro validation failed: {word_count} words (min 5)")
+            if word_count < 9:
+                logger.debug(f"Intro validation failed: {word_count} words (min 9)")
                 return False
         
         # Content quality checks
@@ -462,8 +462,8 @@ def _check_script_quality(script: str, script_type: str) -> List[str]:
     if script_type == "hook" and word_count > 18:
         issues.append(f"Hook too long ({word_count} words, max 18)")
     
-    if script_type == "intro" and word_count > 25:
-        issues.append(f"Intro too long ({word_count} words, max 25)")
+    if script_type == "intro" and word_count > 12:
+        issues.append(f"Intro too long ({word_count} words, max 12)")
     
     # Repetition check
     unique_words = set(word.lower() for word in words)

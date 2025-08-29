@@ -394,6 +394,8 @@ def run_full_workflow(num_movies: int = 3,
             details={'scripts_generated': len(individual_scripts)}
         )
         
+        print("Test only to checkt the script")
+        exit()
         # =============================================================================
         # STEP 3: ASSET PREPARATION (MODULAR FUNCTIONS WITH TEST DATA CACHING)
         # =============================================================================

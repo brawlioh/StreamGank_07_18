@@ -25,7 +25,7 @@ def extract_movie_data(num_movies: int = 3,
                       content_type: Optional[str] = None, 
                       debug: bool = False) -> Optional[List[Dict[str, Any]]]:
     """
-    Extract top movies by IMDB score from Supabase with filtering.
+    Extract top movies by IMDB score (then votes) from Supabase with filtering.
     
     This is the main entry point for movie data extraction. It handles
     database connection, query building, filtering, and data processing.
@@ -39,7 +39,7 @@ def extract_movie_data(num_movies: int = 3,
         debug (bool): Enable debug output and logging
         
     Returns:
-        list: List of movie data dictionaries sorted by IMDB score, or None if failed
+        list: List of movie data dictionaries sorted by IMDB score (then votes), or None if failed
         
     Example:
         >>> movies = extract_movie_data(3, 'US', 'Horror', 'Netflix', 'Film')
@@ -71,7 +71,8 @@ def extract_movie_data(num_movies: int = 3,
             # Execute query with ordering and limit
             logger.debug(f"🔍 Executing database query with {num_movies} limit")
             
-            response = query.order("imdb_score", desc=True).limit(num_movies).execute()
+            # Order by IMDB score first, then by votes (more votes = more reliable)
+            response = query.order("imdb_score", desc=True).order("imdb_votes", desc=True).limit(num_movies).execute()
             
             # Validate response
             response_validation = validate_movie_response(response)
@@ -83,18 +84,18 @@ def extract_movie_data(num_movies: int = 3,
             movie_data = process_movie_data(response.data, debug=debug)
             
             if movie_data:
-                # Sort by IMDB score (highest first)
-                movie_data.sort(key=lambda x: x.get('imdb_score', 0), reverse=True)
+                # Sort by IMDB score first, then by votes as tiebreaker
+                movie_data.sort(key=lambda x: (x.get('imdb_score', 0), x.get('imdb_votes', 0)), reverse=True)
                 
                 logger.info(f"✅ Successfully extracted {len(movie_data)} movies")
                 if movie_data:
                     top_movie = movie_data[0]
-                    logger.info(f"   Top movie: {top_movie['title']} - IMDB: {top_movie['imdb']}")
+                    logger.info(f"   Top movie: {top_movie['title']} - IMDB: {top_movie['imdb']} ({top_movie.get('imdb_votes', 0):,} votes)")
                 
                 if debug:
                     logger.debug("🔍 Extracted movie details:")
                     for i, movie in enumerate(movie_data[:3]):  # Show first 3
-                        logger.debug(f"   {i+1}. {movie['title']} ({movie['year']}) - {movie['imdb']}")
+                        logger.debug(f"   {i+1}. {movie['title']} ({movie['year']}) - {movie['imdb']} ({movie.get('imdb_votes', 0):,} votes)")
                 
                 return movie_data
             else:

@@ -188,7 +188,7 @@ Use tone and language that appeals to {genre.lower()} fans."""
         user_prompt = f"""Create a short, engaging introduction for a video showcasing top {genre or 'trending'} {content_desc} from {platform_name}.
 
 Requirements:
-- 15-25 words maximum
+- 10-12 words maximum (total video duration 12-14 seconds)
 - 1-2 sentences only
 - Must be hooky and grab attention immediately
 - Create excitement for what's coming

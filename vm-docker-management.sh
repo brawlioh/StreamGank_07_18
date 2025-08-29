@@ -276,6 +276,35 @@ vm_update() {
     print_status "💡 Use 'vm-update' for code changes | 'vm-restart' for config changes | 'vm-rebuild' for dependency changes"
 }
 
+# VM-optimized simple restart (NO rebuild - saves disk space!)
+vm_simple_restart() {
+    print_status "🔄 VM Simple Restart - No rebuild to save disk space..."
+    print_status "This will:"
+    echo "  1. Stop all running containers"
+    echo "  2. Start services using existing images"
+    echo "  💾 NO BUILD = NO CACHE BUILDUP = SAVES 50GB!"
+    echo ""
+    
+    # Step 1: Stop containers
+    print_status "Step 1/2: Stopping containers..."
+    docker-compose -f docker-compose.vm-optimized.yml down
+    print_success "✅ Containers stopped"
+    
+    # Step 2: Start (no build, no setup, just start!)
+    print_status "Step 2/2: Starting services with existing images..."
+    docker-compose -f docker-compose.vm-optimized.yml up -d
+    print_success "✅ Services started"
+    
+    # Show status
+    print_status "Checking service status..."
+    sleep 5
+    show_vm_status
+    
+    print_success "🎉 VM Simple Restart completed!"
+    print_status "GUI available at: http://localhost:3000"
+    print_status "💾 No build cache created - disk space saved!"
+}
+
 # Show detailed VM and container status
 show_vm_status() {
     print_vm_status "Container Status:"
@@ -358,6 +387,7 @@ show_vm_help() {
     echo "  vm-rebuild    - Force rebuild without cache (when dependencies change)"
     echo "  vm-start      - Start in VM-optimized production mode"
     echo "  vm-restart    - Full restart: down → build → start (complete refresh)"
+    echo "  vm-simple-restart - Simple restart: down → start (NO BUILD - saves disk space!)"
     echo "  vm-update     - Quick update: build → start (FAST - for code changes only)"
     echo "  vm-status     - Show detailed VM and container status"
     echo "  vm-monitor    - Real-time VM performance monitoring"
@@ -372,8 +402,9 @@ show_vm_help() {
     echo "Examples:"
     echo "  $0 vm-setup   # Initialize VM environment"
     echo "  $0 vm-start   # Start production mode"
+    echo "  $0 vm-simple-restart # Simple restart (RECOMMENDED - saves 50GB!)"
     echo "  $0 vm-update  # Quick update after code changes (FASTEST)"
-    echo "  $0 vm-restart # Full restart: stop → build → start"
+    echo "  $0 vm-restart # Full restart: stop → build → start (creates cache)"
     echo "  $0 vm-monitor # Monitor performance"
     echo ""
 }
@@ -426,6 +457,9 @@ case "${1:-help}" in
         ;;
     vm-restart)
         vm_restart
+        ;;
+    vm-simple-restart)
+        vm_simple_restart
         ;;
     vm-update)
         vm_update
