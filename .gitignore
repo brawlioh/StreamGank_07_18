@@ -22,6 +22,7 @@ temp_videos/
 test_output/
 responses/
 gui/node_modules/
+docker_volumes/
 
 # Large media files
 *.mp4
