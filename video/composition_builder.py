@@ -413,7 +413,7 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
     # Element duration variables
     intro_duration = 1
     outro_duration = 3 - outro_fade_duration
-    scroll_video_start_time = 4
+    scroll_video_start_time = 2
     scroll_video_duration = 4
     
 

@@ -2349,17 +2349,17 @@ class VideoQueueManager {
 
         let attempts = 0;
         const maxAttempts = 4; // Reduced to 4 - webhooks handle most cases
-        let checkInterval = 300000; // Start with 5 minutes (webhook backup only)
-        const maxInterval = 600000; // Max 10 minutes between checks
+        let checkInterval = 600000; // Start with 10 minutes (project-level webhook backup only)
+        const maxInterval = 900000; // Max 15 minutes between checks
         let lastLoggedStatus = null;
         let lastProgressUpdate = 0;
 
         // Single startup log
         console.log(
-            `🎬 Starting webhook-backup monitoring [${this.activeMonitoring.size}/${this.maxConcurrentMonitoring}]: ${jobId} → ${creatomateId}`
+            `🎬 Starting PROJECT-LEVEL webhook backup monitoring [${this.activeMonitoring.size}/${this.maxConcurrentMonitoring}]: ${jobId} → ${creatomateId}`
         );
         console.log(
-            `🔗 Primary: Webhook notifications | 🔄 Backup: ${maxAttempts} checks over ${Math.round((maxAttempts * checkInterval) / 60000)}min`
+            `🔗 Primary: Project-level webhook (ALL statuses) | 🔄 Backup: ${maxAttempts} checks over ${Math.round((maxAttempts * checkInterval) / 60000)}min`
         );
 
         const checkStatus = async () => {

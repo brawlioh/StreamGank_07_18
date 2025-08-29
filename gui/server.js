@@ -1041,18 +1041,40 @@ app.post('/api/webhooks/test', async (req, res) => {
  * SAFE: Original Creatomate webhook endpoint - FULLY FUNCTIONAL
  * Keeping original implementation to ensure no breaking changes
  */
-app.post('/api/webhooks/creatomate-completion', async (req, res) => {
+app.post('/api/webhooks/creatomate', async (req, res) => {
     try {
+        // Security: Log webhook source for debugging
+        const clientIP = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
+        const userAgent = req.headers['user-agent'] || 'Unknown';
+
+        console.log(`🔐 Webhook received from IP: ${clientIP}, User-Agent: ${userAgent}`);
+
         const { id: render_id, status, url: video_url, error, data } = req.body;
 
-        console.log(`🎬 Creatomate webhook received (legacy endpoint) - Render ID: ${render_id}, Status: ${status}`);
+        console.log(`🎬 Creatomate PROJECT-LEVEL webhook received - Render ID: ${render_id}, Status: ${status}`);
 
+        // Security: Basic validation of webhook payload
         if (!render_id) {
+            console.warn(`⚠️ Security: Invalid webhook - missing render_id from ${clientIP}`);
             return res.status(400).json({
                 success: false,
-                message: 'Render ID is required'
+                message: 'Invalid webhook: missing render_id'
             });
         }
+
+        if (!status) {
+            console.warn(`⚠️ Security: Invalid webhook - missing status from ${clientIP}`);
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid webhook: missing status'
+            });
+        }
+
+        // Security: Log successful webhook reception
+        console.log(`✅ Security: Valid webhook payload received from ${clientIP}`);
+
+        // Note: Creatomate doesn't support custom webhook secrets/signatures
+        // Current security relies on payload validation + HTTPS + server access control
 
         // Find job by creatomateId
         const allJobs = await queueManager.getAllJobs();
@@ -1068,21 +1090,26 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
 
         console.log(`📋 Processing Creatomate webhook for job: ${job.id}`);
 
-        // Handle successful completion
-        if (status === 'completed' && video_url) {
-            console.log(`✅ Creatomate render completed successfully: ${video_url}`);
+        // Handle successful completion - using exact Creatomate status from documentation
+        if (status === 'succeeded' && video_url) {
+            console.log(`✅ Creatomate render succeeded: ${video_url}`);
 
-            // Update job with final video URL
+            // Update job with final video URL and completion data
             job.status = 'completed';
             job.progress = 100;
-            job.currentStep = '🎉 Video rendering completed successfully!';
+            job.currentStep = '✅ Video creation completed successfully!';
             job.videoUrl = video_url;
             job.completedAt = new Date().toISOString();
 
             await queueManager.updateJob(job);
-            await queueManager.addJobLog(job.id, `✅ Video rendered successfully: ${video_url}`, 'success');
 
-            // Send real-time update to frontend
+            // Add persistent job logs for completed status
+            await queueManager.addJobLog(job.id, `✅ Video rendered successfully`, 'success');
+            await queueManager.addJobLog(job.id, `🔗 Video URL: ${video_url}`, 'success');
+            await queueManager.addJobLog(job.id, `🎉 Job completed at: ${job.completedAt}`, 'success');
+            await queueManager.addJobLog(job.id, `📊 Final progress: 100%`, 'success');
+
+            // Send real-time update to frontend for video display
             if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
                 const sseClients = global.jobSSEClients.get(job.id);
                 const updateData = {
@@ -1092,7 +1119,7 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
                     progress: 100,
                     currentStep: job.currentStep,
                     videoUrl: video_url,
-                    timestamp: new Date().toISOString()
+                    timestamp: job.completedAt
                 };
 
                 sseClients.forEach((client) => {
@@ -1115,16 +1142,23 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
                     completed_at: job.completedAt
                 });
             }
-        } else if (status === 'failed' || error) {
-            console.error(`❌ Creatomate render failed: ${error || 'Unknown error'}`);
+        } else if (status === 'failed') {
+            // Handle failed renders - using exact Creatomate status from documentation
+            console.error(`❌ Creatomate render failed: ${render_id} - ${error || 'Unknown error'}`);
 
-            // Update job with error status
+            // Update job with error status and completion timestamp
             job.status = 'failed';
             job.currentStep = `❌ Video rendering failed: ${error || 'Unknown error'}`;
             job.error = error || 'Creatomate render failed';
+            job.completedAt = new Date().toISOString();
 
             await queueManager.updateJob(job);
+
+            // Add persistent job logs for failed status
             await queueManager.addJobLog(job.id, `❌ Render failed: ${error || 'Unknown error'}`, 'error');
+            await queueManager.addJobLog(job.id, `⚠️ Failure time: ${job.completedAt}`, 'error');
+            await queueManager.addJobLog(job.id, `🔍 Render ID: ${render_id}`, 'error');
+            await queueManager.addJobLog(job.id, `📊 Progress at failure: ${job.progress || 0}%`, 'error');
 
             // Send real-time update to frontend
             if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
@@ -1135,7 +1169,7 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
                     status: 'failed',
                     currentStep: job.currentStep,
                     error: job.error,
-                    timestamp: new Date().toISOString()
+                    timestamp: job.completedAt
                 };
 
                 sseClients.forEach((client) => {
@@ -1153,22 +1187,143 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
                 await webhookManager.sendWebhookNotification('job.failed', {
                     job_id: job.id,
                     error: job.error,
-                    parameters: job.parameters
+                    parameters: job.parameters,
+                    failed_at: job.completedAt
+                });
+            }
+        } else if (status === 'planned') {
+            // Video planned/queued - using exact Creatomate status from documentation
+            console.log(`📋 Creatomate render planned (queued): ${render_id}`);
+
+            job.currentStep = '📋 Video queued for processing...';
+            job.progress = 85;
+            job.status = 'rendering'; // Keep internal status as 'rendering'
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, '📋 Video queued for processing', 'info');
+
+            // Send real-time SSE update
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_planned',
+                    job_id: job.id,
+                    status: 'rendering',
+                    progress: 85,
+                    currentStep: job.currentStep,
+                    timestamp: new Date().toISOString()
+                };
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent render planned update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
+                });
+            }
+        } else if (status === 'waiting') {
+            // Video waiting for third-party integration - using exact Creatomate status
+            console.log(`⏳ Creatomate render waiting: ${render_id}`);
+
+            job.currentStep = '⏳ Video is being rendered...';
+            job.progress = 87;
+            job.status = 'rendering';
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, '⏳ Waiting for third-party integration', 'info');
+
+            // Send real-time SSE update
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_waiting',
+                    job_id: job.id,
+                    status: 'rendering',
+                    progress: 87,
+                    currentStep: job.currentStep,
+                    timestamp: new Date().toISOString()
+                };
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent render waiting update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
+                });
+            }
+        } else if (status === 'transcribing') {
+            // Video transcribing (generating subtitles) - using exact Creatomate status
+            console.log(`💬 Creatomate render transcribing: ${render_id}`);
+
+            job.currentStep = '💬 Video is being rendered...';
+            job.progress = 88;
+            job.status = 'rendering';
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, '💬 Generating subtitles', 'info');
+
+            // Send real-time SSE update
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_transcribing',
+                    job_id: job.id,
+                    status: 'rendering',
+                    progress: 88,
+                    currentStep: job.currentStep,
+                    timestamp: new Date().toISOString()
+                };
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent render transcribing update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
+                });
+            }
+        } else if (status === 'rendering') {
+            // Video actively rendering - using exact Creatomate status from documentation
+            console.log(`🎬 Creatomate actively rendering: ${render_id}`);
+
+            job.currentStep = '🎬 Video is being rendered...';
+            job.progress = 90;
+            job.status = 'rendering';
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, '🎬 Video is currently being generated', 'info');
+
+            // Send real-time SSE update
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_rendering',
+                    job_id: job.id,
+                    status: 'rendering',
+                    progress: 90,
+                    currentStep: job.currentStep,
+                    timestamp: new Date().toISOString()
+                };
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent rendering progress update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
                 });
             }
         } else {
-            // Handle in-progress status updates
-            console.log(`📊 Creatomate render in progress: ${status}`);
+            // Handle any other status updates (project-level webhook)
+            console.log(`📊 Creatomate status update: ${status} for ${render_id}`);
 
-            job.currentStep = `🎬 Rendering video: ${status}...`;
+            job.currentStep = `🎬 Video status: ${status}...`;
 
-            // Update progress based on status
-            if (status === 'queued') {
-                job.progress = 85;
-            } else if (status === 'rendering') {
-                job.progress = 90;
-            } else if (status === 'processing') {
-                job.progress = 95;
+            // Set generic progress if not already set
+            if (!job.progress || job.progress < 85) {
+                job.progress = 88;
             }
 
             await queueManager.updateJob(job);

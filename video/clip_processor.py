@@ -2795,7 +2795,7 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
     - 🎬 Automatic highlight detection and editing
     - 📱 Mobile-optimized clips with subtitles and headlines
     - 📥 Downloads clips from Vizard AI servers
-    - ⏱️ Smart duration control (trims clips ≥30s to 20s max)
+    - ⏱️ Smart duration control (only downloads clips >20s, then trims to 20s max)
     - ☁️ Uploads clips to Cloudinary (streamgank-reels/movie-clips)
     - 📊 Clip duration extraction and metadata
     - 🔄 Synchronous waiting (blocks like HeyGen workflow)
@@ -2996,30 +2996,41 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                             logger.info(f"     💡 Viral Reason: {viral_reason}")
                             logger.info(f"     🔗 URL: {video_url}")
                             
-                            if video_url:
-                                # Download Vizard clip and upload to Cloudinary (same path as old system)
-                                logger.info(f"   📥 Downloading Vizard clip for Cloudinary upload...")
-                                cloudinary_url = _download_and_upload_vizard_clip(
-                                    video_url, title, str(movie.get('id', i+1)), transform_mode
-                                )
-                                
-                                if cloudinary_url:
-                                    clip_urls[title] = cloudinary_url
-                                    # Store additional metadata as movie properties for later use
-                                    movie['clip_duration'] = duration_seconds
-                                    movie['clip_viral_score'] = viral_score
-                                    movie['clip_title'] = clip_title
-                                    movie['clip_viral_reason'] = viral_reason
-                                    
-                                    logger.info(f"   ✅ VIZARD PROCESSING COMPLETE: {title}")
-                                    logger.info(f"   ☁️ Cloudinary URL: {cloudinary_url}")
-                                    clip_ready = True
-                                else:
-                                    logger.error(f"   ❌ Failed to upload Vizard clip to Cloudinary")
-                                    break
-                            else:
-                                logger.error(f"   ❌ Code 2000 received but no video URL - API error")
+                            # Check API duration before downloading - only download if MORE than 20 seconds
+                            if not video_url:
+                                logger.error(f"   ❌ No video URL in Vizard response for: {title}")
                                 break
+                            
+                            if duration_seconds <= 20.0:
+                                logger.info(f"   ⏭️ SKIPPING DOWNLOAD: Duration {duration_seconds:.1f}s ≤ 20.0s")
+                                logger.info(f"     📋 Clip already optimal length - no trimming needed")
+                                logger.warning(f"   ⚠️ Vizard clip too short for processing: {title}")
+                                break
+                            
+                            # Duration > 20 seconds - download and trim
+                            logger.info(f"   ✂️ Duration {duration_seconds:.1f}s > 20.0s - downloading for trimming...")
+                            logger.info(f"   📥 Downloading Vizard clip for Cloudinary upload...")
+                            cloudinary_url = _download_and_upload_vizard_clip(
+                                video_url, title, str(movie.get('id', i+1)), transform_mode
+                            )
+                            
+                            if cloudinary_url:
+                                clip_urls[title] = cloudinary_url
+                                # Store additional metadata as movie properties for later use
+                                movie['clip_duration'] = duration_seconds
+                                movie['clip_viral_score'] = viral_score
+                                movie['clip_title'] = clip_title
+                                movie['clip_viral_reason'] = viral_reason
+                                
+                                logger.info(f"   ✅ VIZARD PROCESSING COMPLETE: {title}")
+                                logger.info(f"   ☁️ Cloudinary URL: {cloudinary_url}")
+                                clip_ready = True
+                            else:
+                                logger.error(f"   ❌ Failed to upload Vizard clip to Cloudinary")
+                                break
+                            
+                            # Exit the processing loop since we found a valid clip
+                            break
                         else:
                             # Code 2000 but no videos - PROJECT FAILED, CREATE NEW PROJECT
                             logger.warning(f"   ⚠️ Code 2000 received but no videos in response (attempt {attempt}/{max_attempts})")
@@ -3426,7 +3437,7 @@ def _download_and_upload_vizard_clip(vizard_url: str, movie_title: str, movie_id
         file_size = os.path.getsize(temp_file.name)
         logger.info(f"   📁 Downloaded: {file_size:,} bytes")
         
-        # Check video duration and trim if necessary (30+ seconds → 20 seconds)
+        # Check video duration and trim if necessary (>20 seconds → 20 seconds)
         processed_file = _check_and_trim_clip_duration(temp_file.name, movie_title)
         if not processed_file:
             logger.error(f"   ❌ Failed to process clip duration for: {movie_title}")
@@ -3474,11 +3485,11 @@ def _download_and_upload_vizard_clip(vizard_url: str, movie_title: str, movie_id
 
 
 def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duration: float = 20.0, 
-                                  trim_threshold: float = 30.0) -> Optional[str]:
+                                  trim_threshold: float = 20.0) -> Optional[str]:
     """
     Check video duration and trim if it exceeds the threshold.
     
-    If the video is 30 seconds or longer, it will be trimmed to 20 seconds maximum.
+    If the video is MORE than 20 seconds, it will be trimmed to 20 seconds maximum.
     This ensures optimal clip length for social media platforms.
     
     Args:
@@ -3501,13 +3512,13 @@ def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duratio
         
         logger.info(f"   📊 Original duration: {duration:.1f}s")
         
-        # Check if trimming is needed
-        if duration < trim_threshold:
-            logger.info(f"   ✅ Duration OK ({duration:.1f}s < {trim_threshold:.1f}s), no trimming needed")
+        # Check if trimming is needed (trim if MORE than 20 seconds)  
+        if duration <= trim_threshold:
+            logger.info(f"   ✅ Duration OK ({duration:.1f}s <= {trim_threshold:.1f}s), keeping original")
             return video_path
         
         # Trim video to max_duration
-        logger.info(f"   ✂️ Duration {duration:.1f}s >= {trim_threshold:.1f}s, trimming to {max_duration:.1f}s...")
+        logger.info(f"   ✂️ Duration {duration:.1f}s > {trim_threshold:.1f}s, trimming to {max_duration:.1f}s...")
         
         # Create output file path
         base_name = os.path.splitext(video_path)[0]
