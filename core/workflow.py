@@ -82,7 +82,7 @@ def run_full_workflow(num_movies: int = 3,
     2. Script Generation - Create AI-powered hooks and intro (MODULAR FUNCTION)
     3. Asset Preparation - Generate posters and process clips (MODULAR FUNCTIONS)
     4. HeyGen Video Creation - Generate AI avatar videos  
-    5. Scroll Video Generation - Create scroll overlay (optional)
+    5. Scroll Video Generation - Use static scroll overlay (temporary)
     6. Creatomate Assembly - Combine all elements into final video
     7. Status Monitoring - Wait for completion and return results
     
@@ -394,8 +394,6 @@ def run_full_workflow(num_movies: int = 3,
             details={'scripts_generated': len(individual_scripts)}
         )
         
-        print("Test only to checkt the script")
-        exit()
         # =============================================================================
         # STEP 3: ASSET PREPARATION (MODULAR FUNCTIONS WITH TEST DATA CACHING)
         # =============================================================================
@@ -780,37 +778,25 @@ def run_full_workflow(num_movies: int = 3,
                     print(f"   ⚠️ Cached scroll video data found but no valid URL")
                 
             else:
-                if is_local_mode():
-                    print("   🌍 LOCAL MODE: No cached scroll video data available")
-                    print("   ⚠️ Continuing without scroll video (no API calls in local mode)")
-                    scroll_video_url = None
-                else:
-                    print("   🔄 No cached scroll video data found, generating new video...")
-                    print("   Using scroll video generation API...")
-                    
-                    scroll_video_url = generate_scroll_video(
-                        country=country,
-                        genre=genre,
-                        platform=platform,
-                        content_type=content_type,
-                        smooth=smooth_scroll,
-                        scroll_distance=scroll_distance,
-                        duration=scroll_settings.get('target_duration', 4)
-                    )
-                    
-                    # Scroll video results saved via save_workflow_result() call below
+                # Use static scroll video URL from Cloudinary for now
+                print("   📹 Using static scroll video from Cloudinary...")
+                scroll_video_url = "https://res.cloudinary.com/dodod8s0v/video/upload/v1756291507/streamgank_scroll_videos/streamgank_scroll_videos/scroll_Horror_Netflix_clip.mp4"
+                print(f"   ✅ Static scroll video URL loaded: {scroll_video_url}")
+                
+                # Note: This is a temporary static video - will be replaced with dynamic generation later
             
             if scroll_video_url:
                 # Save step 6 data in organized structure
                 workflow_results['step_6_scroll_generation'] = {
                     'scroll_video_url': scroll_video_url,
                     'step_duration': time.time() - step_start,
-                    'step_status': 'completed',
+                    'step_status': 'completed_static',  # Using static URL temporarily
                     'from_cache': should_use_cache() and cached_scroll_data is not None,
                     'smooth_scroll': smooth_scroll,
-                    'scroll_distance': scroll_distance
+                    'scroll_distance': scroll_distance,
+                    'static_video_used': True  # Flag to indicate static video was used
                 }
-                print(f"✅ STEP 6 COMPLETED - {'Loaded' if should_use_cache() and cached_scroll_data and cached_scroll_data.get('scroll_video_url') else 'Generated'} scroll video in {time.time() - step_start:.1f}s")
+                print(f"✅ STEP 6 COMPLETED - {'Loaded' if should_use_cache() and cached_scroll_data and cached_scroll_data.get('scroll_video_url') else 'Static'} scroll video in {time.time() - step_start:.1f}s")
             else:
                 # Save step 6 data in organized structure (skipped)
                 workflow_results['step_6_scroll_generation'] = {
@@ -829,7 +815,9 @@ def run_full_workflow(num_movies: int = 3,
                 duration=time.time() - step_start,
                 details={
                     'scroll_video_created': scroll_video_url is not None,
-                    'from_cache': should_use_cache() and cached_scroll_data and cached_scroll_data.get('scroll_video_url')
+                    'from_cache': should_use_cache() and cached_scroll_data and cached_scroll_data.get('scroll_video_url'),
+                    'static_video_used': not (should_use_cache() and cached_scroll_data and cached_scroll_data.get('scroll_video_url')),
+                    'scroll_video_url': scroll_video_url
                 }
             )
         else:
