@@ -170,12 +170,7 @@ document.addEventListener('DOMContentLoaded', function () {
             description: 'Specialized template for horror and thriller content',
             genres: ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller', 'Mystère & Thriller']
         },
-        comedy: {
-            id: 'a1576c3e20d24af3a44e3479a3947c96',
-            name: 'Comedy/Light Entertainment',
-            description: 'Optimized template for comedy and humorous content',
-            genres: ['Comedy', 'Comédie', 'Comédie Romantique']
-        },
+
         action: {
             id: '7f8db20ddcd94a33a1235599aa8bf473',
             name: 'Action/Adventure Dynamic',

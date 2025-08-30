@@ -28,13 +28,7 @@ HEYGEN_TEMPLATES = {
         'genres': ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller']
     },
     
-    # Comedy Templates  
-    'comedy': {
-        'id': 'a1576c3e20d24af3a44e3479a3947c96',
-        'name': 'Comedy Template', 
-        'description': 'Optimized template for comedy and humorous content',
-        'genres': ['Comedy', 'Comédie']
-    },
+
     
     # Action Templates
     'action': {

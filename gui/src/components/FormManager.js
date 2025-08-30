@@ -115,11 +115,6 @@ export class FormManager {
             Horror: 'ed21a309a5c84b0d873fde68642adea3',
             Horreur: 'ed21a309a5c84b0d873fde68642adea3',
 
-            // Comedy templates
-            Comedy: 'a1576c3e20d24af3a44e3479a3947c96',
-            Comédie: 'a1576c3e20d24af3a44e3479a3947c96',
-            'Stand-up Comedy': 'a1576c3e20d24af3a44e3479a3947c96',
-
             // Action templates
             'Action & Adventure': '7f8db20ddcd94a33a1235599aa8bf473',
             'Action & Aventure': '7f8db20ddcd94a33a1235599aa8bf473',
