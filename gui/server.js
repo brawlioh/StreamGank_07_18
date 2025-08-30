@@ -2126,7 +2126,6 @@ app.get('/api/genres/:country', async (req, res) => {
             US: [
                 'Action & Adventure',
                 'Animation',
-                'Comedy',
                 'Crime',
                 'Documentary',
                 'Drama',

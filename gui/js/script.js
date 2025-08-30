@@ -66,8 +66,6 @@ document.addEventListener('DOMContentLoaded', function () {
         FR: {
             'Action & Aventure': 'Action & Adventure',
             Animation: 'Animation',
-            Comédie: 'Comedy',
-            'Comédie Romantique': 'Romantic Comedy',
             'Crime & Thriller': 'Crime & Thriller',
             Documentaire: 'Documentary',
             Drame: 'Drama',
@@ -75,7 +73,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'Film de guerre': 'War Movies',
             Histoire: 'History',
             Horreur: 'Horror',
-            'Musique & Comédie Musicale': 'Music & Musical Comedy',
+            'Musique & Musicale': 'Music & Musical',
             'Mystère & Thriller': 'Mystery & Thriller',
             'Pour enfants': 'Kids',
             'Reality TV': 'Reality TV',
@@ -87,7 +85,6 @@ document.addEventListener('DOMContentLoaded', function () {
         US: {
             'Action & Adventure': 'Action & Adventure',
             Animation: 'Animation',
-            Comedy: 'Comedy',
             Crime: 'Crime',
             Documentary: 'Documentary',
             Drama: 'Drama',
@@ -109,7 +106,6 @@ document.addEventListener('DOMContentLoaded', function () {
         GB: {
             Action: 'Action',
             Animation: 'Animation',
-            Comedy: 'Comedy',
             Crime: 'Crime',
             Documentary: 'Documentary',
             Drama: 'Drama',
@@ -127,7 +123,6 @@ document.addEventListener('DOMContentLoaded', function () {
         CA: {
             Action: 'Action',
             Animation: 'Animation',
-            Comedy: 'Comedy',
             Crime: 'Crime',
             Documentary: 'Documentary',
             Drama: 'Drama',
@@ -145,7 +140,6 @@ document.addEventListener('DOMContentLoaded', function () {
         AU: {
             Action: 'Action',
             Animation: 'Animation',
-            Comedy: 'Comedy',
             Crime: 'Crime',
             Documentary: 'Documentary',
             Drama: 'Drama',
@@ -201,8 +195,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // French genres (note: first entry has Family prefix as per StreamGank data)
         'Action & Aventure': 'Family%2CAction+%26+Aventure',
         Animation: 'Animation',
-        Comédie: 'Com%C3%A9die',
-        'Comédie Romantique': 'Com%C3%A9die+Romantique',
+
         'Crime & Thriller': 'Crime+%26+Thriller',
         Documentaire: 'Documentaire',
         Drame: 'Drame',
@@ -210,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function () {
         'Film de guerre': 'Film+de+guerre',
         Histoire: 'Histoire',
         Horreur: 'Horreur',
-        'Musique & Comédie Musicale': 'Musique+%26+Com%C3%A9die+Musicale',
+        'Musique & Musicale': 'Musique+%26+Musicale',
         'Mystère & Thriller': 'Myst%C3%A8re+%26+Thriller',
         'Pour enfants': 'Pour+enfants',
         'Reality TV': 'Reality+TV',
@@ -222,7 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // US genres
         'Action & Adventure': 'Action+%26+Adventure',
         Animation: 'Animation',
-        Comedy: 'Comedy',
+
         Crime: 'Crime',
         Documentary: 'Documentary',
         Drama: 'Drama',

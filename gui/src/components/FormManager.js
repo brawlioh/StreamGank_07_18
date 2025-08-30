@@ -63,8 +63,6 @@ export class FormManager {
             FR: {
                 'Action & Aventure': 'Action & Adventure',
                 Animation: 'Animation',
-                Comédie: 'Comedy',
-                'Comédie Romantique': 'Romantic Comedy',
                 'Crime & Thriller': 'Crime & Thriller',
                 Documentaire: 'Documentary',
                 Drame: 'Drama',
@@ -72,7 +70,7 @@ export class FormManager {
                 'Film de guerre': 'War Movies',
                 Histoire: 'History',
                 Horreur: 'Horror',
-                'Musique & Comédie Musicale': 'Music & Musical Comedy',
+                'Musique & Musicale': 'Music & Musical',
                 'Mystère & Thriller': 'Mystery & Thriller',
                 'Pour enfants': 'Kids',
                 'Reality TV': 'Reality TV',
@@ -84,7 +82,6 @@ export class FormManager {
             US: {
                 'Action & Adventure': 'Action & Adventure',
                 Animation: 'Animation',
-                Comedy: 'Comedy',
                 Crime: 'Crime',
                 Documentary: 'Documentary',
                 Drama: 'Drama',
@@ -99,7 +96,7 @@ export class FormManager {
                 'Romance Movies': 'Romance Movies',
                 'Science Fiction': 'Science Fiction',
                 'Sport & Fitness': 'Sport & Fitness',
-                'Stand-up Comedy': 'Stand-up Comedy',
+
                 Western: 'Western'
             }
         };
@@ -227,7 +224,7 @@ export class FormManager {
         const templates = [
             { value: 'cc6718c5363e42b282a123f99b94b335', text: 'Default Template' },
             { value: 'ed21a309a5c84b0d873fde68642adea3', text: 'Horror/Thriller Cinematic' },
-            { value: '15d9eadcb46a45dbbca1834aa0a23ede', text: 'Comedy Upbeat' },
+
             { value: 'e44b139a1b94446a997a7f2ac5ac4178', text: 'Action Adventure' }
         ];
 
@@ -1191,7 +1188,7 @@ export class FormManager {
         if (this.formState.genre && this.formState.genre !== 'all') {
             const genreMapping = {
                 Horreur: 'Horror',
-                Comédie: 'Comedy',
+
                 'Action & Aventure': 'Action',
                 Animation: 'Animation'
             };
