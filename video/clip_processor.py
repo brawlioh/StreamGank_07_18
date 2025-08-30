@@ -3485,7 +3485,7 @@ def _download_and_upload_vizard_clip(vizard_url: str, movie_title: str, movie_id
 
 
 def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duration: float = 20.0, 
-                                  trim_threshold: float = 20.0) -> Optional[str]:
+                                  trim_threshold: float = 20.0) -> str:
     """
     Check video duration and trim if it exceeds the threshold.
     
@@ -3524,32 +3524,63 @@ def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duratio
         base_name = os.path.splitext(video_path)[0]
         trimmed_path = f"{base_name}_trimmed_{max_duration:.0f}s.mp4"
         
-        # Use FFmpeg to trim video with SPEED-OPTIMIZED settings
-        ffmpeg_cmd = [
-            'ffmpeg',
-            '-i', video_path,
-            '-t', str(max_duration),  # Trim to max_duration seconds
-            '-c:v', 'libx264',  # Video codec
-            '-c:a', 'copy',     # Copy audio (no re-encoding = MUCH faster)
-            '-preset', 'ultrafast',  # Fastest encoding speed
-            '-crf', '28',       # Balanced quality/speed (was 23)
-            '-movflags', '+faststart',  # Optimize for streaming
-            '-pix_fmt', 'yuv420p',  # Ensure compatible pixel format
-            '-max_muxing_queue_size', '1024',  # Handle large videos
-            '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
-            '-threads', '0',    # Use all available CPU threads
-            '-y',               # Overwrite output file
-            trimmed_path
-        ]
+        # Use FFmpeg with ENVIRONMENT-SPECIFIC optimizations
+        if is_railway:
+            # RAILWAY-OPTIMIZED: Ultra conservative settings
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-i', video_path,
+                '-t', str(max_duration),  # Trim to max_duration seconds
+                '-c:v', 'libx264',  # Video codec
+                '-c:a', 'copy',     # Copy audio (no re-encoding = MUCH faster)
+                '-preset', 'ultrafast',  # Fastest encoding speed
+                '-crf', '35',       # Very low quality for speed (was 32)
+                '-movflags', '+faststart',  # Optimize for streaming
+                '-pix_fmt', 'yuv420p',  # Ensure compatible pixel format
+                '-max_muxing_queue_size', '256',  # Very small for Railway
+                '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
+                '-threads', '1',    # Single thread for Railway stability
+                '-tune', 'fastdecode',  # Optimize for fast decoding
+                '-profile:v', 'baseline',  # Simple H.264 profile
+                '-level:v', '3.0',  # Lower level for compatibility
+                '-bufsize', '512k', # Very small buffer
+                '-maxrate', '1M',   # Low bitrate cap for Railway
+                '-r', '24',         # Reduce frame rate
+                '-y',               # Overwrite output file
+                trimmed_path
+            ]
+        else:
+            # LOCAL/VM-OPTIMIZED: Better quality settings
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-i', video_path,
+                '-t', str(max_duration),  
+                '-c:v', 'libx264',  
+                '-c:a', 'copy',     
+                '-preset', 'fast',  # Faster than ultrafast but better quality
+                '-crf', '28',       # Better quality
+                '-movflags', '+faststart',  
+                '-pix_fmt', 'yuv420p',  
+                '-max_muxing_queue_size', '1024',  
+                '-avoid_negative_ts', 'make_zero',  
+                '-threads', '0',    # Use all available threads locally
+                '-y',               
+                trimmed_path
+            ]
         
-        # Calculate dynamic timeout based on file size (larger files need more time)
+        # Calculate dynamic timeout based on environment and file size
         try:
             file_size_mb = os.path.getsize(video_path) / (1024 * 1024)  # Convert to MB
-            # Dynamic timeout: 30s base + 2s per MB, min 60s, max 300s (5 minutes)
-            dynamic_timeout = max(60, min(300, int(30 + (file_size_mb * 2))))
-            logger.info(f"   ⏱️ File size: {file_size_mb:.1f}MB, timeout: {dynamic_timeout}s")
+            if is_railway:
+                # Railway: Conservative timeouts due to resource constraints
+                dynamic_timeout = max(60, min(180, int(45 + (file_size_mb * 2))))
+                logger.info(f"   🚂 Railway timeout: {dynamic_timeout}s for {file_size_mb:.1f}MB file")
+            else:
+                # Local/VM: More generous timeouts
+                dynamic_timeout = max(90, min(300, int(60 + (file_size_mb * 3))))
+                logger.info(f"   🖥️ Local timeout: {dynamic_timeout}s for {file_size_mb:.1f}MB file")
         except:
-            dynamic_timeout = 60  # Fallback to 60s if file size check fails
+            dynamic_timeout = 60 if is_railway else 90  # Environment-based fallback
         
         # Execute FFmpeg command with dynamic timeout and performance monitoring
         import time
@@ -3578,21 +3609,87 @@ def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duratio
                 return video_path
         else:
             logger.error(f"   ❌ FFmpeg trimming failed for {movie_title}")
-            logger.error(f"   FFmpeg error: {result.stderr}")
-            logger.warning(f"   ⚠️ Using original clip without trimming")
+            logger.error(f"   FFmpeg stderr: {result.stderr[:500]}...")  # Limit error output
+            logger.error(f"   FFmpeg return code: {result.returncode}")
+            logger.warning(f"   🔄 Attempting simplified fallback trim...")
+            
+            # MULTI-LEVEL FALLBACK SYSTEM (BULLETPROOF)
+            fallback_attempts = [
+                {
+                    'name': 'Stream Copy Only',
+                    'cmd': ['ffmpeg', '-i', video_path, '-t', str(max_duration), 
+                           '-c', 'copy', '-avoid_negative_ts', 'make_zero', '-y', 
+                           f"{base_name}_fallback1_{max_duration:.0f}s.mp4"],
+                    'timeout': 30
+                },
+                {
+                    'name': 'Ultra Simple',
+                    'cmd': ['ffmpeg', '-i', video_path, '-t', str(max_duration),
+                           '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '40',
+                           '-c:a', 'copy', '-threads', '1', '-y',
+                           f"{base_name}_fallback2_{max_duration:.0f}s.mp4"],
+                    'timeout': 60
+                },
+                {
+                    'name': 'Minimal Processing',
+                    'cmd': ['ffmpeg', '-i', video_path, '-ss', '0', '-t', str(max_duration),
+                           '-vcodec', 'copy', '-acodec', 'copy', '-y',
+                           f"{base_name}_fallback3_{max_duration:.0f}s.mp4"],
+                    'timeout': 20
+                }
+            ]
+            
+            for i, fallback in enumerate(fallback_attempts, 1):
+                logger.info(f"   🔄 Fallback #{i}: {fallback['name']}...")
+                try:
+                    fb_result = subprocess.run(
+                        fallback['cmd'], 
+                        capture_output=True, 
+                        text=True, 
+                        timeout=fallback['timeout']
+                    )
+                    
+                    output_path = fallback['cmd'][-1]  # Last argument is output path
+                    
+                    if fb_result.returncode == 0 and os.path.exists(output_path):
+                        file_size = os.path.getsize(output_path)
+                        if file_size > 1024:  # At least 1KB
+                            logger.info(f"   ✅ Fallback #{i} successful: {output_path}")
+                            logger.info(f"   📁 File size: {file_size:,} bytes")
+                            return output_path
+                        else:
+                            logger.error(f"   ❌ Fallback #{i} created empty file")
+                            os.remove(output_path) if os.path.exists(output_path) else None
+                    else:
+                        logger.error(f"   ❌ Fallback #{i} failed: {fb_result.stderr[:200]}...")
+                        
+                except subprocess.TimeoutExpired:
+                    logger.error(f"   ⏱️ Fallback #{i} timeout ({fallback['timeout']}s)")
+                except Exception as fe:
+                    logger.error(f"   ❌ Fallback #{i} exception: {str(fe)[:200]}...")
+            
+            # FINAL FALLBACK: Always use original clip
+            logger.warning(f"   🛡️ ALL FALLBACKS FAILED - Using original clip (GUARANTEED SUCCESS)")
+            logger.info(f"   📄 Original file will be used as-is: {video_path}")
             return video_path
             
     except subprocess.TimeoutExpired:
         logger.error(f"   ⏱️ FFmpeg trimming timeout ({dynamic_timeout}s) for {movie_title}")
         logger.error(f"   📁 File size: {file_size_mb:.1f}MB - may need more processing time")
-        logger.warning(f"   🔄 Timeout can be caused by:")
-        logger.warning(f"      • Large file size ({file_size_mb:.1f}MB)")
-        logger.warning(f"      • CPU/memory constraints")
-        logger.warning(f"      • Complex video encoding")
-        logger.warning(f"   ⚠️ Using original clip without trimming to prevent workflow failure")
+        logger.warning(f"   🔄 Timeout reasons: Large file ({file_size_mb:.1f}MB) | CPU/memory limits | Encoding complexity")
+        logger.info(f"   🛡️ TIMEOUT RECOVERY: Using original clip (WORKFLOW CONTINUES)")
+        return video_path
+    except FileNotFoundError:
+        logger.error(f"   ❌ FFmpeg not found in system PATH")
+        logger.warning(f"   🛡️ FFMPEG MISSING: Using original clip (WORKFLOW CONTINUES)")
+        return video_path  
+    except PermissionError:
+        logger.error(f"   ❌ Permission denied accessing video file: {video_path}")
+        logger.warning(f"   🛡️ PERMISSION ERROR: Using original clip (WORKFLOW CONTINUES)")
         return video_path
     except Exception as e:
-        logger.error(f"   ❌ Error checking/trimming duration for {movie_title}: {str(e)}")
+        logger.error(f"   ❌ Unexpected error trimming {movie_title}: {str(e)[:200]}...")
+        logger.warning(f"   🛡️ UNKNOWN ERROR: Using original clip (WORKFLOW CONTINUES)")
         return video_path
 
 
