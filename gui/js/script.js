@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', function () {
             genres: ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller', 'Mystère & Thriller']
         },
         comedy: {
-            id: '0786b31e7a8b4e8c97799b913b1e39ea',
+            id: 'a1576c3e20d24af3a44e3479a3947c96',
             name: 'Comedy/Light Entertainment',
             description: 'Optimized template for comedy and humorous content',
             genres: ['Comedy', 'Comédie', 'Comédie Romantique']
