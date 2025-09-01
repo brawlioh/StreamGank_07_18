@@ -481,22 +481,48 @@ body {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* Compact video container for inline display */
+.video-container-compact {
+    width: 100%;
+    position: relative;
+    background: var(--dark-panel);
+    border-radius: 6px;
+    overflow: hidden;
+    min-height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-container-compact video {
+    width: 100%;
+    height: auto;
+    max-height: 580px;
+    border-radius: 6px;
+    position: relative;
+    z-index: 2;
+}
+
 /* Fix: Prevent dark overlay on video hover */
-.video-container video:hover {
+.video-container video:hover,
+.video-container-compact video:hover {
     filter: none;
     opacity: 1;
 }
 
 /* Alternative: Disable browser video controls overlay */
-.video-container video::-webkit-media-controls-overlay-play-button {
+.video-container video::-webkit-media-controls-overlay-play-button,
+.video-container-compact video::-webkit-media-controls-overlay-play-button {
     display: none;
 }
 
-.video-container video::-webkit-media-controls {
+.video-container video::-webkit-media-controls,
+.video-container-compact video::-webkit-media-controls {
     opacity: 0.8;
 }
 
-.video-container video:hover::-webkit-media-controls {
+.video-container video:hover::-webkit-media-controls,
+.video-container-compact video:hover::-webkit-media-controls {
     opacity: 1;
 }
 
