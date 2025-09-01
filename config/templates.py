@@ -8,6 +8,7 @@ Template Selection Rules:
 - Horror/Horreur genres use specialized horror template
 - Comedy/Comédie genres use comedy-optimized template  
 - Action/Action & Aventure genres use action template
+- Romance/Romantic genres use romance template
 - All other genres use the default template
 """
 
@@ -42,6 +43,14 @@ HEYGEN_TEMPLATES = {
         'name': 'Action Template',
         'description': 'High-energy template for action and adventure content',
         'genres': ['Action', 'Action & Adventure', 'Action & Aventure']
+    },
+    
+    # Romance Templates
+    'romance': {
+        'id': 'bc62f68a6b074406b571df42bdc6b71a',
+        'name': 'Romance Template',
+        'description': 'Heartfelt template for romantic and relationship-focused content',
+        'genres': ['Romance', 'Romantic', 'Romantic Comedy', 'Drama']
     },
     
     # Default Template

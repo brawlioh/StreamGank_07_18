@@ -124,6 +124,14 @@ export class FormManager {
             'Action & Adventure': '7f8db20ddcd94a33a1235599aa8bf473',
             'Action & Aventure': '7f8db20ddcd94a33a1235599aa8bf473',
 
+            // Romance template
+            'Romance': 'bc62f68a6b074406b571df42bdc6b71a',
+            'Romantic': 'bc62f68a6b074406b571df42bdc6b71a',
+            'Romance Movies': 'bc62f68a6b074406b571df42bdc6b71a',
+            'Romantic Comedy': 'bc62f68a6b074406b571df42bdc6b71a',
+            'Comédie Romantique': 'bc62f68a6b074406b571df42bdc6b71a',
+            'Romance & Drama': 'bc62f68a6b074406b571df42bdc6b71a',
+
             // Default template for other genres
             default: 'cc6718c5363e42b282a123f99b94b335'
         };
@@ -233,7 +241,8 @@ export class FormManager {
             { value: 'cc6718c5363e42b282a123f99b94b335', text: 'Default Template' },
             { value: 'ed21a309a5c84b0d873fde68642adea3', text: 'Horror/Thriller Cinematic' },
             { value: '15d9eadcb46a45dbbca1834aa0a23ede', text: 'Comedy Upbeat' },
-            { value: 'e44b139a1b94446a997a7f2ac5ac4178', text: 'Action Adventure' }
+            { value: 'e44b139a1b94446a997a7f2ac5ac4178', text: 'Action Adventure' },
+            { value: 'bc62f68a6b074406b571df42bdc6b71a', text: 'Romance' }
         ];
 
         templates.forEach((template) => {
