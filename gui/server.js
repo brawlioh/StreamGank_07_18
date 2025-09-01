@@ -438,7 +438,7 @@ app.get('/api/status/:creatomateId', async (req, res) => {
                             job.videoUrl = statusResult.url;
                             job.currentStep = '✅ Video creation completed';
                             job.completedAt = new Date().toISOString();
-                            await queueManager.updateJob(job); // Persist to Redis
+                            await queueManager.updateJobFast(job); // RAILWAY OPTIMIZATION: Use fast pipelined update
                             console.log(`✅ Job ${job.id} updated with video URL: ${statusResult.url}`);
                         }
                     }
@@ -524,7 +524,7 @@ app.get('/api/job/:jobId', async (req, res) => {
 
         // PRODUCTION: Shorter timeout to fail fast and use cache fallback
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Redis request timeout')), 5000); // 5 second timeout for production
+            setTimeout(() => reject(new Error('Redis request timeout')), 10000); // Increased to 10s for Railway production
         });
 
         const jobPromise = queueManager.getJob(jobId);
@@ -645,7 +645,7 @@ app.get('/api/queue/status', async (req, res) => {
 
         // PROFESSIONAL: Longer timeout since webhooks handle real-time updates
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Status request timeout')), 5000); // 5 second timeout
+            setTimeout(() => reject(new Error('Status request timeout')), 10000); // Increased to 10s for Railway
         });
 
         // Get fresh stats from Redis
@@ -1020,7 +1020,8 @@ app.post('/api/webhooks/step-update', async (req, res) => {
                 job.stepDuration = { ...job.stepDuration, [`step_${step_number}`]: duration };
             }
 
-            await queueManager.updateJob(job);
+            // RAILWAY OPTIMIZATION: Use fast pipelined job update
+            await queueManager.updateJobFast(job);
 
             // CRITICAL FIX: Immediately clear job cache to ensure UI shows real-time updates
             // This prevents the UI from showing stale data while workflow progresses
