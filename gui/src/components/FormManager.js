@@ -106,19 +106,21 @@ export class FormManager {
      * Load template mappings for genres
      */
     loadTemplatesByGenre() {
-        // Genre-specific HeyGen templates (from memory)
-        this.templatesByGenre = {
-            // Horror templates (FIXED: Use correct template ID from config/templates.py)
-            Horror: 'ed21a309a5c84b0d873fde68642adea3',
-            Horreur: 'ed21a309a5c84b0d873fde68642adea3',
-
-            // Action templates
-            'Action & Adventure': '7f8db20ddcd94a33a1235599aa8bf473',
-            'Action & Aventure': '7f8db20ddcd94a33a1235599aa8bf473',
-
-            // Default template for other genres
-            default: 'cc6718c5363e42b282a123f99b94b335'
+        // SINGLE SOURCE OF TRUTH for all HeyGen templates
+        this.templates = {
+            cc6718c5363e42b282a123f99b94b335: { name: 'Default Template', genres: ['default'] },
+            ed21a309a5c84b0d873fde68642adea3: { name: 'Horror/Thriller Cinematic', genres: ['Horror'] },
+            '7f8db20ddcd94a33a1235599aa8bf473': { name: 'Action Adventure', genres: ['Action & Adventure'] },
+            bc62f68a6b074406b571df42bdc6b71a: { name: 'Romance/Love Story', genres: ['Romance'] }
         };
+
+        // Create backward-compatible templatesByGenre from single source
+        this.templatesByGenre = {};
+        Object.entries(this.templates).forEach(([templateId, templateInfo]) => {
+            templateInfo.genres.forEach((genre) => {
+                this.templatesByGenre[genre] = templateId;
+            });
+        });
     }
 
     /**
@@ -220,18 +222,11 @@ export class FormManager {
         // Clear existing options except first
         templateSelect.innerHTML = '<option value="">Select Template...</option>';
 
-        // Add default templates (FIXED: Use correct Horror template ID)
-        const templates = [
-            { value: 'cc6718c5363e42b282a123f99b94b335', text: 'Default Template' },
-            { value: 'ed21a309a5c84b0d873fde68642adea3', text: 'Horror/Thriller Cinematic' },
-
-            { value: 'e44b139a1b94446a997a7f2ac5ac4178', text: 'Action Adventure' }
-        ];
-
-        templates.forEach((template) => {
+        // Use single source of truth - this.templates
+        Object.entries(this.templates).forEach(([templateId, templateInfo]) => {
             const option = document.createElement('option');
-            option.value = template.value;
-            option.textContent = template.text;
+            option.value = templateId;
+            option.textContent = templateInfo.name;
             templateSelect.appendChild(option);
         });
 

@@ -141,6 +141,44 @@ SCROLL_SETTINGS = {
 }
 
 # =============================================================================
+# SCRIPT GENERATION SETTINGS
+# =============================================================================
+
+SCRIPT_SETTINGS = {
+    # Timing Configuration (words to seconds mapping)
+    'intro_timing': {
+        'target_seconds': 12-14,  # Total intro duration
+        'word_count': '10-12',    # Word count for intro
+        'description': 'Sets up the entire video content'
+    },
+    
+    'movie_timing': {
+        'movie1': {
+            'target_seconds': '10-18',  # Standard timing
+            'word_count': '10-18',      # Standard word count
+            'description': 'First movie - standard pacing'
+        },
+        'movie2': {
+            'target_seconds': '8-10',   # Accurate timing for movie2
+            'word_count': '24-30',      # Correct word count for 8-10 seconds
+            'description': 'Second movie - 8-10 seconds'
+        },
+        'movie3': {
+            'target_seconds': '8-10',   # Accurate timing for movie3  
+            'word_count': '24-30',      # Correct word count for 8-10 seconds
+            'description': 'Third movie - 8-10 seconds'
+        }
+    },
+    
+    # Fallback Scripts (when OpenAI fails) - Accurate timing
+    'fallback_scripts': {
+        'movie1_template': 'This incredible {genre} masterpiece will leave you absolutely amazed',
+        'movie2_template': 'This {genre} masterpiece delivers non-stop thrills and shocking twists that will have you completely captivated from start to finish and leave you absolutely breathless',
+        'movie3_template': 'This {genre} masterpiece delivers non-stop thrills and shocking twists that will have you completely captivated from start to finish and leave you absolutely breathless'
+    }
+}
+
+# =============================================================================
 # WORKFLOW ORCHESTRATION SETTINGS
 # =============================================================================
 

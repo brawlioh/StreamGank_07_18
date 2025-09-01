@@ -38,6 +38,14 @@ HEYGEN_TEMPLATES = {
         'genres': ['Action', 'Action & Adventure', 'Action & Aventure']
     },
     
+    # Romance Templates
+    'romance': {
+        'id': 'bc62f68a6b074406b571df42bdc6b71a',
+        'name': 'Romance Template',
+        'description': 'Romantic and emotional template for love and relationship content',
+        'genres': ['Romance', 'Romantic Comedy', 'Love Story']
+    },
+    
     # Default Template
     'default': {
         'id': 'cc6718c5363e42b282a123f99b94b335',

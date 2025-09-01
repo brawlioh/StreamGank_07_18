@@ -54,30 +54,149 @@ VIRAL_ELEMENTS = {
     ]
 }
 
-# Genre-specific customizations
-GENRE_CUSTOMIZATIONS = {
-    'Horror': {
-        'mood_words': ['terrifying', 'spine-chilling', 'nightmare-inducing', 'haunting', 'disturbing', 'bone-chilling'],
-        'viral_angles': ['psychological terror', 'jump scares', 'true horror stories', 'cursed', 'supernatural forces', 'survival horror'],
-        'engagement_hooks': ['will haunt your dreams', 'too scary to watch alone', 'banned for being too frightening', 'will make you sleep with the lights on', 'you\'ll never see it coming'],
-        'hook_starters': ['This horror masterpiece', 'You won\'t believe what lurks', 'This movie proves that', 'Everyone\'s too scared to watch', 'This is why horror fans are obsessed with', 'The moment you see this']
-    },
-    'Comedy': {
-        'mood_words': ['hilarious', 'laugh-out-loud', 'side-splitting', 'comedy gold'],
-        'viral_angles': ['plot twists', 'unexpected moments', 'comedy genius', 'viral scenes'],
-        'engagement_hooks': ['will make you cry laughing', 'comedy perfection', 'meme-worthy moments']
-    },
-    'Action': {
-        'mood_words': ['explosive', 'adrenaline-pumping', 'action-packed', 'intense'],
-        'viral_angles': ['epic stunts', 'mind-blowing action', 'intense sequences', 'legendary scenes'],
-        'engagement_hooks': ['non-stop action', 'edge-of-your-seat', 'action at its finest']
-    },
-    'Drama': {
-        'mood_words': ['emotional', 'powerful', 'moving', 'compelling'],
-        'viral_angles': ['plot twists', 'emotional moments', 'character development', 'deep stories'],
-        'engagement_hooks': ['will move you to tears', 'emotionally devastating', 'award-worthy performances']
+# DYNAMIC GENRE CUSTOMIZATIONS - AUTO-GENERATED FROM SUPPORTED GENRES
+def _generate_dynamic_genre_customizations() -> Dict[str, Dict[str, List[str]]]:
+    """
+    Dynamically generate genre customizations for ALL supported genres.
+    This replaces the static hardcoded approach with a scalable system.
+    """
+    # Base templates for different genre families
+    base_customizations = {
+        # Horror family
+        'horror_family': {
+            'mood_words': ['terrifying', 'spine-chilling', 'nightmare-inducing', 'haunting', 'disturbing', 'bone-chilling'],
+            'viral_angles': ['psychological terror', 'jump scares', 'true horror stories', 'cursed', 'supernatural forces', 'survival horror'],
+            'engagement_hooks': ['will haunt your dreams', 'too scary to watch alone', 'banned for being too frightening', 'will make you sleep with the lights on', 'you\'ll never see it coming'],
+            'hook_starters': ['This horror masterpiece', 'You won\'t believe what lurks', 'This movie proves that', 'Everyone\'s too scared to watch', 'This is why horror fans are obsessed with']
+        },
+        
+        # Action family  
+        'action_family': {
+            'mood_words': ['explosive', 'adrenaline-pumping', 'action-packed', 'intense', 'thrilling', 'pulse-pounding'],
+            'viral_angles': ['epic stunts', 'mind-blowing action', 'intense sequences', 'legendary scenes', 'non-stop thrills'],
+            'engagement_hooks': ['non-stop action', 'edge-of-your-seat', 'action at its finest', 'adrenaline rush guaranteed'],
+            'hook_starters': ['This action masterpiece', 'Get ready for explosive', 'The most intense', 'Action fans can\'t stop watching']
+        },
+        
+        # Comedy family
+        'comedy_family': {
+            'mood_words': ['hilarious', 'laugh-out-loud', 'side-splitting', 'comedy gold', 'witty', 'gut-busting'],
+            'viral_angles': ['plot twists', 'unexpected moments', 'comedy genius', 'viral scenes', 'perfect timing'],
+            'engagement_hooks': ['will make you cry laughing', 'comedy perfection', 'meme-worthy moments', 'funniest thing you\'ll see'],
+            'hook_starters': ['This comedy genius', 'The funniest movie', 'You won\'t stop laughing', 'Comedy gold that']
+        },
+        
+        # Drama family
+        'drama_family': {
+            'mood_words': ['emotional', 'powerful', 'moving', 'compelling', 'gripping', 'heart-wrenching'],
+            'viral_angles': ['plot twists', 'emotional moments', 'character development', 'deep stories', 'powerful performances'],
+            'engagement_hooks': ['will move you to tears', 'emotionally devastating', 'award-worthy performances', 'will change your perspective'],
+            'hook_starters': ['This emotional masterpiece', 'The most powerful story', 'This drama will', 'Get ready to feel']
+        },
+        
+        # Romance family
+        'romance_family': {
+            'mood_words': ['romantic', 'heartwarming', 'passionate', 'emotional', 'sweet', 'touching'],
+            'viral_angles': ['love stories', 'romantic chemistry', 'tear-jerker moments', 'relationship goals', 'perfect romance'],
+            'engagement_hooks': ['will make you believe in love', 'relationship goals', 'perfect love story', 'romance at its finest'],
+            'hook_starters': ['This love story', 'The romance that', 'Love has never been', 'The perfect romantic']
+        },
+        
+        # Sci-Fi family
+        'scifi_family': {
+            'mood_words': ['mind-bending', 'futuristic', 'incredible', 'visionary', 'groundbreaking', 'otherworldly'],
+            'viral_angles': ['future technology', 'space adventures', 'mind-blowing concepts', 'sci-fi genius', 'incredible visuals'],
+            'engagement_hooks': ['will blow your mind', 'the future is here', 'sci-fi at its best', 'changes everything you know'],
+            'hook_starters': ['This sci-fi masterpiece', 'The future looks', 'Mind-bending story that', 'Sci-fi fans are obsessed']
+        },
+        
+        # Fantasy family
+        'fantasy_family': {
+            'mood_words': ['magical', 'epic', 'enchanting', 'mystical', 'legendary', 'breathtaking'],
+            'viral_angles': ['magical worlds', 'epic adventures', 'mythical creatures', 'fantasy realms', 'legendary quests'],
+            'engagement_hooks': ['magical adventure awaits', 'fantasy at its finest', 'escape to another world', 'pure fantasy magic'],
+            'hook_starters': ['This fantasy epic', 'Enter a world where', 'Magic comes alive', 'The adventure that']
+        },
+        
+        # Crime/Mystery family
+        'crime_family': {
+            'mood_words': ['gripping', 'suspenseful', 'mysterious', 'intense', 'thrilling', 'mind-bending'],
+            'viral_angles': ['plot twists', 'unsolved mysteries', 'criminal minds', 'detective work', 'shocking reveals'],
+            'engagement_hooks': ['will keep you guessing', 'mystery solved perfectly', 'plot twist you\'ll never see', 'crime story perfection'],
+            'hook_starters': ['This crime masterpiece', 'The mystery that', 'You\'ll never solve', 'Crime fans are obsessed']
+        },
+        
+        # Default family (for any genre not specifically mapped)
+        'default_family': {
+            'mood_words': ['incredible', 'amazing', 'compelling', 'captivating', 'outstanding', 'unforgettable'],
+            'viral_angles': ['plot twists', 'great storytelling', 'amazing performances', 'must-see moments', 'pure entertainment'],
+            'engagement_hooks': ['you can\'t miss this', 'entertainment at its finest', 'absolutely incredible', 'will leave you amazed'],
+            'hook_starters': ['This incredible movie', 'You won\'t believe', 'Everyone\'s talking about', 'The movie that']
+        }
     }
-}
+    
+    # Genre family mapping - maps each genre to its family template
+    genre_family_mapping = {
+        'Horror': 'horror_family',
+        'Mystery & Thriller': 'crime_family',
+        'Crime': 'crime_family',
+        
+        'Action & Adventure': 'action_family',
+        'War & Military': 'action_family',
+        
+        'Comedy': 'comedy_family',
+        
+        'Drama': 'drama_family',
+        'Documentary': 'drama_family',
+        'History': 'drama_family',
+        
+        'Romance': 'romance_family',
+        
+        'Science-Fiction': 'scifi_family',
+        
+        'Fantasy': 'fantasy_family',
+        
+        # All others use default
+        'Animation': 'default_family',
+        'Kids & Family': 'default_family',
+        'Made in Europe': 'default_family',
+        'Music & Musical': 'default_family',
+        'Reality TV': 'default_family',
+        'Sport': 'default_family',
+        'Western': 'default_family'
+    }
+    
+    # Generate customizations for all genres dynamically
+    try:
+        from config.constants import get_supported_genres
+        supported_genres = get_supported_genres()
+    except ImportError:
+        # Fallback to hardcoded list if import fails
+        supported_genres = [
+            'Action & Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 
+            'Drama', 'Fantasy', 'History', 'Horror', 'Kids & Family', 
+            'Made in Europe', 'Music & Musical', 'Mystery & Thriller', 
+            'Reality TV', 'Romance', 'Science-Fiction', 'Sport', 'War & Military', 'Western'
+        ]
+    
+    # Build dynamic customizations
+    dynamic_customizations = {}
+    for genre in supported_genres:
+        family_key = genre_family_mapping.get(genre, 'default_family')
+        family_template = base_customizations[family_key]
+        
+        # Create genre-specific customization
+        dynamic_customizations[genre] = {
+            'mood_words': family_template['mood_words'].copy(),
+            'viral_angles': family_template['viral_angles'].copy(), 
+            'engagement_hooks': family_template['engagement_hooks'].copy(),
+            'hook_starters': family_template['hook_starters'].copy()
+        }
+    
+    return dynamic_customizations
+
+# Generate dynamic customizations at module load
+GENRE_CUSTOMIZATIONS = _generate_dynamic_genre_customizations()
 
 # Platform-specific optimizations
 PLATFORM_OPTIMIZATIONS = {

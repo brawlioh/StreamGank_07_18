@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 
 # Import modular functions
-from ai.robust_script_generator import generate_video_scripts
+from ai.clean_script_generator import generate_video_scripts
 from video.poster_generator import create_enhanced_movie_posters
 # Import clip processing (standard video processing without AI + parallel Vizard AI)
 from video.clip_processor import process_movie_trailers_to_clips, process_movie_trailers_to_clips_vizard, process_movie_trailers_to_clips_vizard_parallel
@@ -717,7 +717,25 @@ def run_full_workflow(num_movies: int = 3,
             print("   🔄 No cached HeyGen data found, creating new videos...")
             print("   Using HeyGen API for video generation...")
             
-            heygen_video_ids = create_heygen_video(individual_scripts, True, heygen_template_id)
+            # ========================================================================
+            # 🎯 CRITICAL FIX: Combine intro + movie1 for first HeyGen video
+            # ========================================================================
+            heygen_scripts = individual_scripts.copy()  # Don't modify original
+            
+            if "intro" in heygen_scripts and "movie1" in heygen_scripts:
+                # Combine intro + movie1 into first video script
+                combined_movie1 = f"{heygen_scripts['intro']} {heygen_scripts['movie1']}"
+                heygen_scripts["movie1"] = combined_movie1
+                
+                # Remove standalone intro (it's now part of movie1)
+                del heygen_scripts["intro"]
+                
+                print(f"   ✅ INTRO COMBINED: First HeyGen video = intro + movie1")
+                print(f"   📝 Combined script length: {len(combined_movie1.split())} words")
+            else:
+                print(f"   ⚠️ Warning: Missing intro or movie1 scripts for combination")
+            
+            heygen_video_ids = create_heygen_video(heygen_scripts, True, heygen_template_id)
             
             if not heygen_video_ids:
                 raise Exception("HeyGen video creation failed")

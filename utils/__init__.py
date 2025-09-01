@@ -13,7 +13,7 @@ Modules:
 
 from .url_builder import *
 from .validators import *
-from .formatters import *
+# formatters module removed - functions were bloated 1-liner utilities
 from .file_utils import *
 
 __all__ = [
@@ -32,12 +32,7 @@ __all__ = [
     'is_valid_genre',
     'is_valid_platform',
     
-    # Formatters
-    'sanitize_script_text',
-    'format_movie_title',
-    'format_duration',
-    'truncate_text',
-    'clean_filename',
+    # Formatters removed - were bloated 1-liner functions
     
     # File Utils
     'ensure_directory',

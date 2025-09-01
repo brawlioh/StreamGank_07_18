@@ -21,7 +21,7 @@ import requests
 from config.templates import get_heygen_template_id
 from config.settings import get_api_config
 from utils.validators import validate_environment_variables
-from ai.script_manager import validate_script_content
+from ai.script_validator import validate_script_content
 
 logger = logging.getLogger(__name__)
 

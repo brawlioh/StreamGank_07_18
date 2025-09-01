@@ -2881,8 +2881,16 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                 project_data = project_response.json()
                 
                 if project_data.get('code') != 2000:
-                    logger.error(f"❌ Vizard API error for {title}: {project_data}")
-                    break  # Exit project attempt loop and try next movie
+                    # Handle rate limiting specifically
+                    if project_data.get('code') == 4003:
+                        error_msg = project_data.get('errMsg', 'Rate limit exceeded')
+                        logger.error(f"🚫 VIZARD RATE LIMIT for {title}: {error_msg}")
+                        logger.error(f"   ⏰ Waiting 60 seconds before retry...")
+                        time.sleep(60)  # Wait 1 minute for rate limit reset
+                        continue  # Retry the same project
+                    else:
+                        logger.error(f"❌ Vizard API error for {title}: {project_data}")
+                        break  # Exit project attempt loop and try next movie
                     
                 project_id = project_data.get('projectId')
                 if not project_id:
@@ -3227,10 +3235,18 @@ def process_movie_trailers_to_clips_vizard_parallel(movie_data: List[Dict], max_
                 project_data = project_response.json()
                 
                 if project_data.get('code') != 2000:
-                    logger.error(f"❌ [Thread-{thread_id}] Vizard API error for {movie_title}: {project_data}")
-                    if project_attempt >= max_project_attempts:
-                        return (movie_title, None)
-                    continue  # Try creating a new project
+                    # Handle rate limiting specifically
+                    if project_data.get('code') == 4003:
+                        error_msg = project_data.get('errMsg', 'Rate limit exceeded')
+                        logger.error(f"🚫 [Thread-{thread_id}] VIZARD RATE LIMIT for {movie_title}: {error_msg}")
+                        logger.error(f"   ⏰ [Thread-{thread_id}] Waiting 120 seconds before retry...")
+                        time.sleep(120)  # Wait 2 minutes for rate limit reset (longer in parallel mode)
+                        continue  # Retry the same project
+                    else:
+                        logger.error(f"❌ [Thread-{thread_id}] Vizard API error for {movie_title}: {project_data}")
+                        if project_attempt >= max_project_attempts:
+                            return (movie_title, None)
+                        continue  # Try creating a new project
                 
                 project_id = project_data.get('projectId')
                 if not project_id:
