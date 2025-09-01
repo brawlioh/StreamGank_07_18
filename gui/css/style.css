@@ -481,6 +481,25 @@ body {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* Fix: Prevent dark overlay on video hover */
+.video-container video:hover {
+    filter: none;
+    opacity: 1;
+}
+
+/* Alternative: Disable browser video controls overlay */
+.video-container video::-webkit-media-controls-overlay-play-button {
+    display: none;
+}
+
+.video-container video::-webkit-media-controls {
+    opacity: 0.8;
+}
+
+.video-container video:hover::-webkit-media-controls {
+    opacity: 1;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .video-container {
@@ -781,6 +800,20 @@ body {
     border-radius: 6px;
     margin-bottom: 1rem;
     background-color: #000;
+}
+
+/* Fix: Prevent dark overlay on video gallery items hover */
+.video-item video:hover {
+    filter: none;
+    opacity: 1;
+}
+
+.video-item video::-webkit-media-controls {
+    opacity: 0.8;
+}
+
+.video-item video:hover::-webkit-media-controls {
+    opacity: 1;
 }
 
 .video-item .video-actions {
