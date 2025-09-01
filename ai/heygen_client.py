@@ -477,7 +477,7 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
         status_result = wait_for_heygen_video(
             video_id, 
             script_length=script_length,
-            max_wait_minutes=25
+            max_wait_minutes=30
         )
         
         if status_result['success'] and status_result['video_url']:
@@ -495,7 +495,7 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
     return video_urls
 
 
-def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_minutes: int = 15) -> dict:
+def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_minutes: int = 30) -> dict:
     """
     Wait for HeyGen video completion with progress feedback.
     
@@ -504,17 +504,19 @@ def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_min
     Args:
         video_id: HeyGen video ID
         script_length: Script length for time estimation
-        max_wait_minutes: Maximum wait time in minutes
+        max_wait_minutes: Maximum wait time in minutes (increased to 30 min due to HeyGen processing delays)
         
     Returns:
         Dictionary with status information
     """
-    # Estimate processing time
+    # Estimate processing time - INCREASED BUFFER due to HeyGen processing delays
     estimated_minutes = estimate_heygen_processing_time(script_length)
-    timeout_minutes = min(max(estimated_minutes + 5, 8), max_wait_minutes)
+    # Increased buffer: +8 minutes instead of +5, minimum 12 minutes instead of 8
+    timeout_minutes = min(max(estimated_minutes + 8, 12), max_wait_minutes)
     max_total_seconds = timeout_minutes * 60
     
-    logger.info(f"⏳ Waiting for HeyGen video {video_id[:8]}... (estimated: ~{estimated_minutes} min)")
+    logger.info(f"⏳ Waiting for HeyGen video {video_id[:8]}... (estimated: ~{estimated_minutes} min, max timeout: {timeout_minutes} min)")
+    logger.info(f"   📝 Note: HeyGen processing times may vary. System will wait up to {timeout_minutes} minutes for completion.")
     
     start_time = time.time()
     attempt = 0
@@ -532,36 +534,54 @@ def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_min
             elapsed_time = int(elapsed_seconds)
             minutes, seconds = divmod(elapsed_time, 60)
             time_str = f"{minutes:02d}:{seconds:02d}"
-            print(f"\r⏰ HeyGen video timeout    [{'░' * 30}] ----  │ {time_str} │ Max time reached{' ' * 10}")
-            logger.warning(f"HeyGen video {video_id[:8]}... exceeded max wait time")
+            print(f"\r⏰ HeyGen video timeout    [{'░' * 30}] ----  │ {time_str} │ Max time reached ({timeout_minutes} min){' ' * 10}")
+            logger.warning(f"HeyGen video {video_id[:8]}... exceeded max wait time of {timeout_minutes} minutes")
+            logger.warning(f"   💡 HeyGen processing took longer than expected. This may be due to:")
+            logger.warning(f"   • High API load on HeyGen servers")
+            logger.warning(f"   • Complex script content requiring more processing")
+            logger.warning(f"   • Temporary HeyGen service delays")
+            logger.warning(f"   🔄 You can retry the operation, or check HeyGen's status page")
             
             return {
                 'success': False,
                 'status': 'timeout',
                 'video_url': '',
-                'data': {}
+                'data': {},
+                'timeout_minutes': timeout_minutes,
+                'elapsed_seconds': elapsed_seconds
             }
         
         # Check status at intervals
         if current_time >= next_check_time:
             attempt += 1
             
-            # Calculate progress
-            time_progress = min(elapsed_seconds / (estimated_minutes * 60) * 100, 95)
-            attempt_progress = min(elapsed_seconds / max_total_seconds * 100, 95)
+            # Calculate progress - IMPROVED for longer processing times
+            time_progress = min(elapsed_seconds / (estimated_minutes * 60) * 100, 90)
+            attempt_progress = min(elapsed_seconds / max_total_seconds * 100, 90)
             progress = max(time_progress, attempt_progress)
+            
+            # For videos taking longer than estimated time, show more realistic progress
+            if elapsed_seconds > estimated_minutes * 60:
+                # After estimated time, gradually approach 95% based on timeout
+                overtime_progress = 90 + (min(elapsed_seconds - estimated_minutes * 60, max_total_seconds * 0.3) / (max_total_seconds * 0.3)) * 5
+                progress = min(overtime_progress, 95)
             
             elapsed_time = int(elapsed_seconds)
             minutes, seconds = divmod(elapsed_time, 60)
             time_str = f"{minutes:02d}:{seconds:02d}"
             
-            # ETA calculation
-            remaining_seconds = max(0, (estimated_minutes * 60) - elapsed_seconds)
-            if remaining_seconds > 0 and progress < 90:
-                remaining_minutes, remaining_secs = divmod(int(remaining_seconds), 60)
-                eta_str = f"ETA ~{remaining_minutes:02d}:{remaining_secs:02d}"
-            else:
+            # ETA calculation - IMPROVED for longer processing times
+            if progress < 85:
+                remaining_seconds = max(0, (estimated_minutes * 60) - elapsed_seconds)
+                if remaining_seconds > 0:
+                    remaining_minutes, remaining_secs = divmod(int(remaining_seconds), 60)
+                    eta_str = f"ETA ~{remaining_minutes:02d}:{remaining_secs:02d}"
+                else:
+                    eta_str = "Processing..."
+            elif progress < 95:
                 eta_str = "Almost ready..."
+            else:
+                eta_str = "Finalizing..."
             
             # Progress display
             spinner = spinner_frames[attempt % len(spinner_frames)]
@@ -1389,7 +1409,7 @@ def select_optimal_template(genre: Optional[str] = None,
                 logger.info(f"✅ Primary template selected: {primary_template} for {genre}")
         
         # STEP 2: Fuzzy genre matching for partial matches
-        if not selection_result['template_id'] and genre and fallback_enabled:
+        if not selection_result['template_id'] and genre:
             fuzzy_template = _find_fuzzy_genre_match(genre)
             if fuzzy_template:
                 selection_result.update({
