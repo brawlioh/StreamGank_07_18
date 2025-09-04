@@ -1,34 +1,37 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import Navigation from "../components/Navigation";
-import { addStatusMessage } from "../components/StatusMessages";
+import { addStatusMessage } from "../utils/statusMessages";
 import APIService from "../services/APIService";
+import type { Job } from "../types/job";
 
-interface Job {
-    id: string;
-    status: "pending" | "active" | "processing" | "rendering" | "completed" | "failed" | "cancelled";
-    progress: number;
-    currentStep: string;
-    country?: string;
-    platform?: string;
-    genre?: string;
-    contentType?: string;
-    template?: string;
-    workerId?: string;
-    startedAt: string;
-    completedAt?: string;
-    videoUrl?: string;
-    creatomateId?: string;
-    error?: string;
-    stepDetails?: any;
-    parameters?: {
-        country: string;
-        platform: string;
-        genre: string;
-        contentType: string;
-        template: string;
-        pauseAfterExtraction?: boolean;
+interface LogEntry {
+    event_type: string;
+    details?: {
+        step_number: number;
+        status: string;
+        [key: string]: unknown;
     };
+}
+
+interface SSEMessage {
+    job_id: string;
+    type: string;
+    step_number?: number;
+    step_name?: string;
+    status?: string;
+    job_status?: string;
+    progress?: number;
+    currentStep?: string;
+    failed?: boolean;
+    error?: string;
+    validated?: boolean;
+    details?: {
+        creatomate_id?: string;
+        [key: string]: unknown;
+    };
+    videoUrl?: string;
+    timestamp?: string;
 }
 
 interface ProcessStep {
@@ -86,37 +89,8 @@ export default function JobDetail() {
         document.title = `Job ${jobId} - StreamGank Video Generator`;
     }, [jobId]);
 
-    // Load job data
-    const loadJobData = async () => {
-        if (!jobId) return;
-
-        try {
-            setIsLoading(true);
-            console.log(`📡 Loading job data for: ${jobId}`);
-
-            const response = await APIService.getJobStatus(jobId);
-
-            if (!response.success || !response.job) {
-                throw new Error("Job not found");
-            }
-
-            setJobData(response.job);
-            setError(null);
-
-            // Load current active step from logs
-            await loadCurrentActiveStepFromLogs();
-
-            console.log("✅ Job data loaded successfully");
-        } catch (err: any) {
-            console.error("❌ Failed to load job data:", err);
-            setError(err.message);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     // Load current active step from persistent logs
-    const loadCurrentActiveStepFromLogs = async () => {
+    const loadCurrentActiveStepFromLogs = useCallback(async () => {
         try {
             const response = await fetch(`/api/queue/job/${jobId}/logs/persistent?limit=50`);
             if (!response.ok) return;
@@ -129,7 +103,7 @@ export default function JobDetail() {
             const stepStatus: Record<number, string> = {};
 
             // Process logs to find current active step
-            logs.forEach((log: any) => {
+            logs.forEach((log: LogEntry) => {
                 if (log.event_type === "webhook_received" && log.details) {
                     const stepNumber = log.details.step_number;
                     const status = log.details.status;
@@ -152,10 +126,151 @@ export default function JobDetail() {
         } catch (error) {
             console.error("❌ Error loading persistent logs:", error);
         }
-    };
+    }, [jobId]);
+
+    // Load job data
+    const loadJobData = useCallback(async () => {
+        if (!jobId) return;
+
+        try {
+            setIsLoading(true);
+            console.log(`📡 Loading job data for: ${jobId}`);
+
+            const response = await APIService.getJobStatus(jobId);
+
+            if (!response.success || !response.job) {
+                throw new Error("Job not found");
+            }
+
+            setJobData(response.job as Job);
+            setError(null);
+
+            // Load current active step from logs
+            await loadCurrentActiveStepFromLogs();
+
+            console.log("✅ Job data loaded successfully");
+        } catch (err: unknown) {
+            console.error("❌ Failed to load job data:", err);
+            setError(err instanceof Error ? err.message : "Unknown error occurred");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [jobId, loadCurrentActiveStepFromLogs]);
+
+    // Handle job-specific SSE messages
+    const handleJobSSEMessage = useCallback(
+        (data: SSEMessage) => {
+            if (data.job_id !== jobId) return;
+
+            switch (data.type) {
+                case "step_update":
+                    if (!data.validated) break;
+
+                    console.log(`📡 Real-time step update: Step ${data.step_number} ${data.status}`);
+
+                    // 🚨 CRITICAL: Handle failure status immediately
+                    if (data.failed || data.job_status === "failed" || data.status === "failed") {
+                        console.log(`🚨 Job ${jobId} failed via SSE update:`, data.error);
+                        addStatusMessage("error", "❌", `Job failed: ${data.error || "Workflow error"}`);
+
+                        setJobData((prev) =>
+                            prev
+                                ? {
+                                      ...prev,
+                                      status: "failed",
+                                      error: data.error || "Workflow failed",
+                                      currentStep: data.currentStep || `❌ Failed at ${data.step_name}`,
+                                      progress: data.progress || prev.progress,
+                                  }
+                                : null
+                        );
+
+                        // Clear active step on failure
+                        setCurrentActiveStep(null);
+                        return;
+                    }
+
+                    if (jobData) {
+                        if (data.status === "started" && data.step_number) {
+                            setCurrentActiveStep(data.step_number);
+                            setJobData((prev) =>
+                                prev
+                                    ? {
+                                          ...prev,
+                                          currentStep: `Step ${data.step_number}/7: ${data.step_name} (Processing...)`,
+                                          progress: data.progress || prev.progress,
+                                      }
+                                    : null
+                            );
+                        } else if (data.status === "completed") {
+                            if (currentActiveStep === data.step_number) {
+                                setCurrentActiveStep(null);
+                            }
+                            setJobData((prev) =>
+                                prev
+                                    ? {
+                                          ...prev,
+                                          currentStep: `Step ${data.step_number}/7: ${data.step_name} ✅`,
+                                          progress: data.progress || prev.progress,
+                                      }
+                                    : null
+                            );
+
+                            // Handle step 7 completion
+                            if (data.step_number === 7 && data.details?.creatomate_id) {
+                                setJobData((prev) =>
+                                    prev
+                                        ? {
+                                              ...prev,
+                                              creatomateId: data.details!.creatomate_id,
+                                          }
+                                        : null
+                                );
+                            }
+                        }
+                    }
+                    break;
+
+                case "render_completed":
+                    console.log("🎬 INSTANT: Creatomate render completed via webhook!", data);
+                    if (jobData) {
+                        setJobData((prev) =>
+                            prev
+                                ? {
+                                      ...prev,
+                                      status: "completed",
+                                      progress: 100,
+                                      currentStep: "🎉 Video rendering completed successfully!",
+                                      videoUrl: data.videoUrl,
+                                      completedAt: data.timestamp,
+                                  }
+                                : null
+                        );
+                    }
+                    break;
+
+                case "render_failed":
+                    console.log("❌ INSTANT: Creatomate render failed via webhook!", data);
+                    if (jobData) {
+                        setJobData((prev) =>
+                            prev
+                                ? {
+                                      ...prev,
+                                      status: "failed",
+                                      currentStep: `❌ Video rendering failed: ${data.error}`,
+                                      error: data.error,
+                                  }
+                                : null
+                        );
+                    }
+                    break;
+            }
+        },
+        [jobId, jobData, currentActiveStep]
+    );
 
     // Initialize job-specific SSE
-    const initializeJobSSE = () => {
+    const initializeJobSSE = useCallback(() => {
         if (jobSSE || !jobId) return;
 
         console.log(`📡 Connecting to job-specific real-time updates for ${jobId}`);
@@ -190,94 +305,7 @@ export default function JobDetail() {
         } catch (error) {
             console.error(`❌ Failed to initialize job SSE for ${jobId}:`, error);
         }
-    };
-
-    // Handle job-specific SSE messages
-    const handleJobSSEMessage = (data: any) => {
-        if (data.job_id !== jobId) return;
-
-        switch (data.type) {
-            case "step_update":
-                if (!data.validated) break;
-
-                console.log(`📡 Real-time step update: Step ${data.step_number} ${data.status}`);
-
-                if (jobData) {
-                    if (data.status === "started") {
-                        setCurrentActiveStep(data.step_number);
-                        setJobData((prev) =>
-                            prev
-                                ? {
-                                      ...prev,
-                                      currentStep: `Step ${data.step_number}/7: ${data.step_name} (Processing...)`,
-                                      progress: data.progress || prev.progress,
-                                  }
-                                : null
-                        );
-                    } else if (data.status === "completed") {
-                        if (currentActiveStep === data.step_number) {
-                            setCurrentActiveStep(null);
-                        }
-                        setJobData((prev) =>
-                            prev
-                                ? {
-                                      ...prev,
-                                      currentStep: `Step ${data.step_number}/7: ${data.step_name} ✅`,
-                                      progress: data.progress || prev.progress,
-                                  }
-                                : null
-                        );
-
-                        // Handle step 7 completion
-                        if (data.step_number === 7 && data.details?.creatomate_id) {
-                            setJobData((prev) =>
-                                prev
-                                    ? {
-                                          ...prev,
-                                          creatomateId: data.details.creatomate_id,
-                                      }
-                                    : null
-                            );
-                        }
-                    }
-                }
-                break;
-
-            case "render_completed":
-                console.log("🎬 INSTANT: Creatomate render completed via webhook!", data);
-                if (jobData) {
-                    setJobData((prev) =>
-                        prev
-                            ? {
-                                  ...prev,
-                                  status: "completed",
-                                  progress: 100,
-                                  currentStep: "🎉 Video rendering completed successfully!",
-                                  videoUrl: data.videoUrl,
-                                  completedAt: data.timestamp,
-                              }
-                            : null
-                    );
-                }
-                break;
-
-            case "render_failed":
-                console.log("❌ INSTANT: Creatomate render failed via webhook!", data);
-                if (jobData) {
-                    setJobData((prev) =>
-                        prev
-                            ? {
-                                  ...prev,
-                                  status: "failed",
-                                  currentStep: `❌ Video rendering failed: ${data.error}`,
-                                  error: data.error,
-                              }
-                            : null
-                    );
-                }
-                break;
-        }
-    };
+    }, [jobSSE, jobId, handleJobSSEMessage]);
 
     // Initialize page
     useEffect(() => {
@@ -295,18 +323,29 @@ export default function JobDetail() {
                 jobSSE.close();
             }
         };
-    }, [jobId]);
+    }, [jobId, loadJobData, initializeJobSSE, jobSSE]);
 
     const handleCancelJob = async () => {
-        if (!jobData || !confirm("Are you sure you want to cancel this job?")) return;
+        if (!jobData) return;
+
+        // Different confirmation messages based on job status
+        let confirmMessage = "Are you sure you want to cancel this job?";
+        if (jobData.status === "processing") {
+            confirmMessage = "⚠️ This job is currently processing. Stopping it may result in incomplete work. Are you sure you want to stop this job?";
+        } else if (jobData.status === "failed") {
+            confirmMessage = "Are you sure you want to remove this failed job from the queue?";
+        }
+
+        if (!confirm(confirmMessage)) return;
 
         try {
             const response = await APIService.cancelJob(jobData.id);
             if (response.success) {
                 await loadJobData();
-                addStatusMessage("success", "⏹️", "Job cancelled successfully");
+                const statusMessage = jobData.status === "processing" ? "Job stopped successfully" : jobData.status === "failed" ? "Job removed successfully" : "Job cancelled successfully";
+                addStatusMessage("success", "⏹️", statusMessage);
             }
-        } catch (error) {
+        } catch {
             addStatusMessage("error", "❌", "Failed to cancel job");
         }
     };
@@ -320,7 +359,7 @@ export default function JobDetail() {
                 await loadJobData();
                 addStatusMessage("success", "🔄", "Job retry initiated");
             }
-        } catch (error) {
+        } catch {
             addStatusMessage("error", "❌", "Failed to retry job");
         }
     };
@@ -347,7 +386,7 @@ export default function JobDetail() {
             } else {
                 addStatusMessage("info", "⏳", `Video status: ${result.status || "Unknown"}`);
             }
-        } catch (error) {
+        } catch {
             addStatusMessage("error", "❌", "Failed to check video status");
         }
     };
@@ -390,7 +429,7 @@ export default function JobDetail() {
         return stepIcons[stepId] || "○";
     };
 
-    const getStepIconClass = (step: ProcessStep, index: number) => {
+    const getStepIconClass = (_step: ProcessStep, index: number) => {
         const currentProgress = jobData?.progress || 0;
         const currentStep = jobData?.currentStep || "";
         const currentStepIndex = getCurrentStepIndex(currentStep);
@@ -624,10 +663,10 @@ export default function JobDetail() {
 
                             {/* Quick Actions */}
                             <div className="flex gap-2 mt-3 pt-2 border-t" style={{ borderColor: "var(--border-color)" }}>
-                                {(jobData.status === "pending" || jobData.status === "active") && (
-                                    <button onClick={handleCancelJob} className="btn btn-outline-warning btn-sm flex-1">
-                                        <i className="fas fa-stop-circle mr-1"></i>
-                                        Cancel
+                                {jobData.status !== "completed" && (
+                                    <button onClick={handleCancelJob} className={`btn btn-sm flex-1 ${jobData.status === "processing" ? "btn-warning" : "btn-outline-warning"}`}>
+                                        <i className={`fas ${jobData.status === "processing" ? "fa-hand-paper" : "fa-stop-circle"} mr-1`}></i>
+                                        {jobData.status === "processing" ? "Stop Process" : jobData.status === "failed" ? "Remove Job" : "Cancel"}
                                     </button>
                                 )}
                                 {jobData.status === "failed" && (

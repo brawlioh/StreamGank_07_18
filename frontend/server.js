@@ -909,6 +909,9 @@ app.post("/api/webhooks/step-update", async (req, res) => {
         // Update job with step progress - WITH STEP VALIDATION
         const job = await queueManager.getJob(job_id);
         if (job) {
+            // ✅ IMMEDIATE STATUS UPDATE: Update job status immediately on webhook receive
+            console.log(`📊 Job ${job_id} current status: ${job.status} -> Processing webhook for step ${step_number}`);
+
             // ✅ STEP VALIDATION: Prevent out-of-order step updates
             const lastSequence = job.lastStepSequence || 0;
             const currentSequence = sequence || Date.now();
@@ -1045,9 +1048,28 @@ app.post("/api/webhooks/step-update", async (req, res) => {
 
             console.log(`✅ Real-time update: Job ${job_id} - ${job.progress}% - ${job.currentStep}`);
 
-            // Add essential real-time log entries only
-            if (step_number >= 1 && step_number <= 7 && status === "completed") {
-                queueManager.addJobLog(job_id, `✅ Step ${step_number}/7 completed: ${step_name}`, "success");
+            // 🚨 CRITICAL: Handle failure status immediately
+            if (status === "failed" || (details && details.error)) {
+                console.log(`🚨 FAILURE DETECTED: Setting job ${job_id} to failed status`);
+                job.status = "failed";
+                job.error = details?.error || "Workflow step failed";
+                job.failedAt = new Date().toISOString();
+                job.currentStep = `❌ Failed at ${step_name}`;
+
+                // Update job in Redis immediately
+                await queueManager.updateJob(job);
+
+                // Move to failed queue
+                await queueManager.lremAsync(queueManager.keys.processing, 1, JSON.stringify(job));
+                await queueManager.rpushAsync(queueManager.keys.failed, JSON.stringify(job));
+
+                console.log(`🗂️ Job ${job_id} moved to failed queue due to webhook failure notification`);
+                queueManager.addJobLog(job_id, `❌ Step ${step_number}/7 failed: ${step_name} - ${details?.error || "Unknown error"}`, "error");
+            } else {
+                // Add essential real-time log entries only for successful steps
+                if (step_number >= 1 && step_number <= 7 && status === "completed") {
+                    queueManager.addJobLog(job_id, `✅ Step ${step_number}/7 completed: ${step_name}`, "success");
+                }
             }
 
             // REAL-TIME FRONTEND UPDATE: Send job update to connected SSE clients
@@ -1071,6 +1093,11 @@ app.post("/api/webhooks/step-update", async (req, res) => {
                     details: details || {},
                     // 🚀 IMMEDIATE ACCESS: If step 7 completed, include creatomate_id directly
                     creatomate_id: step_number === 7 && status === "completed" ? details?.creatomate_id : undefined,
+                    // 🚨 CRITICAL: Include failure information for immediate frontend updates
+                    job_status: job.status,
+                    error: job.error || null,
+                    failed: job.status === "failed",
+                    failedAt: job.failedAt || null,
                 };
 
                 sseClients.forEach((client) => {

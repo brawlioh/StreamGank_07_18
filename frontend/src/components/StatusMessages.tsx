@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import type { StatusMessageType } from "../utils/statusMessages";
 
 interface StatusMessage {
     id: string;
-    type: "success" | "error" | "warning" | "info" | "waiting";
+    type: StatusMessageType;
     icon: string;
     message: string;
     timestamp: number;
@@ -93,12 +94,3 @@ export default function StatusMessages({ className = "" }: StatusMessagesProps) 
         </div>
     );
 }
-
-// Global function to add status messages from anywhere in the app
-export const addStatusMessage = (type: StatusMessage["type"], icon: string, message: string) => {
-    window.dispatchEvent(
-        new CustomEvent("add-status-message", {
-            detail: { type, icon, message },
-        })
-    );
-};

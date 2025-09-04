@@ -3,23 +3,13 @@
  * Handles Server-Sent Events (SSE) and fallback polling for queue status updates
  */
 import APIService from "./APIService";
+import type { QueueStats } from "../types/queue";
 
 interface PollingConfig {
     fast: number;
     normal: number;
     slow: number;
     slowest: number;
-}
-
-interface QueueStats {
-    pending: number;
-    processing: number;
-    completed: number;
-    failed: number;
-    activeWorkers: number;
-    availableWorkers: number;
-    concurrentProcessing: boolean;
-    _debug?: string;
 }
 
 export class RealtimeService extends EventTarget {
@@ -286,6 +276,13 @@ export class RealtimeService extends EventTarget {
     }
 
     /**
+     * Validate if an object is a valid QueueStats
+     */
+    private isValidQueueStats(obj: unknown): obj is QueueStats {
+        return obj !== null && typeof obj === "object" && "pending" in obj && "processing" in obj && "completed" in obj && "failed" in obj && "activeWorkers" in obj && "availableWorkers" in obj && "concurrentProcessing" in obj;
+    }
+
+    /**
      * Poll queue status via API
      */
     private async pollQueueStatus(): Promise<void> {
@@ -294,7 +291,7 @@ export class RealtimeService extends EventTarget {
             const result = await APIService.getQueueStatus();
             const duration = Date.now() - startTime;
 
-            if (result.success && result.stats) {
+            if (result.success && result.stats && this.isValidQueueStats(result.stats)) {
                 this.lastUpdateTime = Date.now();
                 this.consecutiveErrors = 0;
 
@@ -310,7 +307,7 @@ export class RealtimeService extends EventTarget {
                 );
 
                 // Adaptive polling based on response time and activity
-                this.adjustPollingInterval(duration, result.stats);
+                this.adjustPollingInterval(duration, result.stats as QueueStats);
             } else {
                 this.consecutiveErrors++;
                 console.warn("⚠️ Polling received invalid response");
@@ -456,7 +453,17 @@ export class RealtimeService extends EventTarget {
     /**
      * Get connection status
      */
-    getConnectionStatus(): any {
+    getConnectionStatus(): {
+        isConnected: boolean;
+        connectionType: string;
+        isSSEEnabled: boolean;
+        isPolling: boolean;
+        pollingInterval: number;
+        sseRetryCount: number;
+        consecutiveErrors: number;
+        lastUpdateTime: number;
+        timeSinceLastUpdate: number;
+    } {
         return {
             isConnected: this.isConnected,
             connectionType: this.isSSEEnabled ? "sse" : this.isPolling ? "polling" : "none",

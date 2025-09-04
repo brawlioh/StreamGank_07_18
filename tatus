@@ -1,0 +1,12 @@
+warning: in the working copy of 'frontend/server.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/pages/Dashboard.tsx', LF will be replaced by CRLF the next time Git touches it
+frontend/server.js
+frontend/src/components/FormManager.tsx
+frontend/src/components/StatusMessages.tsx
+frontend/src/pages/Dashboard.tsx
+frontend/src/pages/JobDetail.tsx
+frontend/src/pages/Queue.tsx
+frontend/src/services/APIService.ts
+frontend/src/services/RealtimeService.ts
+railway.env
+utils/webhook_client.py

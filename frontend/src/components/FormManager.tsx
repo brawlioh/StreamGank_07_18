@@ -25,6 +25,31 @@ interface FormManagerProps {
     onGenerate?: (formData: FormState) => void;
 }
 
+// Genre mappings by country - moved outside component to avoid recreation on every render
+const genresByCountry = {
+    US: {
+        "Action & Adventure": "Action & Adventure",
+        Animation: "Animation",
+        Comedy: "Comedy",
+        Crime: "Crime",
+        Documentary: "Documentary",
+        Drama: "Drama",
+        Fantasy: "Fantasy",
+        History: "History",
+        Horror: "Horror",
+        "Kids & Family": "Kids & Family",
+        "Made in Europe": "Made in Europe",
+        "Music & Musical": "Music & Musical",
+        "Mystery & Thriller": "Mystery & Thriller",
+        "Reality TV": "Reality TV",
+        Romance: "Romance",
+        "Science-Fiction": "Science-Fiction",
+        Sport: "Sport",
+        "War & Military": "War & Military",
+        Western: "Western",
+    },
+};
+
 export default function FormManager({ onFormStateChange, onMoviePreviewUpdate, onGenerate }: FormManagerProps) {
     const [formState, setFormState] = useState<FormState>({
         country: "US",
@@ -39,51 +64,6 @@ export default function FormManager({ onFormStateChange, onMoviePreviewUpdate, o
     const [availableGenres, setAvailableGenres] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // Genre mappings by country
-    const genresByCountry = {
-        FR: {
-            "Action & Aventure": "Action & Adventure",
-            Animation: "Animation",
-            Comédie: "Comedy",
-            "Crime & Thriller": "Crime & Thriller",
-            Documentaire: "Documentary",
-            Drame: "Drama",
-            Fantastique: "Fantasy",
-            "Film de guerre": "War Movies",
-            Histoire: "History",
-            Horreur: "Horror",
-            "Musique & Musicale": "Music & Musical",
-            "Mystère & Thriller": "Mystery & Thriller",
-            "Pour enfants": "Kids",
-            "Reality TV": "Reality TV",
-            "Réalisé en Europe": "Made in Europe",
-            "Science-Fiction": "Science Fiction",
-            "Sport & Fitness": "Sport & Fitness",
-            Western: "Western",
-        },
-        US: {
-            "Action & Adventure": "Action & Adventure",
-            Animation: "Animation",
-            Comedy: "Comedy",
-            Crime: "Crime",
-            Documentary: "Documentary",
-            Drama: "Drama",
-            Fantasy: "Fantasy",
-            History: "History",
-            Horror: "Horror",
-            "Kids & Family": "Kids & Family",
-            "Made in Europe": "Made in Europe",
-            "Music & Musical": "Music & Musical",
-            "Mystery & Thriller": "Mystery & Thriller",
-            "Reality TV": "Reality TV",
-            Romance: "Romance",
-            "Science-Fiction": "Science-Fiction",
-            Sport: "Sport",
-            "War & Military": "War & Military",
-            Western: "Western",
-        },
-    };
-
     // Template mappings
     const templates = {
         cc6718c5363e42b282a123f99b94b335: { name: "Default Template", genres: ["default"] },
@@ -96,8 +76,8 @@ export default function FormManager({ onFormStateChange, onMoviePreviewUpdate, o
     const loadPlatforms = useCallback(async (country: string) => {
         try {
             const response = await APIService.getPlatforms(country);
-            if (response.success && response.platforms) {
-                setAvailablePlatforms(response.platforms);
+            if (response.success && Array.isArray(response.platforms)) {
+                setAvailablePlatforms(response.platforms as string[]);
             }
         } catch (error) {
             console.error("Failed to load platforms:", error);
@@ -210,7 +190,6 @@ export default function FormManager({ onFormStateChange, onMoviePreviewUpdate, o
                 <div className="form-group">
                     <select value={formState.country} onChange={(e) => handleCountryChange(e.target.value)} className="form-select-custom">
                         <option value="US">United States (US)</option>
-                        <option value="FR">France (FR)</option>
                     </select>
                 </div>
             </div>

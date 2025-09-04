@@ -136,12 +136,36 @@ class WebhookClient:
         )
     
     def send_workflow_failed(self, error: str, step_number: int = None) -> bool:
-        """Send workflow failure notification"""
+        """Send workflow failure notification with immediate failure status."""
+        logger.error(f"🚨 Sending workflow failure webhook: {error}")
+        
         return self.send_step_update(
             step_number=step_number or 0,
             step_name="Workflow Failed",
             status="failed",
-            details={'error': error}
+            details={
+                'error': error,
+                'failure_type': 'workflow_error',
+                'immediate_failure': True,
+                'requires_manual_intervention': True
+            }
+        )
+    
+    def send_step_failed(self, step_number: int, step_name: str, error: str, duration: float = None) -> bool:
+        """Send step failure notification with immediate failure status."""
+        logger.error(f"🚨 Sending step failure webhook: Step {step_number} - {error}")
+        
+        return self.send_step_update(
+            step_number=step_number,
+            step_name=step_name,
+            status="failed",
+            duration=duration,
+            details={
+                'error': error,
+                'failure_type': 'step_error',
+                'immediate_failure': True,
+                'failed_step': step_number
+            }
         )
     
     def send_creatomate_ready(self, creatomate_id: str, step_duration: float = 0) -> bool:

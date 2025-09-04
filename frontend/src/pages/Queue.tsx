@@ -1,47 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import Navigation from "../components/Navigation";
-import { addStatusMessage } from "../components/StatusMessages";
+import { addStatusMessage } from "../utils/statusMessages";
 import APIService from "../services/APIService";
 import RealtimeService from "../services/RealtimeService";
-
-interface Job {
-    id: string;
-    status: "pending" | "active" | "processing" | "rendering" | "completed" | "failed" | "cancelled";
-    progress: number;
-    currentStep: string;
-    country?: string;
-    platform?: string;
-    genre?: string;
-    contentType?: string;
-    template?: string;
-    workerId?: string;
-    startedAt: string;
-    completedAt?: string;
-    duration?: string;
-    videoUrl?: string;
-    creatomateId?: string;
-    error?: string;
-    parameters?: {
-        country: string;
-        platform: string;
-        genre: string;
-        contentType: string;
-        template: string;
-        pauseAfterExtraction?: boolean;
-    };
-}
-
-interface QueueStats {
-    pending: number;
-    processing: number;
-    rendering: number;
-    completed: number;
-    failed: number;
-    activeWorkers: number;
-    availableWorkers: number;
-    concurrentProcessing: boolean;
-}
+import type { Job } from "../types/job";
+import type { QueueStats } from "../types/queue";
 
 export default function Queue() {
     const [jobs, setJobs] = useState<Job[]>([]);
@@ -61,38 +25,24 @@ export default function Queue() {
     const [isLoading, setIsLoading] = useState(true);
     const [isQueueProcessing, setIsQueueProcessing] = useState(true);
 
-    // Set page title and start auto-refresh
-    useEffect(() => {
-        document.title = "Queue Management - StreamGank Video Generator";
-
-        // Auto-refresh every 30 seconds to catch failed jobs
-        const autoRefreshInterval = setInterval(() => {
-            loadQueueData();
-        }, 30000); // 30 seconds
-
-        return () => {
-            clearInterval(autoRefreshInterval);
-        };
-    }, []);
-
     // Load queue data
-    const loadQueueData = async () => {
+    const loadQueueData = useCallback(async () => {
         try {
             console.log("📋 Loading queue data...");
 
             // Load all jobs first
             const jobsResponse = await APIService.getAllJobs();
-            if (jobsResponse.success) {
-                const allJobs = jobsResponse.jobs || [];
+            if (jobsResponse.success && Array.isArray(jobsResponse.jobs)) {
+                const allJobs = jobsResponse.jobs as Job[];
                 setJobs(allJobs);
 
                 // Calculate statistics from actual jobs data
                 const calculatedStats = {
-                    pending: allJobs.filter((job) => job.status === "pending").length,
-                    processing: allJobs.filter((job) => job.status === "processing" || job.status === "active").length,
-                    rendering: allJobs.filter((job) => job.status === "rendering").length,
-                    completed: allJobs.filter((job) => job.status === "completed").length,
-                    failed: allJobs.filter((job) => job.status === "failed" || job.status === "cancelled").length,
+                    pending: allJobs.filter((job: Job) => job.status === "pending").length,
+                    processing: allJobs.filter((job: Job) => job.status === "processing" || job.status === "active").length,
+                    rendering: allJobs.filter((job: Job) => job.status === "rendering").length,
+                    completed: allJobs.filter((job: Job) => job.status === "completed").length,
+                    failed: allJobs.filter((job: Job) => job.status === "failed" || job.status === "cancelled").length,
                     activeWorkers: 0,
                     availableWorkers: 3,
                     concurrentProcessing: true,
@@ -107,39 +57,54 @@ export default function Queue() {
                 if (newFailedCount > oldFailedCount) {
                     addStatusMessage("warning", "⚠️", `${newFailedCount - oldFailedCount} new failed job(s) detected`);
                 }
+
+                // Check if queue is processing (infer from stats)
+                const hasPendingJobs = calculatedStats.pending > 0;
+                const hasProcessingJobs = calculatedStats.processing > 0;
+
+                // If there are pending jobs but no processing jobs, queue might be stopped
+                setIsQueueProcessing(!(hasPendingJobs && !hasProcessingJobs));
             }
 
             // Also try to load queue statistics from API (as backup)
             try {
                 const statsResponse = await APIService.getQueueStatus();
-                if (statsResponse.success && statsResponse.stats) {
+                if (statsResponse.success && statsResponse.stats && typeof statsResponse.stats === "object") {
+                    const stats = statsResponse.stats as { activeWorkers?: number; availableWorkers?: number; concurrentProcessing?: boolean };
                     // Merge API stats with calculated stats, preferring calculated for accuracy
                     setQueueStats((prev) => ({
                         ...prev,
-                        activeWorkers: statsResponse.stats.activeWorkers || prev.activeWorkers,
-                        availableWorkers: statsResponse.stats.availableWorkers || prev.availableWorkers,
-                        concurrentProcessing: statsResponse.stats.concurrentProcessing ?? prev.concurrentProcessing,
+                        activeWorkers: stats.activeWorkers || prev.activeWorkers,
+                        availableWorkers: stats.availableWorkers || prev.availableWorkers,
+                        concurrentProcessing: stats.concurrentProcessing ?? prev.concurrentProcessing,
                     }));
-
-                    // Check if queue is processing (infer from stats)
-                    const hasPendingJobs = calculatedStats.pending > 0;
-                    const hasProcessingJobs = calculatedStats.processing > 0;
-
-                    // If there are pending jobs but no processing jobs, queue might be stopped
-                    setIsQueueProcessing(!(hasPendingJobs && !hasProcessingJobs));
                 }
-            } catch (statsError) {
+            } catch {
                 console.warn("📋 Could not load API stats, using calculated stats only");
             }
 
-            console.log(`📋 Loaded ${jobsResponse.jobs?.length || 0} jobs and calculated queue stats`);
+            console.log(`📋 Loaded ${Array.isArray(jobsResponse.jobs) ? jobsResponse.jobs.length : 0} jobs and calculated queue stats`);
         } catch (error) {
             console.error("📋 Failed to load queue data:", error);
             addStatusMessage("error", "❌", "Failed to load queue data");
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [queueStats.failed]);
+
+    // Set page title and start auto-refresh
+    useEffect(() => {
+        document.title = "Queue Management - StreamGank Video Generator";
+
+        // Auto-refresh every 30 seconds to catch failed jobs
+        const autoRefreshInterval = setInterval(() => {
+            loadQueueData();
+        }, 30000); // 30 seconds
+
+        return () => {
+            clearInterval(autoRefreshInterval);
+        };
+    }, [loadQueueData]);
 
     // Initialize real-time updates
     useEffect(() => {
@@ -175,7 +140,7 @@ export default function Queue() {
             RealtimeService.removeEventListener("connected", handleConnectionChange as EventListener);
             RealtimeService.removeEventListener("disconnected", handleDisconnection);
         };
-    }, []);
+    }, [loadQueueData]);
 
     // Filter jobs based on current filter and search
     const filteredJobs = jobs.filter((job) => {
@@ -208,7 +173,7 @@ export default function Queue() {
                 } else {
                     addStatusMessage("error", "❌", "Failed to clear queue");
                 }
-            } catch (error) {
+            } catch {
                 addStatusMessage("error", "❌", "Failed to clear queue");
             }
         }
@@ -218,12 +183,12 @@ export default function Queue() {
         try {
             const response = await APIService.post("/api/queue/toggle");
             if (response.success) {
-                const newStatus = response.data?.isProcessing ?? !isQueueProcessing;
+                const newStatus = response.data && typeof response.data === "object" && "isProcessing" in response.data ? (response.data as { isProcessing: boolean }).isProcessing : !isQueueProcessing;
                 setIsQueueProcessing(newStatus);
                 addStatusMessage("success", "⚡", `Queue processing ${newStatus ? "started" : "stopped"}`);
                 await loadQueueData();
             }
-        } catch (error) {
+        } catch {
             addStatusMessage("error", "❌", "Failed to toggle queue");
         }
     };
@@ -236,7 +201,7 @@ export default function Queue() {
                     addStatusMessage("success", "🧹", "Failed jobs cleared");
                     await loadQueueData();
                 }
-            } catch (error) {
+            } catch {
                 addStatusMessage("error", "❌", "Failed to clear failed jobs");
             }
         }
@@ -255,7 +220,7 @@ export default function Queue() {
 
             // Reload the queue data
             await loadQueueData();
-        } catch (error) {
+        } catch {
             addStatusMessage("error", "❌", "Failed to sync jobs");
         }
     };
@@ -268,14 +233,13 @@ export default function Queue() {
                     addStatusMessage("success", "🔄", "Job retry initiated");
                     await loadQueueData();
                 }
-            } catch (error) {
+            } catch {
                 addStatusMessage("error", "❌", "Failed to retry job");
             }
         }
     };
 
     const handleCancelJob = async (jobId: string, jobStatus: string) => {
-        const job = jobs.find((j) => j.id === jobId);
         const isPending = jobStatus === "pending";
         const confirmMessage = isPending ? "Cancel this pending job? It will be removed from the queue." : "Cancel this active job? The process will be stopped immediately.";
 
@@ -287,7 +251,7 @@ export default function Queue() {
                     addStatusMessage("success", "⏹️", message);
                     await loadQueueData();
                 }
-            } catch (error) {
+            } catch {
                 addStatusMessage("error", "❌", "Failed to cancel job");
             }
         }

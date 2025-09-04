@@ -6,7 +6,7 @@ import axios from "axios";
 import type { AxiosRequestConfig, AxiosResponse } from "axios";
 
 interface CacheEntry {
-    data: any;
+    data: APIResponse;
     timestamp: number;
 }
 
@@ -14,7 +14,7 @@ interface APIResponse {
     success: boolean;
     message?: string;
     error?: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export class APIService {
@@ -26,7 +26,8 @@ export class APIService {
     private retryDelay: number;
 
     constructor() {
-        this.baseURL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+        // Use environment variable or fallback to localhost
+        this.baseURL = (typeof window !== "undefined" && (window as { ENV?: { VITE_BACKEND_URL?: string } }).ENV?.VITE_BACKEND_URL) || (typeof process !== "undefined" && process?.env?.VITE_BACKEND_URL) || "http://localhost:3000";
         this.timeout = 30000; // 30 second timeout
         this.cache = new Map();
         this.cacheTTL = 5000; // 5 second cache TTL
@@ -37,7 +38,7 @@ export class APIService {
     /**
      * Make HTTP request with professional error handling and caching
      */
-    async request(method: string, endpoint: string, data: any = null, options: AxiosRequestConfig = {}): Promise<APIResponse> {
+    async request(method: string, endpoint: string, data: unknown = null, options: AxiosRequestConfig = {}): Promise<APIResponse> {
         const url = `${this.baseURL}${endpoint}`;
         const cacheKey = `${method}:${endpoint}:${JSON.stringify(data)}`;
 
@@ -54,7 +55,7 @@ export class APIService {
 
         // Axios request configuration
         const axiosConfig: AxiosRequestConfig = {
-            method: method.toLowerCase() as any,
+            method: method.toLowerCase() as "get" | "post" | "put" | "delete",
             url: url,
             timeout: this.timeout,
             headers: {
@@ -68,7 +69,7 @@ export class APIService {
             axiosConfig.data = data;
         }
 
-        let lastError: any;
+        let lastError: unknown;
 
         // Retry logic
         for (let attempt = 1; attempt <= this.retryAttempts; attempt++) {
@@ -93,16 +94,27 @@ export class APIService {
                 }
 
                 return responseData;
-            } catch (error: any) {
+            } catch (error: unknown) {
                 lastError = error;
 
                 // Handle axios timeout and network errors
-                if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
+                if (error && typeof error === "object" && "code" in error && error.code === "ECONNABORTED") {
+                    throw new Error(`Request timeout: ${endpoint}`);
+                }
+                if (error && typeof error === "object" && "message" in error && typeof error.message === "string" && error.message.includes("timeout")) {
                     throw new Error(`Request timeout: ${endpoint}`);
                 }
 
                 // Handle HTTP error responses
-                const errorMessage = error.response ? `HTTP ${error.response.status}: ${error.response.statusText}` : error.message;
+                let errorMessage = "Unknown error";
+                if (error && typeof error === "object") {
+                    if ("response" in error && error.response && typeof error.response === "object") {
+                        const response = error.response as { status: number; statusText: string };
+                        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                    } else if ("message" in error && typeof error.message === "string") {
+                        errorMessage = error.message;
+                    }
+                }
 
                 if (attempt < this.retryAttempts) {
                     const delay = this.retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
@@ -127,14 +139,14 @@ export class APIService {
     /**
      * POST request
      */
-    async post(endpoint: string, data: any = {}, options: AxiosRequestConfig = {}): Promise<APIResponse> {
+    async post(endpoint: string, data: unknown = {}, options: AxiosRequestConfig = {}): Promise<APIResponse> {
         return this.request("POST", endpoint, data, options);
     }
 
     /**
      * PUT request
      */
-    async put(endpoint: string, data: any = {}, options: AxiosRequestConfig = {}): Promise<APIResponse> {
+    async put(endpoint: string, data: unknown = {}, options: AxiosRequestConfig = {}): Promise<APIResponse> {
         return this.request("PUT", endpoint, data, options);
     }
 
@@ -150,7 +162,7 @@ export class APIService {
     /**
      * Generate video request
      */
-    async generateVideo(params: any): Promise<APIResponse> {
+    async generateVideo(params: unknown): Promise<APIResponse> {
         return this.post("/api/generate", params);
     }
 
@@ -247,7 +259,7 @@ export class APIService {
     /**
      * Trigger webhook manually
      */
-    async triggerWebhook(event: string, data: any): Promise<APIResponse> {
+    async triggerWebhook(event: string, data: unknown): Promise<APIResponse> {
         return this.post("/api/webhooks/trigger", { event, data });
     }
 
@@ -280,18 +292,18 @@ export class APIService {
     /**
      * Get cache statistics
      */
-    getCacheStats(): any {
+    getCacheStats(): { total: number; valid: number; expired: number; hitRate: number } {
         const now = Date.now();
         let validEntries = 0;
         let expiredEntries = 0;
 
-        for (const [, entry] of this.cache) {
+        this.cache.forEach((entry) => {
             if (now - entry.timestamp < this.cacheTTL) {
                 validEntries++;
             } else {
                 expiredEntries++;
             }
-        }
+        });
 
         return {
             total: this.cache.size,

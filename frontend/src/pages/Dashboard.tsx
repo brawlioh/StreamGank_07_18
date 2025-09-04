@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import APIService from "../services/APIService";
 import Navigation from "../components/Navigation";
@@ -51,41 +51,39 @@ export default function Dashboard() {
     const [availableGenres, setAvailableGenres] = useState<string[]>([]);
     const [availableTemplates, setAvailableTemplates] = useState<{ id: string; name: string }[]>([]);
 
-    useEffect(() => {
-        document.title = "Dashboard - StreamGank Video Generator";
-        loadInitialData();
-    }, []);
+    const addStatusMessage = (type: StatusMessage["type"], icon: string, message: string) => {
+        const newMessage: StatusMessage = {
+            type,
+            icon,
+            message,
+            timestamp: Date.now(),
+        };
+        setStatusMessages((prev) => [newMessage, ...prev.slice(0, 4)]); // Keep only 5 messages
+    };
 
-    useEffect(() => {
-        // Update preview when form state changes
-        if (formState.platforms.length > 0 && formState.genres.length > 0) {
-            loadMoviePreview();
-        }
-    }, [formState.platforms, formState.genres, formState.contentType]);
-
-    const loadInitialData = async () => {
+    const loadInitialData = useCallback(async () => {
         try {
             // Load available platforms and genres
             const platformsResponse = await APIService.getPlatforms(formState.country);
             const genresResponse = await APIService.getGenres(formState.country);
             const templatesResponse = await APIService.getTemplates();
 
-            if (platformsResponse.success) {
-                setAvailablePlatforms(platformsResponse.platforms || []);
+            if (platformsResponse.success && Array.isArray(platformsResponse.platforms)) {
+                setAvailablePlatforms(platformsResponse.platforms as string[]);
             }
-            if (genresResponse.success) {
-                setAvailableGenres(genresResponse.genres || []);
+            if (genresResponse.success && Array.isArray(genresResponse.genres)) {
+                setAvailableGenres(genresResponse.genres as string[]);
             }
-            if (templatesResponse.success) {
-                setAvailableTemplates(templatesResponse.templates || []);
+            if (templatesResponse.success && Array.isArray(templatesResponse.templates)) {
+                setAvailableTemplates(templatesResponse.templates as { id: string; name: string }[]);
             }
         } catch (error) {
             console.error("Failed to load initial data:", error);
             addStatusMessage("error", "❌", "Failed to load platform and genre data");
         }
-    };
+    }, [formState.country]);
 
-    const loadMoviePreview = async () => {
+    const loadMoviePreview = useCallback(async () => {
         if (formState.platforms.length === 0 || formState.genres.length === 0) return;
 
         setIsLoadingPreview(true);
@@ -97,8 +95,8 @@ export default function Dashboard() {
                 contentType: formState.contentType === "All" ? undefined : formState.contentType,
             });
 
-            if (response.success && response.movies) {
-                setMoviePreview(response.movies);
+            if (response.success && Array.isArray(response.movies)) {
+                setMoviePreview(response.movies as Movie[]);
             } else {
                 setMoviePreview([]);
             }
@@ -108,17 +106,19 @@ export default function Dashboard() {
         } finally {
             setIsLoadingPreview(false);
         }
-    };
+    }, [formState.country, formState.platforms, formState.genres, formState.contentType]);
 
-    const addStatusMessage = (type: StatusMessage["type"], icon: string, message: string) => {
-        const newMessage: StatusMessage = {
-            type,
-            icon,
-            message,
-            timestamp: Date.now(),
-        };
-        setStatusMessages((prev) => [newMessage, ...prev.slice(0, 4)]); // Keep only 5 messages
-    };
+    useEffect(() => {
+        document.title = "Dashboard - StreamGank Video Generator";
+        loadInitialData();
+    }, [loadInitialData]);
+
+    useEffect(() => {
+        // Update preview when form state changes
+        if (formState.platforms.length > 0 && formState.genres.length > 0) {
+            loadMoviePreview();
+        }
+    }, [formState.platforms, formState.genres, formState.contentType, loadMoviePreview]);
 
     const generateTargetURL = () => {
         if (formState.platforms.length === 0 || formState.genres.length === 0) {
@@ -187,46 +187,21 @@ export default function Dashboard() {
             });
 
             if (response.success) {
-                addStatusMessage("success", "✅", `Video generation started! Job ID: ${response.job?.id || "Unknown"}`);
+                const jobId = response.job && typeof response.job === "object" && "id" in response.job ? (response.job as { id: string }).id : "Unknown";
+                addStatusMessage("success", "✅", `Video generation started! Job ID: ${jobId}`);
 
-                if (response.job?.id) {
+                if (jobId !== "Unknown") {
                     // Navigate to job detail page after a short delay
                     setTimeout(() => {
-                        navigate(`/job/${response.job.id}`);
+                        navigate(`/job/${jobId}`);
                     }, 2000);
                 }
             } else {
                 addStatusMessage("error", "❌", `Failed to start video generation: ${response.message || "Unknown error"}`);
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Video generation error:", error);
-            addStatusMessage("error", "❌", `Video generation failed: ${error.message}`);
-        }
-    };
-
-    const getJobStatusColor = (status: string) => {
-        switch (status) {
-            case "completed":
-                return "border-green-500";
-            case "failed":
-                return "border-red-500";
-            case "processing":
-                return "border-yellow-500";
-            default:
-                return "border-gray-500";
-        }
-    };
-
-    const getJobStatusTextColor = (status: string) => {
-        switch (status) {
-            case "completed":
-                return "text-green-400";
-            case "failed":
-                return "text-red-400";
-            case "processing":
-                return "text-yellow-400";
-            default:
-                return "text-gray-400";
+            addStatusMessage("error", "❌", `Video generation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
     };
 
@@ -239,7 +214,7 @@ export default function Dashboard() {
             {statusMessages.length > 0 && (
                 <div style={{ backgroundColor: "var(--dark-bg)", borderBottom: "1px solid var(--border-color)" }}>
                     <div className="px-6 py-4">
-                        {statusMessages.slice(0, 1).map((message, index) => (
+                        {statusMessages.slice(0, 1).map((message) => (
                             <div
                                 key={message.timestamp}
                                 className={`flex items-center space-x-3 p-3 rounded-lg ${
