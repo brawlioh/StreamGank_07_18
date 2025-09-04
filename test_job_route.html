@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="https://unpkg.com/navigo@8.11.1/lib/navigo.min.js"></script>
+    </head>
+    <body>
+        <div id="content">Loading...</div>
+
+        <script>
+            // Test the EXACT job route pattern
+            const router = new Navigo("/", { hash: false });
+
+            router.on("/job/:jobId", function (params) {
+                console.log("✅ Job route matched!", params);
+                document.getElementById("content").innerHTML = `<h1>Job Page</h1><p>Job ID: ${params.jobId}</p>`;
+            });
+
+            router.on("*", function () {
+                console.log("❌ Catch-all route triggered");
+                document.getElementById("content").innerHTML = "<h1>Dashboard</h1>";
+            });
+
+            router.resolve();
+
+            console.log("Current URL:", window.location.pathname);
+            console.log("Router initialized");
+        </script>
+    </body>
+</html>

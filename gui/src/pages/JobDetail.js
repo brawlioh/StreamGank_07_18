@@ -21,7 +21,10 @@ export class JobDetailPage {
      * @param {Object} params - Route parameters (contains jobId)
      */
     async render(container, params = {}) {
+        console.log('📄 JobDetail.render() called with:', { container: !!container, params });
+
         const { jobId } = params;
+        console.log('📄 JobDetail extracted jobId:', jobId);
 
         if (!container) {
             console.error('📄 JobDetail: No container provided');
@@ -30,6 +33,7 @@ export class JobDetailPage {
 
         if (!jobId) {
             console.error('📄 JobDetail: No job ID provided');
+            console.error('📄 JobDetail: Full params received:', JSON.stringify(params, null, 2));
             this.renderError(container, 'No job ID specified');
             return;
         }
@@ -112,7 +116,7 @@ export class JobDetailPage {
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <p class="mt-3 text-muted">Loading job details...</p>
+                        <p class="mt-3 text-light">Loading job details...</p>
                     </div>
                 </div>
             </div>
@@ -120,7 +124,7 @@ export class JobDetailPage {
     }
 
     /**
-     * Create main job detail template
+     * Create main job detail template - COPIED FROM job-detail.html
      * @returns {string} Job detail HTML
      */
     createJobTemplate() {
@@ -129,164 +133,548 @@ export class JobDetailPage {
         const statusIcon = this.getStatusIcon(job.status);
 
         return `
-            <div class="job-detail-page">
-                <div class="container-fluid">
-                    <!-- Header with navigation and actions -->
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <div>
-                            <button class="btn btn-outline-secondary me-3" onclick="history.back()">
-                                ← Back
+            <style>
+              /* Fix container overflow */
+              .main-content {
+                overflow-x: hidden !important;
+              }
+              
+              /* Compact Timeline Styles */
+              .timeline-compact {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 0.75rem;
+                padding: 0;
+              }
+              .timeline-step {
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid #495057;
+                border-radius: 8px;
+                padding: 0.75rem;
+                text-align: center;
+                position: relative;
+                transition: all 0.3s ease;
+              }
+              .timeline-step.completed {
+                border-color: #198754;
+                background: rgba(25, 135, 84, 0.1);
+              }
+              .timeline-step.active {
+                border-color: #0d6efd;
+                background: rgba(13, 110, 253, 0.1);
+                animation: pulse 2s infinite;
+              }
+              .timeline-step.pending {
+                border-color: #6c757d;
+                background: rgba(108, 117, 125, 0.1);
+              }
+              .timeline-step.failed {
+                border-color: #dc3545;
+                background: rgba(220, 53, 69, 0.1);
+              }
+
+              .step-icon {
+                font-size: 1.5rem;
+                margin-bottom: 0.5rem;
+              }
+              .step-title {
+                font-size: 0.8rem;
+                font-weight: 600;
+                margin: 0;
+                color: #fff;
+              }
+              .step-status {
+                font-size: 0.7rem;
+                margin-top: 0.25rem;
+                opacity: 0.8;
+              }
+
+              /* Compact Cards */
+              .compact-card {
+                margin-bottom: 1rem;
+              }
+              .compact-card .card-header {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+              }
+              .compact-card .card-body {
+                padding: 1rem;
+              }
+
+              /* Override for video result section - extra compact */
+              #creatomate-section .card-header {
+                padding: 0.5rem 0.75rem !important;
+              }
+              #creatomate-section .card-body {
+                padding: 0.5rem 0.75rem !important;
+              }
+
+              /* Progress Bar Compact */
+              .progress-compact {
+                height: 12px;
+                border-radius: 6px;
+                background: #343a40;
+              }
+
+              /* Parameter Inline Display - NO CARDS */
+              .param-inline {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                align-items: center;
+              }
+              .param-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.3rem;
+                padding: 0.25rem 0.4rem;
+                border-radius: 4px;
+                background: rgba(13, 110, 253, 0.1);
+                border: 1px solid rgba(13, 110, 253, 0.3);
+                font-size: 0.75rem;
+                max-width: 100%;
+                overflow: hidden;
+              }
+              .param-badge i {
+                font-size: 0.7rem;
+                color: #0d6efd;
+              }
+              .param-badge .label {
+                color: #e6edf3;
+                margin-right: 0.25rem;
+              }
+              .param-badge .value {
+                color: #fff;
+                font-weight: 500;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 120px;
+              }
+
+              /* Stats Compact */
+              .stats-row {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 0.4rem;
+              }
+              .stat-item {
+                text-align: center;
+                padding: 0.4rem 0.2rem;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 6px;
+                min-width: 0;
+                overflow: hidden;
+              }
+              .stat-value {
+                font-size: 1rem;
+                font-weight: bold;
+                margin-bottom: 0.25rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+              }
+              .stat-label {
+                font-size: 0.65rem;
+                color: #e6edf3;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+              }
+
+              /* Video player fixes */
+              #result-video {
+                width: 100%;
+                height: auto;
+                display: block !important;
+                background: #000;
+                object-fit: contain;
+              }
+
+              #result-video::-webkit-media-controls-panel {
+                background-color: rgba(0, 0, 0, 0.8);
+              }
+
+              /* Video container spacing */
+              .video-container {
+                max-width: 600px;
+                width: 100%;
+                position: relative;
+                background: #1a1a1a;
+                border-radius: 8px;
+                overflow: hidden;
+                min-height: 200px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              }
+
+              /* Compact video container for inline display */
+              .video-container-compact {
+                width: 100%;
+                position: relative;
+                background: #1a1a1a;
+                border-radius: 6px;
+                overflow: hidden;
+                min-height: 160px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              }
+
+              /* Collapsible sections */
+              .section-toggle {
+                cursor: pointer;
+                user-select: none;
+              }
+              .section-toggle:hover {
+                background: rgba(255, 255, 255, 0.1);
+              }
+
+              @keyframes pulse {
+                0%,
+                100% {
+                  transform: scale(1);
+                }
+                50% {
+                  transform: scale(1.05);
+                }
+              }
+
+              /* Responsive adjustments */
+              @media (max-width: 768px) {
+                .timeline-compact {
+                  grid-template-columns: repeat(2, 1fr);
+                  gap: 0.5rem;
+                }
+                .param-inline {
+                  gap: 0.4rem;
+                }
+                .stats-row {
+                  grid-template-columns: repeat(2, 1fr);
+                  gap: 0.3rem;
+                }
+                .param-badge {
+                  font-size: 0.7rem;
+                  padding: 0.2rem 0.3rem;
+                }
+                .stat-value {
+                  font-size: 0.9rem;
+                }
+                .stat-label {
+                  font-size: 0.6rem;
+                }
+              }
+              
+              @media (max-width: 576px) {
+                .timeline-compact {
+                  grid-template-columns: 1fr;
+                }
+                .stats-row {
+                  grid-template-columns: repeat(2, 1fr);
+                }
+                .container-fluid {
+                  padding-left: 0.5rem !important;
+                  padding-right: 0.5rem !important;
+                }
+              }
+            </style>
+
+            <div id="job-detail-app" class="w-100" style="background-color: #0d1117; overflow-x: hidden;">
+              <!-- Main Content -->
+              <div id="main-content" style="overflow-x: hidden;">
+                <!-- Compact Header -->
+                <nav class="navbar navbar-dark bg-dark border-bottom border-secondary py-2">
+                  <div class="container-fluid">
+                    <div class="d-flex align-items-center">
+                      <button onclick="history.back()" class="btn btn-outline-light btn-sm me-2">
+                        <i class="fas fa-arrow-left"></i>
+                      </button>
+                      <span class="navbar-brand mb-0 h6">
+                        <i class="fas fa-tasks me-1"></i>
+                        Job
+                        <span id="job-id">${job.id}</span>
+                      </span>
+                      <span class="badge ${statusClass} ms-2 fs-6">${statusIcon} ${job.status.toUpperCase()}</span>
+                    </div>
+                    <div class="d-flex gap-1">
+                      <button onclick="location.reload()" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-sync-alt"></i>
+                      </button>
+                      <a href="/dashboard" class="btn btn-primary btn-sm">
+                        <i class="fas fa-tachometer-alt"></i>
+                      </a>
+                    </div>
+                  </div>
+                </nav>
+
+                <div class="container-fluid py-2" style="overflow-x: hidden;">
+                  <!-- Progress & Stats Row -->
+                  <div class="row g-2 mb-3">
+                    <!-- Progress Section -->
+                    <div class="col-md-8">
+                      <div class="card bg-dark compact-card">
+                        <div class="card-header">
+                          <i class="fas fa-chart-line me-1"></i>
+                          Progress
+                          <span class="float-end">${job.progress || 0}%</span>
+                        </div>
+                        <div class="card-body">
+                          <div class="progress progress-compact mb-2">
+                            <div
+                              class="progress-bar ${this.getProgressClass(job.progress)} progress-bar-striped progress-bar-animated"
+                              style="width: ${job.progress || 0}%"
+                            ></div>
+                          </div>
+                          <small class="text-light">${job.currentStep || 'Initializing...'}</small>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Quick Stats -->
+                    <div class="col-md-4">
+                      <div class="card bg-dark compact-card">
+                        <div class="card-header">
+                          <i class="fas fa-info-circle me-1"></i>
+                          Stats
+                        </div>
+                        <div class="card-body">
+                          <div class="stats-row">
+                            <div class="stat-item">
+                              <div class="stat-value text-primary">${this.calculateDuration(job)}</div>
+                              <div class="stat-label">Duration</div>
+                            </div>
+                            <div class="stat-item">
+                              <div class="stat-value text-info">7/7</div>
+                              <div class="stat-label">Steps</div>
+                            </div>
+                            <div class="stat-item">
+                              <div class="stat-value text-warning">ynlv</div>
+                              <div class="stat-label">Worker</div>
+                            </div>
+                            <div class="stat-item">
+                              <div class="stat-value text-success">Normal</div>
+                              <div class="stat-label">Priority</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Parameters -->
+                  <div class="card bg-dark compact-card">
+                    <div class="card-header section-toggle" data-bs-toggle="collapse" data-bs-target="#params-section">
+                      <i class="fas fa-cog me-1"></i>
+                      Job Parameters
+                      <i class="fas fa-chevron-down float-end"></i>
+                    </div>
+                    <div id="params-section" class="collapse show">
+                      <div class="card-body">
+                        <div class="param-inline">
+                          <div class="param-badge">
+                            <i class="fas fa-globe"></i>
+                            <span class="label">Country:</span>
+                            <span class="value">${job.parameters?.country || job.params?.country || 'N/A'}</span>
+                          </div>
+                          <div class="param-badge">
+                            <i class="fas fa-tv"></i>
+                            <span class="label">Platform:</span>
+                            <span class="value">${job.parameters?.platform || job.params?.platform || 'N/A'}</span>
+                          </div>
+                          <div class="param-badge">
+                            <i class="fas fa-film"></i>
+                            <span class="label">Genre:</span>
+                            <span class="value">${job.parameters?.genre || job.params?.genre || 'N/A'}</span>
+                          </div>
+                          <div class="param-badge">
+                            <i class="fas fa-tag"></i>
+                            <span class="label">Content Type:</span>
+                            <span class="value">${job.parameters?.contentType || job.params?.contentType || 'N/A'}</span>
+                          </div>
+                          <div class="param-badge">
+                            <i class="fas fa-palette"></i>
+                            <span class="label">Template:</span>
+                            <span class="value">${job.parameters?.template || job.params?.template || 'Default'}</span>
+                          </div>
+                          ${
+                              job.workerId
+                                  ? `
+                          <div class="param-badge">
+                            <i class="fas fa-user"></i>
+                            <span class="label">Worker ID:</span>
+                            <span class="value">${job.workerId}</span>
+                          </div>
+                          `
+                                  : ''
+                          }
+                          ${
+                              job.creatomateId
+                                  ? `
+                          <div class="param-badge">
+                            <i class="fas fa-video"></i>
+                            <span class="label">Creatomate ID:</span>
+                            <span class="value">${job.creatomateId}</span>
+                          </div>
+                          `
+                                  : ''
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Process Timeline -->
+                  <div class="card bg-dark compact-card">
+                    <div class="card-header section-toggle" data-bs-toggle="collapse" data-bs-target="#timeline-section">
+                      <i class="fas fa-list-check me-1"></i>
+                      Process Timeline
+                      <i class="fas fa-chevron-down float-end"></i>
+                    </div>
+                    <div id="timeline-section" class="collapse show">
+                      <div class="card-body">
+                        <div class="timeline-compact">
+                          <div class="timeline-step completed">
+                            <div class="step-icon">📊</div>
+                            <div class="step-title">Database Extraction</div>
+                            <div class="step-status">Done 9/2/2025, 12:45:21 AM</div>
+                          </div>
+                          <div class="timeline-step completed">
+                            <div class="step-icon">📝</div>
+                            <div class="step-title">Script Generation</div>
+                            <div class="step-status">Done 9/2/2025, 12:45:21 AM</div>
+                          </div>
+                          <div class="timeline-step completed">
+                            <div class="step-icon">🎨</div>
+                            <div class="step-title">Asset Preparation</div>
+                            <div class="step-status">Done 9/2/2025, 12:45:21 AM</div>
+                          </div>
+                          <div class="timeline-step completed">
+                            <div class="step-icon">🎬</div>
+                            <div class="step-title">HeyGen Video Creation</div>
+                            <div class="step-status">Done 9/2/2025, 12:45:21 AM</div>
+                          </div>
+                          <div class="timeline-step completed">
+                            <div class="step-icon">⏳</div>
+                            <div class="step-title">HeyGen Processing</div>
+                            <div class="step-status">Done 9/2/2025, 12:45:21 AM</div>
+                          </div>
+                          <div class="timeline-step completed">
+                            <div class="step-icon">📱</div>
+                            <div class="step-title">Scroll Video Generation</div>
+                            <div class="step-status">Done 9/2/2025, 12:45:21 AM</div>
+                          </div>
+                          <div class="timeline-step completed">
+                            <div class="step-icon">🎞️</div>
+                            <div class="step-title">Creatomate Assembly</div>
+                            <div class="step-status">Ready</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Compact Video Result Section -->
+                  ${
+                      job.videoUrl || job.creatomateId
+                          ? `
+                  <div class="card bg-dark compact-card">
+                    <div class="card-header py-2">
+                      <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                          <i class="fas fa-film me-2 text-primary"></i>
+                          <span class="fw-bold">Video Result</span>
+                          <span class="badge bg-success ms-2">Ready</span>
+                        </div>
+                        <div class="d-flex gap-1">
+                          <button class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-sync-alt me-1"></i>
+                            Refresh Status
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="card-body py-2">
+                      ${
+                          job.creatomateId
+                              ? `
+                      <!-- Compact Creatomate Info -->
+                      <div class="mb-2">
+                        <div class="d-flex align-items-center text-sm">
+                          <span class="text-light me-2">ID:</span>
+                          <code class="text-info small">${job.creatomateId}</code>
+                        </div>
+                      </div>
+                      `
+                              : ''
+                      }
+
+                      ${
+                          job.videoUrl
+                              ? `
+                      <!-- Compact Video Player -->
+                      <div class="row g-2">
+                        <div class="col-md-7">
+                          <div class="video-container-compact">
+                            <video
+                              controls
+                              preload="metadata"
+                              muted
+                              playsinline
+                              class="w-100"
+                              style="max-height: 580px; border-radius: 6px; position: relative; z-index: 2"
+                            >
+                              <source src="${job.videoUrl}" type="video/mp4" />
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                        </div>
+                        <div class="col-md-5">
+                          <div class="d-grid gap-1">
+                            <a href="${job.videoUrl}" download class="btn btn-sm btn-success">
+                              <i class="fas fa-download me-1"></i>
+                              Download
+                            </a>
+                            <button onclick="navigator.clipboard.writeText('${job.videoUrl}')" class="btn btn-sm btn-outline-info">
+                              <i class="fas fa-copy me-1"></i>
+                              Copy URL
                             </button>
-                            <h1 class="h3 mb-0">Job ${job.id}</h1>
-                            <div class="mt-1">
-                                <span class="badge ${statusClass} me-2">${statusIcon} ${job.status.toUpperCase()}</span>
-                                <small class="text-muted">Created: ${this.formatDate(job.createdAt)}</small>
-                            </div>
+                            <button onclick="document.querySelector('video').requestFullscreen()" class="btn btn-sm btn-outline-secondary">
+                              <i class="fas fa-expand me-1"></i>
+                              Fullscreen
+                            </button>
+                          </div>
                         </div>
-                        <div class="nav-links">
-                            <a href="/dashboard" class="btn btn-outline-primary me-2">Dashboard</a>
-                            ${this.createActionButtons(job)}
-                        </div>
+                      </div>
+                      `
+                              : ''
+                      }
                     </div>
+                  </div>
+                  `
+                          : ''
+                  }
 
-                    <div class="row">
-                        <!-- Left Column - Job Information -->
-                        <div class="col-md-6">
-                            <!-- Job Parameters -->
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    <h5 class="mb-0">📋 Job Parameters</h5>
-                                </div>
-                                <div class="card-body">
-                                    <dl class="row mb-0">
-                                        <dt class="col-sm-4">Country:</dt>
-                                        <dd class="col-sm-8">${job.params?.country || 'N/A'}</dd>
-                                        
-                                        <dt class="col-sm-4">Platform:</dt>
-                                        <dd class="col-sm-8">${job.params?.platform || 'N/A'}</dd>
-                                        
-                                        <dt class="col-sm-4">Genre:</dt>
-                                        <dd class="col-sm-8">${job.params?.genre || 'N/A'}</dd>
-                                        
-                                        <dt class="col-sm-4">Content Type:</dt>
-                                        <dd class="col-sm-8">${job.params?.contentType || 'N/A'}</dd>
-                                        
-                                        <dt class="col-sm-4">Template:</dt>
-                                        <dd class="col-sm-8">${job.params?.template || 'Default'}</dd>
-                                        
-                                        ${
-                                            job.params?.url
-                                                ? `
-                                        <dt class="col-sm-4">Source URL:</dt>
-                                        <dd class="col-sm-8">
-                                            <a href="${job.params.url}" target="_blank" class="text-break">
-                                                ${job.params.url}
-                                            </a>
-                                        </dd>
-                                        `
-                                                : ''
-                                        }
-                                    </dl>
-                                </div>
-                            </div>
-
-                            <!-- Job Timeline -->
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    <h5 class="mb-0">⏱️ Timeline</h5>
-                                </div>
-                                <div class="card-body">
-                                    ${this.createTimeline(job)}
-                                </div>
-                            </div>
-
-                            <!-- Video Result (if available) -->
-                            ${job.videoUrl ? this.createVideoResult(job) : ''}
-                        </div>
-
-                        <!-- Right Column - Progress and Status -->
-                        <div class="col-md-6">
-                            <!-- Progress Card -->
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    <h5 class="mb-0">📊 Progress</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div class="mb-3">
-                                        <div class="d-flex justify-content-between mb-1">
-                                            <span class="fw-medium">${job.currentStep || 'Processing'}</span>
-                                            <span class="text-muted">${job.progress || 0}%</span>
-                                        </div>
-                                        <div class="progress">
-                                            <div class="progress-bar ${this.getProgressClass(job.progress)}" 
-                                                 role="progressbar" style="width: ${job.progress || 0}%">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    ${
-                                        job.error
-                                            ? `
-                                    <div class="alert alert-danger">
-                                        <h6 class="alert-heading">❌ Error</h6>
-                                        <p class="mb-0">${job.error}</p>
-                                    </div>
-                                    `
-                                            : ''
-                                    }
-                                    
-                                    ${
-                                        job.creatomateId
-                                            ? `
-                                    <div class="mt-3">
-                                        <h6>🎬 Creatomate Render</h6>
-                                        <p class="mb-1">
-                                            <strong>ID:</strong> 
-                                            <code>${job.creatomateId}</code>
-                                        </p>
-                                        <button class="btn btn-outline-primary btn-sm" onclick="checkCreatomateStatus('${job.creatomateId}')">
-                                            Check Render Status
-                                        </button>
-                                    </div>
-                                    `
-                                            : ''
-                                    }
-                                </div>
-                            </div>
-
-                            <!-- Queue Information -->
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    <h5 class="mb-0">📋 Queue Information</h5>
-                                </div>
-                                <div class="card-body">
-                                    <dl class="row mb-0">
-                                        <dt class="col-sm-6">Queue Position:</dt>
-                                        <dd class="col-sm-6">${job.queuePosition || 'N/A'}</dd>
-                                        
-                                        <dt class="col-sm-6">Processing Time:</dt>
-                                        <dd class="col-sm-6">${this.calculateDuration(job)}</dd>
-                                        
-                                        <dt class="col-sm-6">Last Updated:</dt>
-                                        <dd class="col-sm-6">${this.formatDate(job.updatedAt || job.createdAt)}</dd>
-                                    </dl>
-                                </div>
-                            </div>
-
-                            <!-- Status Messages -->
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">📝 Status Messages</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div id="job-status-messages" class="status-messages" style="max-height: 300px; overflow-y: auto;">
-                                        <!-- Status messages will be populated here -->
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                  <!-- Error Information -->
+                  ${
+                      job.error
+                          ? `
+                  <div class="card bg-dark border-danger compact-card">
+                    <div class="card-header bg-danger">
+                      <i class="fas fa-exclamation-triangle me-1"></i>
+                      Error Details
                     </div>
+                    <div class="card-body">
+                      <div class="text-light" style="font-size: 0.8rem">
+                        ${job.error}
+                      </div>
+                    </div>
+                  </div>
+                  `
+                          : ''
+                  }
                 </div>
+              </div>
             </div>
         `;
     }
@@ -364,7 +752,7 @@ export class JobDetailPage {
                     </div>
                     <div class="timeline-content">
                         <p class="mb-1 fw-medium">${event.message}</p>
-                        <small class="text-muted">${this.formatDate(event.time)}</small>
+                        <small class="text-light">${this.formatDate(event.time)}</small>
                     </div>
                 </div>
             </div>

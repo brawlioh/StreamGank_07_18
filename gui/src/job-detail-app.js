@@ -363,7 +363,7 @@ export class JobDetailApp {
                         ${this.getStepIcon(step.id, iconClass)}
                     </div>
                     <div class="step-title">${step.name}</div>
-                    <div class="step-status text-muted">${this.getStepStatusText(iconClass, timestamp)}</div>
+                    <div class="step-status text-light">${this.getStepStatusText(iconClass, timestamp)}</div>
                 </div>
             `;
             })
@@ -449,7 +449,7 @@ export class JobDetailApp {
                 ${
                     this.jobData.errorTimestamp
                         ? `
-                <small class="text-muted d-block mt-2">
+                <small class="text-light d-block mt-2">
                     <i class="fas fa-clock me-1"></i> 
                     Error occurred: ${new Date(this.jobData.errorTimestamp).toLocaleString()}
                 </small>
@@ -1001,7 +1001,7 @@ export class JobDetailApp {
                     <div class="text-center">
                         <i class="fas fa-exclamation-triangle text-warning mb-2" style="font-size: 2rem;"></i>
                         <div class="text-light small">Error loading video</div>
-                        <div class="text-muted small">Code: ${videoElement.error?.code}</div>
+                        <div class="text-light small">Code: ${videoElement.error?.code}</div>
                     </div>
                 `;
             }

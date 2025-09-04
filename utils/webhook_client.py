@@ -6,6 +6,7 @@ Sends step completion notifications to Node.js server for real-time frontend upd
 import requests
 import os
 import time
+import json
 import logging
 from typing import Dict, Any, Optional
 
@@ -75,6 +76,8 @@ class WebhookClient:
         
         try:
             logger.info(f"📡 Sending webhook: Step {step_number} {status} for job {self.job_id}")
+            logger.debug(f"   Webhook URL: {webhook_url}")
+            logger.debug(f"   Payload: {json.dumps(payload, indent=2)}")
             
             response = self.session.post(
                 webhook_url, 
@@ -83,17 +86,31 @@ class WebhookClient:
             )
             
             if response.status_code == 200:
-                logger.debug(f"✅ Webhook sent successfully: Step {step_number}")
+                logger.info(f"✅ Webhook sent successfully: Step {step_number}")
+                logger.debug(f"   Response: {response.text}")
                 return True
             else:
                 logger.warning(f"⚠️ Webhook returned status {response.status_code}: {response.text}")
+                logger.warning(f"   URL: {webhook_url}")
+                logger.warning(f"   Payload: {json.dumps(payload, indent=2)}")
                 return False
                 
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"❌ Webhook connection failed for step {step_number}: {str(e)}")
+            logger.error(f"   URL: {webhook_url}")
+            logger.error(f"   💡 Check if frontend server is running on {self.base_url}")
+            return False
+        except requests.exceptions.Timeout as e:
+            logger.error(f"❌ Webhook timeout for step {step_number}: {str(e)}")
+            logger.error(f"   URL: {webhook_url}")
+            return False
         except requests.exceptions.RequestException as e:
-            logger.warning(f"⚠️ Webhook failed for step {step_number}: {str(e)}")
+            logger.error(f"❌ Webhook request failed for step {step_number}: {str(e)}")
+            logger.error(f"   URL: {webhook_url}")
             return False
         except Exception as e:
-            logger.warning(f"⚠️ Unexpected webhook error for step {step_number}: {str(e)}")
+            logger.error(f"❌ Unexpected webhook error for step {step_number}: {str(e)}")
+            logger.error(f"   URL: {webhook_url}")
             return False
     
     def send_workflow_started(self, total_steps: int = 7) -> bool:

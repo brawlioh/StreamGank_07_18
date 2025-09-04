@@ -36,14 +36,14 @@ RUN playwright install chromium \
     && playwright install-deps
 
 # Copy and install Node.js dependencies
-COPY gui/package*.json ./gui/
-RUN cd gui && npm install --only=production \
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm install --only=production \
     && npm cache clean --force
 
 # Create necessary directories (Railway ephemeral storage)
 RUN mkdir -p assets videos screenshots clips covers \
     cloudinary creatomate heygen scroll_frames trailers \
-    temp_videos responses test_output scripts gui/logs
+    temp_videos responses test_output scripts frontend/logs
 
 # Copy application code
 COPY . .
@@ -55,5 +55,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 # Railway will set PORT automatically, but expose for local testing
 EXPOSE $PORT
 
-# Start the application (Railway compatible)
-CMD ["node", "gui/server.js"]
+# Build frontend and start the application (Railway compatible)
+RUN cd frontend && npm run build
+CMD ["node", "frontend/server.js"]

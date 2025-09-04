@@ -51,7 +51,21 @@ queueManager.setWebhookManager(webhookManager);
 
 // Middleware for parsing JSON and serving static files from built dist/
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'dist')));
+app.use(express.urlencoded({ extended: true }));
+
+// Configure proper MIME types for JavaScript modules
+express.static.mime.define({ 'application/javascript': ['js'] });
+
+// Serve static files from dist with proper MIME types
+app.use(
+    express.static(path.join(__dirname, 'dist'), {
+        setHeaders: (res, path) => {
+            if (path.endsWith('.js')) {
+                res.setHeader('Content-Type', 'application/javascript');
+            }
+        }
+    })
+);
 
 // Also serve original CSS and assets from gui folder (for style.css)
 app.use('/css', express.static(path.join(__dirname, 'css')));
@@ -118,14 +132,16 @@ app.get('/health', (req, res) => {
     });
 });
 
-// SPA Routing - Serve appropriate HTML files for client-side routes
-app.get(['/dashboard', '/jobs'], (req, res) => {
+// Job Detail Pages - Serve main SPA index.html for client-side routing (MUST come first)
+app.get('/job/:jobId', (req, res) => {
+    console.log(`📄 Serving index.html for job route: ${req.params.jobId}`);
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-// Job Detail Pages - Serve professional job detail page
-app.get('/job/:jobId', (req, res) => {
-    res.sendFile(path.join(__dirname, 'job-detail.html'));
+// SPA Routing - Serve appropriate HTML files for client-side routes
+app.get(['/dashboard', '/jobs', '/queue'], (req, res) => {
+    console.log(`📄 Serving index.html for SPA route: ${req.path}`);
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // REMOVED: Catch-all route moved to end of file after all API routes
@@ -1517,6 +1533,55 @@ app.post('/api/queue/clear', async (req, res) => {
     }
 });
 
+// API endpoint to toggle queue processing (pause/resume)
+app.post('/api/queue/toggle', async (req, res) => {
+    try {
+        const wasProcessing = queueManager.isProcessing;
+
+        if (wasProcessing) {
+            queueManager.stopProcessing();
+        } else {
+            queueManager.startProcessing();
+        }
+
+        const newStatus = queueManager.isProcessing;
+        res.json({
+            success: true,
+            message: `Queue processing ${newStatus ? 'started' : 'stopped'}`,
+            isProcessing: newStatus,
+            wasProcessing: wasProcessing
+        });
+    } catch (error) {
+        console.error('❌ Failed to toggle queue processing:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to toggle queue processing',
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to clear failed jobs only
+app.post('/api/queue/clear-failed', async (req, res) => {
+    try {
+        const beforeCount = await queueManager.llenAsync(queueManager.keys.failed);
+        await queueManager.delAsync(queueManager.keys.failed);
+
+        res.json({
+            success: true,
+            message: `Cleared ${beforeCount} failed jobs`,
+            clearedCount: beforeCount
+        });
+    } catch (error) {
+        console.error('❌ Failed to clear failed jobs:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to clear failed jobs',
+            error: error.message
+        });
+    }
+});
+
 // API endpoint to clean up stuck processing jobs
 app.post('/api/queue/cleanup', async (req, res) => {
     try {
@@ -1598,6 +1663,71 @@ app.post('/api/job/:jobId/cancel', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to cancel job',
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to retry a failed job
+app.post('/api/job/:jobId/retry', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        console.log(`🔄 Retrying job: ${jobId}`);
+
+        // Get the job details
+        const job = await queueManager.getJob(jobId);
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: 'Job not found'
+            });
+        }
+
+        // Only allow retry for failed jobs
+        if (job.status !== 'failed') {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot retry job with status: ${job.status}. Only failed jobs can be retried.`
+            });
+        }
+
+        // Reset job status and add back to queue
+        job.status = 'pending';
+        job.error = null;
+        job.progress = 0;
+        job.currentStep = 'Queued for retry...';
+        job.startedAt = null;
+        job.completedAt = null;
+        job.retryCount = (job.retryCount || 0) + 1;
+
+        // Update job in storage
+        await queueManager.updateJob(job);
+
+        // Add back to pending queue
+        await queueManager.lpushAsync(queueManager.keys.pending, JSON.stringify(job));
+
+        // Remove from failed queue
+        const failedJobs = await queueManager.lrangeAsync(queueManager.keys.failed, 0, -1);
+        const updatedFailedJobs = failedJobs.filter((jobStr) => {
+            const failedJob = JSON.parse(jobStr);
+            return failedJob.id !== jobId;
+        });
+
+        await queueManager.delAsync(queueManager.keys.failed);
+        if (updatedFailedJobs.length > 0) {
+            await queueManager.lpushAsync(queueManager.keys.failed, ...updatedFailedJobs);
+        }
+
+        res.json({
+            success: true,
+            message: `Job retry initiated (attempt ${job.retryCount})`,
+            job: job
+        });
+    } catch (error) {
+        console.error('❌ Failed to retry job:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retry job',
             error: error.message
         });
     }
@@ -2127,6 +2257,7 @@ app.get('/api/genres/:country', async (req, res) => {
             US: [
                 'Action & Adventure',
                 'Animation',
+                'Comedy',
                 'Crime',
                 'Documentary',
                 'Drama',
@@ -2142,6 +2273,26 @@ app.get('/api/genres/:country', async (req, res) => {
                 'Science-Fiction',
                 'Sport',
                 'War & Military',
+                'Western'
+            ],
+            FR: [
+                'Action & Aventure',
+                'Animation',
+                'Comédie',
+                'Crime & Thriller',
+                'Documentaire',
+                'Drame',
+                'Fantastique',
+                'Film de guerre',
+                'Histoire',
+                'Horreur',
+                'Musique & Musicale',
+                'Mystère & Thriller',
+                'Pour enfants',
+                'Reality TV',
+                'Réalisé en Europe',
+                'Science-Fiction',
+                'Sport & Fitness',
                 'Western'
             ]
         };
@@ -2265,6 +2416,20 @@ app.get('*', (req, res) => {
             error: 'API endpoint not found'
         });
     }
+});
+
+// Global error handler (MUST be last)
+app.use((error, req, res, next) => {
+    console.error('❌ Server Error:', error);
+    
+    // Don't send error details in production
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    res.status(error.status || 500).json({
+        success: false,
+        error: isDevelopment ? error.message : 'Internal server error',
+        ...(isDevelopment && { stack: error.stack })
+    });
 });
 
 // Initialize Redis connection and start server

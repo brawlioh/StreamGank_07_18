@@ -118,7 +118,8 @@ def run_full_workflow(num_movies: int = 3,
         missing_cache = []
         
         for data_type in required_data_types:
-            cached_data = load_test_data(data_type, country, genre, platform)
+            template = heygen_template_id or "auto"
+            cached_data = load_test_data(data_type, country, genre, platform, content_type, template)
             if not cached_data:
                 missing_cache.append(data_type)
         
@@ -171,12 +172,14 @@ def run_full_workflow(num_movies: int = 3,
         'step_7_creatomate_assembly': {}
     }
     
-    # Initialize webhook client for real-time step updates
-    webhook_client = create_webhook_client()
+    # Get or generate job_id first
+    job_id = os.getenv('JOB_ID', f"workflow_{int(time.time())}")
+    
+    # Initialize webhook client for real-time step updates with job_id
+    webhook_client = create_webhook_client(job_id)
     
     # Initialize job logger for persistent logging
     job_logger = get_job_logger()
-    job_id = os.getenv('JOB_ID', f"workflow_{int(time.time())}")
     
     # Log workflow start
     job_logger.log_job_event(job_id, "workflow_started", "Video generation workflow initiated", {
@@ -268,7 +271,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 1 COMPLETED - Found {len(raw_movies)} movies in {step_duration:.1f}s")
@@ -342,7 +346,8 @@ def run_full_workflow(num_movies: int = 3,
         })
         
         # Try to load existing script data from test_output
-        cached_script_data = load_test_data('script_result', country, genre, platform)
+        template = heygen_template_id or "auto"
+        cached_script_data = load_test_data('script_result', country, genre, platform, content_type, template)
         
         if is_local_mode():
             # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
@@ -413,7 +418,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 2 COMPLETED - Using {len(individual_scripts)} scripts in {step_duration:.1f}s")
@@ -456,7 +462,8 @@ def run_full_workflow(num_movies: int = 3,
         })
         
         # Try to load existing asset data from test_output
-        cached_assets_data = load_test_data('assets', country, genre, platform)
+        template = heygen_template_id or "auto"
+        cached_assets_data = load_test_data('assets', country, genre, platform, content_type, template)
         
         if is_local_mode():
             # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
@@ -631,7 +638,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 3 COMPLETED - Created {len(movie_covers)} posters and {len(movie_clips)} clips in {step_duration:.1f}s")
@@ -678,7 +686,8 @@ def run_full_workflow(num_movies: int = 3,
         })
         
         # Try to load existing HeyGen data from cache
-        cached_heygen_data = load_test_data('heygen', country, genre, platform)
+        template = heygen_template_id or "auto"
+        cached_heygen_data = load_test_data('heygen', country, genre, platform, content_type, template)
         
         if is_local_mode():
             # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
@@ -755,7 +764,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 4 COMPLETED - {'Loaded' if should_use_cache() and cached_heygen_data else 'Created'} {len(heygen_video_ids)} HeyGen videos in {step_duration:.1f}s")
@@ -801,7 +811,8 @@ def run_full_workflow(num_movies: int = 3,
         })
         
         # Try to load existing HeyGen URLs from cache
-        cached_heygen_urls_data = load_test_data('heygen_urls', country, genre, platform)
+        template = heygen_template_id or "auto"
+        cached_heygen_urls_data = load_test_data('heygen_urls', country, genre, platform, content_type, template)
         
         if is_local_mode():
             # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
@@ -841,7 +852,33 @@ def run_full_workflow(num_movies: int = 3,
             heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, individual_scripts)
             
             if not heygen_video_urls:
-                raise Exception("HeyGen video URL retrieval failed")
+                # 🚨 PRODUCTION FIX: Don't fail the entire workflow on HeyGen timeout
+                # Instead, save the job with partial completion for manual retry
+                print("   ⚠️ HeyGen video processing timed out - saving job for manual retry")
+                print("   💡 This job can be retried later when HeyGen servers are less busy")
+                
+                # Save partial workflow results for recovery
+                workflow_results['status'] = 'heygen_timeout'
+                workflow_results['heygen_timeout'] = {
+                    'video_ids': heygen_video_ids,
+                    'timeout_timestamp': time.time(),
+                    'recovery_instructions': 'Retry this job or check HeyGen video status manually'
+                }
+                
+                # Save the partial progress
+                if save_enabled:
+                    template = heygen_template_id or "auto"
+                    save_workflow_result(workflow_results, country, genre, platform, content_type, template)
+                
+                # Return partial results instead of raising exception
+                return {
+                    'success': False,
+                    'status': 'heygen_timeout',
+                    'message': 'HeyGen video processing timed out - job saved for retry',
+                    'video_ids': heygen_video_ids,
+                    'recovery_possible': True,
+                    'workflow_results': workflow_results
+                }
             
             # HeyGen URLs saved via save_workflow_result() call below
         
@@ -896,7 +933,8 @@ def run_full_workflow(num_movies: int = 3,
             })
             
             # Try to load existing scroll video data from cache
-            cached_scroll_data = load_test_data('scroll_video', country, genre, platform)
+            template = heygen_template_id or "auto"
+            cached_scroll_data = load_test_data('scroll_video', country, genre, platform, content_type, template)
             
             if is_local_mode():
                 # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
@@ -1062,7 +1100,8 @@ def run_full_workflow(num_movies: int = 3,
         if 'individual_scripts' not in locals() or not individual_scripts:
             logger.warning("⚠️ individual_scripts not available - this should not happen")
             # Try to load from workflow file as fallback
-            workflow_data = load_test_data('workflow', country, genre, platform)
+            template = heygen_template_id or "auto"
+            workflow_data = load_test_data('workflow', country, genre, platform, content_type, template)
             if workflow_data and 'step_2_script_generation' in workflow_data:
                 individual_scripts = workflow_data['step_2_script_generation'].get('individual_scripts', {})
                 logger.info(f"✅ Loaded {len(individual_scripts)} scripts from workflow file")
@@ -1073,7 +1112,8 @@ def run_full_workflow(num_movies: int = 3,
         if 'heygen_video_urls' not in locals() or not heygen_video_urls:
             logger.warning("⚠️ heygen_video_urls not available - this should not happen")
             # Try to load from workflow file as fallback
-            workflow_data = load_test_data('workflow', country, genre, platform)
+            template = heygen_template_id or "auto"
+            workflow_data = load_test_data('workflow', country, genre, platform, content_type, template)
             if workflow_data and 'step_5_heygen_processing' in workflow_data:
                 heygen_video_urls = workflow_data['step_5_heygen_processing'].get('heygen_video_urls', {})
                 logger.info(f"✅ Loaded {len(heygen_video_urls)} HeyGen URLs from workflow file")
@@ -1136,7 +1176,8 @@ def run_full_workflow(num_movies: int = 3,
         # Create Creatomate video based on environment
         if is_local_mode():
             # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
-            cached_creatomate_data = load_test_data('creatomate', country, genre, platform)
+            template = heygen_template_id or "auto"
+            cached_creatomate_data = load_test_data('creatomate', country, genre, platform, content_type, template)
             
             if not cached_creatomate_data:
                 print("   ❌ LOCAL MODE: No cached Creatomate data found")
@@ -1190,7 +1231,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 7 COMPLETED - {'Loaded' if should_use_cache() and cached_creatomate_data else 'Created'} final video in {step_duration:.1f}s")
@@ -1228,7 +1270,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save complete workflow results (only in development/production modes)
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         print(f"\n🎉 WORKFLOW COMPLETED SUCCESSFULLY!")
         print(f"   ⏱️ Total duration: {total_duration:.1f}s")

@@ -54,14 +54,23 @@ RUN pip3 install --no-cache-dir -r requirements.txt \
     && mkdir -p /ms-playwright \
     && echo "PLAYWRIGHT_BROWSERS_PATH=/usr/bin" >> /etc/environment
 
-# Copy GUI source files for building
-COPY gui/ gui/
+# Copy package files first for better Docker layer caching (from project root context)
+COPY frontend/package.json frontend/package-lock.json /app/frontend/
 
-# Navigate to GUI and install dependencies
-WORKDIR /app/gui
-RUN npm install --production=false
+# Navigate to frontend directory
+WORKDIR /app/frontend
 
-# Build the GUI (CRITICAL - DO NOT REMOVE)
+# Install dependencies (cached layer - only rebuilds if package.json changes)
+RUN npm ci --include=dev
+
+# Verify critical build dependencies are available
+RUN npm list vite || echo "Vite not found in list"
+RUN npm list @tailwindcss/postcss || echo "Tailwind PostCSS not found in list"
+
+# Copy frontend source files (this layer changes frequently)
+COPY frontend/ .
+
+# Build the React frontend with Tailwind v4 (CRITICAL - DO NOT REMOVE)
 RUN npm run build
 
 # Return to app root
@@ -70,20 +79,20 @@ WORKDIR /app
 # Create necessary directories
 RUN mkdir -p assets videos screenshots clips covers \
     cloudinary creatomate heygen scroll_frames trailers \
-    temp_videos responses test_output scripts gui/logs
+    temp_videos responses test_output scripts frontend/logs
 
 # Copy remaining application code (this layer changes most frequently)
-# First backup the built GUI dist folder (CRITICAL)
-RUN cp -r gui/dist /tmp/gui-dist-backup 2>/dev/null || true
+# First backup the built frontend dist folder (CRITICAL)
+RUN cp -r frontend/dist /tmp/frontend-dist-backup 2>/dev/null || true
 
 # Copy all application code
 COPY . .
 
-# Restore the built GUI dist folder (CRITICAL - overwrite any source version)
-RUN if [ -d /tmp/gui-dist-backup ]; then \
-        rm -rf gui/dist && \
-        cp -r /tmp/gui-dist-backup gui/dist && \
-        rm -rf /tmp/gui-dist-backup; \
+# Restore the built frontend dist folder (CRITICAL - overwrite any source version)
+RUN if [ -d /tmp/frontend-dist-backup ]; then \
+        rm -rf frontend/dist && \
+        cp -r /tmp/frontend-dist-backup frontend/dist && \
+        rm -rf /tmp/frontend-dist-backup; \
     fi
 
 # Configure Chromium for Playwright (point to system Chromium)
@@ -94,8 +103,8 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 HEALTHCHECK --interval=45s --timeout=15s --start-period=10s --retries=3 \
     CMD python -c "import sys; sys.exit(0)" && curl -f http://localhost:3000/health || exit 1
 
-# Expose GUI port
+# Expose frontend port
 EXPOSE 3000
 
-# Start both services (GUI server which can spawn Python processes)
-CMD ["node", "gui/server.js"]
+# Start the frontend server (which can spawn Python processes)
+CMD ["node", "frontend/server.js"]

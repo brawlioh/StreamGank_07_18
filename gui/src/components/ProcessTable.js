@@ -5,6 +5,7 @@
 
 import APIService from '../services/APIService.js';
 import UIManager from './UIManager.js';
+import Router from '../core/Router.js';
 
 class ProcessTable {
     constructor() {
@@ -440,17 +441,17 @@ class ProcessTable {
     }
 
     /**
-     * View job details (redirects to job detail page)
+     * View job details (SPA navigation to job detail page)
      * @param {string} jobId - Job ID
      */
     async viewJob(jobId) {
         try {
-            console.log(`👁️ Redirecting to job details page: ${jobId}`);
+            console.log(`👁️ Navigating to job details page: ${jobId}`);
 
-            // Redirect to the job detail page
-            window.location.href = `/job/${jobId}`;
+            // Use SPA navigation instead of page reload
+            Router.navigate(`/job/${jobId}`);
         } catch (error) {
-            console.error('❌ Failed to redirect to job details:', error);
+            console.error('❌ Failed to navigate to job details:', error);
             UIManager.addStatusMessage('error', '❌', 'Failed to open job details');
         }
     }

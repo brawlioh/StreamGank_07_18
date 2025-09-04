@@ -227,14 +227,52 @@ export class Navigation {
             const routePath = link.getAttribute('data-route');
             const isActive = this.isActiveRoute(routePath);
 
-            if (isActive) {
-                link.classList.remove('btn-outline-primary');
-                link.classList.add('btn-primary');
+            // Handle professional nav links
+            if (link.classList.contains('professional-nav-link')) {
+                if (isActive) {
+                    link.classList.remove('btn-outline-light');
+                    link.classList.add('btn-light', 'active');
+                } else {
+                    link.classList.remove('btn-light', 'active');
+                    link.classList.add('btn-outline-light');
+                }
             } else {
-                link.classList.remove('btn-primary');
-                link.classList.add('btn-outline-primary');
+                // Legacy nav links
+                if (isActive) {
+                    link.classList.remove('btn-outline-primary');
+                    link.classList.add('btn-primary');
+                } else {
+                    link.classList.remove('btn-primary');
+                    link.classList.add('btn-outline-primary');
+                }
             }
         });
+
+        // Update queue counter
+        this.updateQueueCounter();
+    }
+
+    /**
+     * Update queue counter display
+     */
+    updateQueueCounter() {
+        const queueCounter = document.getElementById('nav-queue-count');
+        if (queueCounter && this.navigationData.queue) {
+            const totalJobs = (this.navigationData.queue.pending || 0) + (this.navigationData.queue.processing || 0);
+            queueCounter.textContent = totalJobs;
+
+            // Update counter styling based on job count
+            if (totalJobs === 0) {
+                queueCounter.className = 'badge bg-secondary ms-2 queue-counter';
+                queueCounter.style.display = 'none';
+            } else if (totalJobs > 5) {
+                queueCounter.className = 'badge bg-danger ms-2 queue-counter';
+                queueCounter.style.display = 'flex';
+            } else {
+                queueCounter.className = 'badge bg-warning ms-2 queue-counter';
+                queueCounter.style.display = 'flex';
+            }
+        }
     }
 
     /**

@@ -2,16 +2,16 @@
 # Optimized for Virtual Machine environments with resource management and performance tuning
 
 services:
-    # StreamGank Unified Service - VM Optimized (Python + Node.js)
-    streamgank-app:
+    # StreamGank Complete Frontend - React + Express + Python + Redis (ALL-IN-ONE)
+    streamgank-frontend:
         build:
             context: .
             dockerfile: Dockerfile
-        container_name: streamgank-app
+        container_name: streamgank-frontend
         restart: unless-stopped
         ports:
             - "3000:3000"
-        # VM-optimized resource limits for unified container
+        # VM-optimized resource limits for complete frontend
         deploy:
             resources:
                 limits:
@@ -23,14 +23,27 @@ services:
         env_file:
             - .env
         environment:
+            - NODE_ENV=${NODE_ENV}
+            - VITE_BACKEND_URL=http://localhost:3000
+            - BACKEND_URL=http://localhost:3000
+            - PORT=3000
+            # Pass through all environment variables from main .env
+            - APP_ENV=${APP_ENV}
+            - STREAMGANK_DATA_PATH=${STREAMGANK_DATA_PATH}
+            - REDIS_HOST=${REDIS_HOST}
+            - REDIS_PORT=${REDIS_PORT}
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - OPENAI_API_KEY=${OPENAI_API_KEY}
+            - HEYGEN_API_KEY=${HEYGEN_API_KEY}
+            - CREATOMATE_API_KEY=${CREATOMATE_API_KEY}
+            - CLOUDINARY_URL=${CLOUDINARY_URL}
+            - WEBHOOK_BASE_URL=http://streamgank-frontend:3000
+            # Python environment
             - PYTHONPATH=${PYTHONPATH}
             - PYTHONUNBUFFERED=${PYTHONUNBUFFERED}
-            - APP_ENV=${APP_ENV}
-            - NODE_ENV=${NODE_ENV}
-            - PORT=${PORT}
             # Multi-worker queue configuration
             - MAX_WORKERS=${MAX_WORKERS:-3}
-            - ENABLE_CONCURRENT_PROCESSING=${ENABLE_CONCURRENT_PROCESSING:-true}
+            - ENABLE_CONCURRENT_PROCESSING=${ENABLE_CONCURRENT_PROCESSING:-false}
             # VM performance optimizations
             - MALLOC_ARENA_MAX=2
             - PYTHONDONTWRITEBYTECODE=1
@@ -47,29 +60,17 @@ services:
             - streamgank_temp:/app/covers
             - streamgank_temp:/app/scroll_frames
             - streamgank_temp:/app/trailers
-            # Configuration and logs (bind mounts - less frequently accessed)
+            # Configuration and logs (bind mounts)
             - ./scripts:/app/scripts:cached
             - ./test_output:/app/test_output:cached
-            - ./streamgank-reels:/app/streamgank-reels:cached # Enhanced posters and movie clips
-            - ./.env:/app/.env:ro
+            - ./streamgank-reels:/app/streamgank-reels:cached
+        depends_on:
+            - redis
         networks:
             - streamgank-network
         # VM-optimized settings
         tty: true
         stdin_open: true
-        logging:
-            driver: "json-file"
-            options:
-                max-size: "50m" # Increased for VM debugging
-                max-file: "5"
-                compress: "true" # Save disk space in VM
-        # Unified health check (Python + GUI)
-        healthcheck:
-            test: ["CMD", "python", "-c", "import sys; sys.exit(0)", "&&", "curl", "-f", "http://localhost:3000/health", "||", "exit", "1"]
-            interval: 45s # Less frequent in VM
-            timeout: 15s
-            retries: 3
-            start_period: 15s
 
     # Redis - Local Instance for VM (better than external for dev/testing)
     redis:

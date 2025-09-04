@@ -63,6 +63,7 @@ export class FormManager {
             FR: {
                 'Action & Aventure': 'Action & Adventure',
                 Animation: 'Animation',
+                Comédie: 'Comedy',
                 'Crime & Thriller': 'Crime & Thriller',
                 Documentaire: 'Documentary',
                 Drame: 'Drama',
@@ -82,6 +83,7 @@ export class FormManager {
             US: {
                 'Action & Adventure': 'Action & Adventure',
                 Animation: 'Animation',
+                Comedy: 'Comedy',
                 Crime: 'Crime',
                 Documentary: 'Documentary',
                 Drama: 'Drama',
@@ -93,10 +95,10 @@ export class FormManager {
                 'Music & Musical': 'Music & Musical',
                 'Mystery & Thriller': 'Mystery & Thriller',
                 'Reality TV': 'Reality TV',
-                'Romance Movies': 'Romance Movies',
-                'Science Fiction': 'Science Fiction',
-                'Sport & Fitness': 'Sport & Fitness',
-
+                Romance: 'Romance',
+                'Science-Fiction': 'Science-Fiction',
+                Sport: 'Sport',
+                'War & Military': 'War & Military',
                 Western: 'Western'
             }
         };
@@ -109,9 +111,9 @@ export class FormManager {
         // SINGLE SOURCE OF TRUTH for all HeyGen templates
         this.templates = {
             cc6718c5363e42b282a123f99b94b335: { name: 'Default Template', genres: ['default'] },
-            ed21a309a5c84b0d873fde68642adea3: { name: 'Horror/Thriller Cinematic', genres: ['Horror'] },
+            ed21a309a5c84b0d873fde68642adea3: { name: 'Horror', genres: ['Horror'] },
             '7f8db20ddcd94a33a1235599aa8bf473': { name: 'Action Adventure', genres: ['Action & Adventure'] },
-            bc62f68a6b074406b571df42bdc6b71a: { name: 'Romance/Love Story', genres: ['Romance'] }
+            bc62f68a6b074406b571df42bdc6b71a: { name: 'Romance', genres: ['Romance'] }
         };
 
         // Create backward-compatible templatesByGenre from single source
@@ -1059,27 +1061,60 @@ export class FormManager {
     }
 
     /**
-     * Create a movie card element
+     * Create a professional movie card element
      */
     createMovieCard(movie, index) {
-        const col = document.createElement('div');
-        col.className = 'col-md-4';
-
         const card = document.createElement('div');
-        card.className = 'movie-card';
+        card.className = 'card bg-dark border-secondary h-100 shadow-sm';
+        card.style.width = '200px';
+        card.style.minWidth = '200px';
+        card.style.cursor = 'pointer';
 
         const posterUrl =
-            movie.poster_url || movie.backdrop_url || 'https://via.placeholder.com/300x450/333/fff?text=No+Image';
+            movie.poster_url || movie.backdrop_url || 'https://via.placeholder.com/300x450/1a1a1a/16c784?text=No+Image';
         const title = movie.title || 'Unknown Title';
+        const year = movie.year || 'Unknown Year';
+        const rating = movie.imdb || movie.rating || 'No Rating';
+
+        // Extract numeric rating for display
+        const numericRating = rating.toString().match(/(\d+\.?\d*)/)?.[1];
+        const displayRating = numericRating ? `⭐ ${numericRating}/10` : rating;
 
         card.innerHTML = `
-            <img src="${posterUrl}" alt="${title}" class="movie-poster" 
-                 onerror="this.src='https://via.placeholder.com/300x450/333/fff?text=No+Image'">
-            <div class="movie-title-large">${title}</div>
+            <img src="${posterUrl}" alt="${title}" class="card-img-top" 
+                 style="height: 250px; object-fit: cover;"
+                 onerror="this.src='https://via.placeholder.com/300x450/1a1a1a/16c784?text=No+Image'"
+                 loading="lazy">
+            <div class="card-body p-2">
+                <h6 class="card-title text-light mb-1" style="font-size: 0.9rem; line-height: 1.2;">${title}</h6>
+                <p class="card-text mb-1">
+                    <small class="text-success fw-bold">${year}</small>
+                </p>
+                <p class="card-text">
+                    <small class="text-warning">${displayRating}</small>
+                </p>
+            </div>
         `;
 
-        col.appendChild(card);
-        return col;
+        // Add Bootstrap hover effect
+        card.addEventListener('mouseenter', () => {
+            card.classList.add('shadow-lg');
+            card.style.transform = 'translateY(-5px)';
+            card.style.transition = 'all 0.3s ease';
+        });
+
+        card.addEventListener('mouseleave', () => {
+            card.classList.remove('shadow-lg');
+            card.style.transform = 'translateY(0)';
+        });
+
+        // Add click handler for future functionality
+        card.addEventListener('click', () => {
+            console.log(`🎬 Movie selected: ${title} (${year})`);
+            // Future: Add movie selection logic
+        });
+
+        return card;
     }
 
     /**

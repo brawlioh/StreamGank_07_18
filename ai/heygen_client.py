@@ -477,7 +477,7 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
         status_result = wait_for_heygen_video(
             video_id, 
             script_length=script_length,
-            max_wait_minutes=30
+            max_wait_minutes=45  # Increased from 30 to 45 minutes for production reliability
         )
         
         if status_result['success'] and status_result['video_url']:
@@ -495,7 +495,7 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
     return video_urls
 
 
-def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_minutes: int = 30) -> dict:
+def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_minutes: int = 45) -> dict:
     """
     Wait for HeyGen video completion with progress feedback.
     
@@ -509,10 +509,10 @@ def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_min
     Returns:
         Dictionary with status information
     """
-    # Estimate processing time - INCREASED BUFFER due to HeyGen processing delays
+    # Estimate processing time - SIGNIFICANTLY INCREASED BUFFER for production reliability
     estimated_minutes = estimate_heygen_processing_time(script_length)
-    # Increased buffer: +8 minutes instead of +5, minimum 12 minutes instead of 8
-    timeout_minutes = min(max(estimated_minutes + 8, 12), max_wait_minutes)
+    # PRODUCTION FIX: Much larger buffer - +15 minutes instead of +8, minimum 20 minutes instead of 12
+    timeout_minutes = min(max(estimated_minutes + 15, 20), max_wait_minutes)
     max_total_seconds = timeout_minutes * 60
     
     logger.info(f"⏳ Waiting for HeyGen video {video_id[:8]}... (estimated: ~{estimated_minutes} min, max timeout: {timeout_minutes} min)")

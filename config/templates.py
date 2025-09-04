@@ -5,9 +5,9 @@ This module contains HeyGen template IDs and template selection logic
 based on genre and language preferences.
 
 Template Selection Rules:
-- Horror/Horreur genres use specialized horror template
-- Comedy/Comédie genres use comedy-optimized template  
-- Action/Action & Aventure genres use action template
+- Horror genres use horror template
+- Action/Action & Adventure genres use action template  
+- Romance genres use romance template
 - All other genres use the default template
 """
 
@@ -20,30 +20,28 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 HEYGEN_TEMPLATES = {
-    # Horror/Thriller Templates
+    # Horror Templates
     'horror': {
         'id': 'ed21a309a5c84b0d873fde68642adea3',
-        'name': 'Horror Template',
-        'description': 'Specialized template for horror and thriller content',
-        'genres': ['Horror', 'Horreur', 'Thriller', 'Mystery & Thriller']
+        'name': 'Horror',
+        'description': 'Specialized template for horror content',
+        'genres': ['Horror']
     },
-    
-
     
     # Action Templates
     'action': {
         'id': '7f8db20ddcd94a33a1235599aa8bf473',
-        'name': 'Action Template',
+        'name': 'Action Adventure',
         'description': 'High-energy template for action and adventure content',
-        'genres': ['Action', 'Action & Adventure', 'Action & Aventure']
+        'genres': ['Action & Adventure']
     },
     
     # Romance Templates
     'romance': {
         'id': 'bc62f68a6b074406b571df42bdc6b71a',
-        'name': 'Romance Template',
-        'description': 'Romantic and emotional template for love and relationship content',
-        'genres': ['Romance', 'Romantic Comedy', 'Love Story']
+        'name': 'Romance',
+        'description': 'Romantic template for love and relationship content',
+        'genres': ['Romance']
     },
     
     # Default Template
@@ -67,7 +65,7 @@ def get_heygen_template_id(genre: str = None) -> str:
     for both UI and CLI workflows.
     
     Args:
-        genre (str): Content genre (e.g., 'Horror', 'Comedy', 'Action')
+        genre (str): Content genre (e.g., 'Action & Adventure', 'Drama', 'Comedy')
         
     Returns:
         str: HeyGen template ID
@@ -76,8 +74,11 @@ def get_heygen_template_id(genre: str = None) -> str:
         >>> get_heygen_template_id('Horror')
         'ed21a309a5c84b0d873fde68642adea3'
         
-        >>> get_heygen_template_id('comedy')  # Case insensitive
-        'a1576c3e20d24af3a44e3479a3947c96'
+        >>> get_heygen_template_id('Romance')
+        'bc62f68a6b074406b571df42bdc6b71a'
+        
+        >>> get_heygen_template_id('Action & Adventure')
+        '7f8db20ddcd94a33a1235599aa8bf473'
         
         >>> get_heygen_template_id('Drama')   # Uses default
         'cc6718c5363e42b282a123f99b94b335'

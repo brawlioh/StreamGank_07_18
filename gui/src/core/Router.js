@@ -1,300 +1,132 @@
 /**
- * Router Service - Professional client-side routing
- * Handles URL-based navigation, route parameters, and browser history
+ * Simple Reliable Router - No Dependencies, Just Works
+ * Handles SPA routing, browser history, page reloads, back/forward
  */
 
-export class Router extends EventTarget {
+class SimpleRouter {
     constructor() {
-        super();
         this.routes = new Map();
         this.currentRoute = null;
-        this.currentParams = {};
-        this.isInitialized = false;
-        this.basePath = '';
+        this.isStarted = false;
+
+        console.log('🔧 SimpleRouter created');
     }
 
     /**
-     * Initialize the router and setup event listeners
+     * Add a route
      */
-    init() {
-        if (this.isInitialized) return;
+    addRoute(path, handler) {
+        console.log(`📝 Adding route: ${path}`);
 
-        // Handle browser back/forward buttons
-        window.addEventListener('popstate', (event) => {
-            this.handleLocationChange();
+        // Convert :param to regex
+        const paramNames = [];
+        const regexPath = path.replace(/:([^/]+)/g, (match, paramName) => {
+            paramNames.push(paramName);
+            return '([^/]+)';
         });
 
-        // Handle initial page load
-        this.handleLocationChange();
-
-        this.isInitialized = true;
-    }
-
-    /**
-     * Register a route with its handler
-     * @param {string} path - Route pattern (e.g., '/job/:id')
-     * @param {Function} handler - Route handler function
-     * @param {Object} options - Route options
-     */
-    addRoute(path, handler, options = {}) {
-        const routePattern = this.pathToRegex(path);
+        const regex = new RegExp(`^${regexPath}$`);
 
         this.routes.set(path, {
-            pattern: routePattern,
-            handler: handler,
-            params: this.extractParams(path),
-            title: options.title || 'StreamGank',
-            requiresAuth: options.requiresAuth || false,
-            metadata: options.metadata || {}
+            handler,
+            regex,
+            paramNames,
+            originalPath: path
         });
 
-        console.log(`🛤️ Route registered: ${path}`);
+        console.log(`✅ Route added: ${path}`);
     }
 
     /**
-     * Navigate to a specific path
-     * @param {string} path - Target path
-     * @param {Object} options - Navigation options
+     * Navigate to a path
      */
-    navigate(path, options = {}) {
-        const { replace = false, state = null } = options;
+    navigate(path) {
+        console.log(`🚀 Navigate to: ${path}`);
 
-        if (replace) {
-            window.history.replaceState(state, '', path);
-        } else {
-            window.history.pushState(state, '', path);
-        }
+        // Update browser URL
+        window.history.pushState({}, '', path);
 
-        this.handleLocationChange();
+        // Handle the route
+        this.handleRoute(path);
     }
 
     /**
-     * Go back in browser history
+     * Handle current route
      */
-    back() {
-        window.history.back();
-    }
+    handleRoute(path = window.location.pathname) {
+        console.log(`🔍 Handling route: ${path}`);
 
-    /**
-     * Go forward in browser history
-     */
-    forward() {
-        window.history.forward();
-    }
-
-    /**
-     * Handle location changes (URL changes)
-     */
-    handleLocationChange() {
-        const path = window.location.pathname;
-        const matchedRoute = this.matchRoute(path);
-
-        if (matchedRoute) {
-            const { route, params, routeKey } = matchedRoute;
-
-            // Update current state
-            const previousRoute = this.currentRoute;
-            this.currentRoute = routeKey;
-            this.currentParams = params;
-
-            // Update document title
-            if (route.title) {
-                document.title = route.title;
-            }
-
-            // Emit route change event
-            this.dispatchEvent(
-                new CustomEvent('routeChange', {
-                    detail: {
-                        path,
-                        route: routeKey,
-                        params,
-                        previousRoute,
-                        metadata: route.metadata
-                    }
-                })
-            );
-
-            // Call route handler
-            try {
-                route.handler(params, path);
-                console.log(`🛤️ Navigated to: ${path} (${routeKey})`);
-            } catch (error) {
-                console.error('🛤️ Route handler error:', error);
-                this.dispatchEvent(new CustomEvent('routeError', { detail: { path, error } }));
-            }
-        } else {
-            // No route matched - handle 404
-            this.handle404(path);
-        }
-    }
-
-    /**
-     * Match current path against registered routes
-     * @param {string} path - Current path
-     * @returns {Object|null} Matched route info or null
-     */
-    matchRoute(path) {
-        for (const [routeKey, route] of this.routes.entries()) {
-            const match = path.match(route.pattern);
+        // Try to match route
+        for (const [routePath, routeData] of this.routes) {
+            const match = path.match(routeData.regex);
 
             if (match) {
-                const params = {};
+                console.log(`✅ Route matched: ${routePath}`);
 
-                // Extract route parameters
-                route.params.forEach((paramName, index) => {
-                    params[paramName] = match[index + 1];
+                // Extract parameters
+                const params = {};
+                routeData.paramNames.forEach((name, index) => {
+                    params[name] = match[index + 1];
                 });
 
-                return {
-                    route,
-                    params,
-                    routeKey,
-                    match
-                };
+                console.log(`📋 Route params:`, params);
+
+                // Call handler
+                try {
+                    routeData.handler(params);
+                    this.currentRoute = routePath;
+                    return true;
+                } catch (error) {
+                    console.error(`❌ Route handler error:`, error);
+                }
             }
         }
 
-        return null;
+        // No route matched
+        console.warn(`❌ No route matched for: ${path}`);
+        this.handle404(path);
+        return false;
     }
 
     /**
-     * Convert path pattern to regex
-     * @param {string} path - Path pattern (e.g., '/job/:id')
-     * @returns {RegExp} Route regex
-     */
-    pathToRegex(path) {
-        // Escape special regex characters except for parameter patterns
-        const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\:([^/]+)/g, '([^/]+)'); // Convert :param to capture group
-
-        return new RegExp(`^${escaped}$`);
-    }
-
-    /**
-     * Extract parameter names from path pattern
-     * @param {string} path - Path pattern
-     * @returns {Array<string>} Parameter names
-     */
-    extractParams(path) {
-        const params = [];
-        const matches = path.matchAll(/:([^/]+)/g);
-
-        for (const match of matches) {
-            params.push(match[1]);
-        }
-
-        return params;
-    }
-
-    /**
-     * Handle 404 - route not found
-     * @param {string} path - Unmatched path
+     * Handle 404
      */
     handle404(path) {
-        console.warn(`🛤️ No route found for: ${path}`);
+        console.log(`🔍 404 for path: ${path}`);
 
-        // Emit 404 event
-        this.dispatchEvent(new CustomEvent('notFound', { detail: { path } }));
-
-        // Try to redirect to dashboard or show 404 page
-        if (path !== '/' && path !== '/dashboard') {
-            this.navigate('/dashboard', { replace: true });
+        // Redirect to dashboard for unknown routes (avoid infinite loops)
+        if (path !== '/dashboard' && path !== '/' && !path.startsWith('/dashboard')) {
+            console.log(`🏠 Redirecting to dashboard from: ${path}`);
+            this.navigate('/dashboard');
+        } else {
+            console.warn(`❌ Route not found and cannot redirect: ${path}`);
         }
     }
 
     /**
-     * Generate URL for a route with parameters
-     * @param {string} routePath - Route pattern
-     * @param {Object} params - Route parameters
-     * @returns {string} Generated URL
+     * Start the router
      */
-    generateUrl(routePath, params = {}) {
-        let url = routePath;
-
-        // Replace parameters in the path
-        for (const [key, value] of Object.entries(params)) {
-            url = url.replace(`:${key}`, encodeURIComponent(value));
+    start() {
+        if (this.isStarted) {
+            console.warn('⚠️ Router already started');
+            return;
         }
 
-        return url;
-    }
+        console.log('🎬 Starting router...');
 
-    /**
-     * Get current route information
-     * @returns {Object} Current route info
-     */
-    getCurrentRoute() {
-        return {
-            path: window.location.pathname,
-            route: this.currentRoute,
-            params: this.currentParams,
-            hash: window.location.hash,
-            search: window.location.search
-        };
-    }
+        // Handle browser back/forward
+        window.addEventListener('popstate', () => {
+            console.log('🔄 Popstate event');
+            this.handleRoute();
+        });
 
-    /**
-     * Check if current route matches pattern
-     * @param {string} pattern - Route pattern to check
-     * @returns {boolean} Whether current route matches
-     */
-    isCurrentRoute(pattern) {
-        return this.currentRoute === pattern;
-    }
+        // Handle current route
+        this.handleRoute();
 
-    /**
-     * Add query parameters to current URL
-     * @param {Object} params - Query parameters to add
-     */
-    updateQuery(params) {
-        const url = new URL(window.location);
-
-        for (const [key, value] of Object.entries(params)) {
-            if (value === null || value === undefined) {
-                url.searchParams.delete(key);
-            } else {
-                url.searchParams.set(key, value);
-            }
-        }
-
-        this.navigate(url.pathname + url.search, { replace: true });
-    }
-
-    /**
-     * Get query parameters from current URL
-     * @returns {Object} Query parameters
-     */
-    getQuery() {
-        const params = {};
-        const searchParams = new URLSearchParams(window.location.search);
-
-        for (const [key, value] of searchParams.entries()) {
-            params[key] = value;
-        }
-
-        return params;
-    }
-
-    /**
-     * Cleanup router resources
-     */
-    cleanup() {
-        window.removeEventListener('popstate', this.handleLocationChange);
-        this.routes.clear();
-        this.isInitialized = false;
-        console.log('🛤️ Router cleaned up');
-    }
-
-    /**
-     * Emit custom events
-     * @param {string} eventName - Event name
-     * @param {Object} data - Event data
-     */
-    emit(eventName, data) {
-        const event = new CustomEvent(eventName, { detail: data });
-        this.dispatchEvent(event);
+        this.isStarted = true;
+        console.log('✅ Router started');
     }
 }
 
-// Export singleton instance
-export default new Router();
+// Export singleton
+export default new SimpleRouter();
