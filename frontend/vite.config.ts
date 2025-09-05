@@ -35,14 +35,8 @@ export default defineConfig({
     server: {
         port: 3000,
         host: true,
-        // Proxy API requests to backend
-        proxy: {
-            "/api": {
-                target: "http://localhost:3000",
-                changeOrigin: true,
-                secure: false,
-            },
-        },
+        // NO PROXY - Frontend uses VITE_BACKEND_URL directly
+        // Proxy disabled for production deployment
     },
 
     // Build configuration
@@ -61,8 +55,6 @@ export default defineConfig({
         },
     },
 
-    // Environment variables
-    define: {
-        "process.env.BACKEND_URL": JSON.stringify(process.env.BACKEND_URL || "http://localhost:3000"),
-    },
+    // NO HARDCODED ENVIRONMENT VARIABLES
+    // All URLs come from .env file via VITE_BACKEND_URL
 });

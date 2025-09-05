@@ -112,7 +112,12 @@ export class RealtimeService extends EventTarget {
 
         try {
             console.log("📡 Initializing Server-Sent Events...");
-            this.eventSource = new EventSource("/api/queue/status/stream");
+            // Use VITE_BACKEND_URL from .env - NO HARDCODED PATHS
+            const backendUrl = import.meta.env.VITE_BACKEND_URL;
+            if (!backendUrl) {
+                throw new Error("❌ VITE_BACKEND_URL not set in .env file!");
+            }
+            this.eventSource = new EventSource(`${backendUrl}/api/queue/status/stream`);
 
             this.eventSource.onopen = () => {
                 console.log("📡 SSE connection opened");

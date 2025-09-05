@@ -26,8 +26,16 @@ export class APIService {
     private retryDelay: number;
 
     constructor() {
-        // Use environment variable or fallback to localhost
-        this.baseURL = (typeof window !== "undefined" && (window as { ENV?: { VITE_BACKEND_URL?: string } }).ENV?.VITE_BACKEND_URL) || (typeof process !== "undefined" && process?.env?.VITE_BACKEND_URL) || "http://localhost:3000";
+        // Use VITE_BACKEND_URL from .env file - NO FALLBACKS, NO HARDCODING
+        this.baseURL = import.meta.env.VITE_BACKEND_URL;
+
+        if (!this.baseURL) {
+            throw new Error("❌ VITE_BACKEND_URL is not set in .env file! This is required for API communication.");
+        }
+
+        // Log the URL from .env for debugging
+        console.log(`🔗 APIService initialized with baseURL from .env: ${this.baseURL}`);
+
         this.timeout = 30000; // 30 second timeout
         this.cache = new Map();
         this.cacheTTL = 5000; // 5 second cache TTL

@@ -98,7 +98,13 @@ export default function FormManager({ onFormStateChange, onMoviePreviewUpdate, o
         }
 
         try {
-            const response = await fetch("/api/movies/preview", {
+            // Use VITE_BACKEND_URL from .env - NO HARDCODED PATHS
+            const backendUrl = import.meta.env.VITE_BACKEND_URL;
+            if (!backendUrl) {
+                throw new Error("❌ VITE_BACKEND_URL not set in .env file!");
+            }
+
+            const response = await fetch(`${backendUrl}/api/movies/preview`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

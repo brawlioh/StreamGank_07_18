@@ -1358,7 +1358,7 @@ class VideoQueueManager {
                     PYTHONIOENCODING: "utf-8",
                     PYTHONUNBUFFERED: "1",
                     JOB_ID: job.id, // Pass job ID for real-time webhook updates
-                    WEBHOOK_BASE_URL: process.env.WEBHOOK_BASE_URL || "http://localhost:3000",
+                    WEBHOOK_BASE_URL: process.env.WEBHOOK_BASE_URL,
                 },
             });
 
