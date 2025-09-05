@@ -33,9 +33,6 @@ export class APIService {
             throw new Error("❌ VITE_BACKEND_URL is not set in .env file! This is required for API communication.");
         }
 
-        // Log the URL from .env for debugging
-        console.log(`🔗 APIService initialized with baseURL from .env: ${this.baseURL}`);
-
         this.timeout = 30000; // 30 second timeout
         this.cache = new Map();
         this.cacheTTL = 5000; // 5 second cache TTL
