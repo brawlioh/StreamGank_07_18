@@ -7,6 +7,13 @@ services:
         build:
             context: .
             dockerfile: Dockerfile
+            args:
+                VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:3000}
+                NODE_ENV: ${NODE_ENV:-production}
+                APP_ENV: ${APP_ENV:-production}
+                WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-http://localhost:3000}
+                WEBHOOK_CREATOMATE_URL: ${WEBHOOK_CREATOMATE_URL:-http://localhost:3000/api/webhooks/creatomate}
+                CACHEBUST: ${RANDOM:-1}
         container_name: streamgank-frontend
         restart: unless-stopped
         ports:
