@@ -1,14 +1,6 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
-
-// Try to import React plugin, fallback if not available
-let react: any;
-try {
-    react = require("@vitejs/plugin-react").default;
-} catch (e) {
-    console.warn("@vitejs/plugin-react not found, building without React plugin");
-    react = () => ({});
-}
+import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 export default defineConfig({
