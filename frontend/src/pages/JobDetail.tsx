@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import Navigation from "../components/Navigation";
 import { addStatusMessage } from "../utils/statusMessages";
 import APIService from "../services/APIService";
+import RealtimeService from "../services/RealtimeService";
 import type { Job } from "../types/job";
 
 interface LogEntry {
@@ -47,7 +48,11 @@ export default function JobDetail() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentActiveStep, setCurrentActiveStep] = useState<number | null>(null);
-    const [jobSSE, setJobSSE] = useState<EventSource | null>(null);
+
+    // 🚀 ENTERPRISE-LEVEL REQUEST DEDUPLICATION
+    const [isLoadingJobData, setIsLoadingJobData] = useState(false);
+    const lastDataLoadTime = useRef<number>(0);
+    const DATA_LOAD_THROTTLE_MS = 2000; // 2 seconds minimum between loads
 
     // Timeline steps for video generation process
     const processSteps: ProcessStep[] = [
@@ -128,9 +133,26 @@ export default function JobDetail() {
         }
     }, [jobId]);
 
-    // Load job data
+    // Load job data with enterprise-level deduplication
     const loadJobData = useCallback(async () => {
         if (!jobId) return;
+
+        const now = Date.now();
+
+        // 🛡️ PREVENT DUPLICATE REQUESTS
+        if (isLoadingJobData) {
+            console.log(`🔒 Skipping duplicate job data load for: ${jobId}`);
+            return;
+        }
+
+        // 🕐 THROTTLE RAPID REQUESTS
+        if (now - lastDataLoadTime.current < DATA_LOAD_THROTTLE_MS) {
+            console.log(`⏱️ Throttling job data load (too soon): ${jobId}`);
+            return;
+        }
+
+        setIsLoadingJobData(true);
+        lastDataLoadTime.current = now;
 
         try {
             setIsLoading(true);
@@ -154,13 +176,22 @@ export default function JobDetail() {
             setError(err instanceof Error ? err.message : "Unknown error occurred");
         } finally {
             setIsLoading(false);
+            setIsLoadingJobData(false); // 🔓 Reset deduplication flag
         }
-    }, [jobId, loadCurrentActiveStepFromLogs]);
+    }, [jobId, loadCurrentActiveStepFromLogs, isLoadingJobData]);
 
-    // Handle job-specific SSE messages
+    // Handle job-specific SSE messages - ENTERPRISE WEBHOOK OPTIMIZATION
     const handleJobSSEMessage = useCallback(
         (data: SSEMessage) => {
             if (data.job_id !== jobId) return;
+
+            // Clear loading state on first webhook received
+            setIsLoading(false);
+
+            console.log(`🎯 ENTERPRISE WEBHOOK: Processing complete update for job ${jobId}:`, data);
+
+            // 🚀 WEBHOOK-FIRST APPROACH: Update ALL job data from webhook payload
+            // NO additional API calls needed - webhook contains everything!
 
             switch (data.type) {
                 case "step_update":
@@ -190,140 +221,176 @@ export default function JobDetail() {
                         return;
                     }
 
-                    if (jobData) {
-                        if (data.status === "started" && data.step_number) {
-                            setCurrentActiveStep(data.step_number);
-                            setJobData((prev) =>
-                                prev
-                                    ? {
-                                          ...prev,
-                                          currentStep: `Step ${data.step_number}/7: ${data.step_name} (Processing...)`,
-                                          progress: data.progress || prev.progress,
-                                      }
-                                    : null
-                            );
-                        } else if (data.status === "completed") {
-                            if (currentActiveStep === data.step_number) {
-                                setCurrentActiveStep(null);
-                            }
-                            setJobData((prev) =>
-                                prev
-                                    ? {
-                                          ...prev,
-                                          currentStep: `Step ${data.step_number}/7: ${data.step_name} ✅`,
-                                          progress: data.progress || prev.progress,
-                                      }
-                                    : null
-                            );
+                    // 🚀 ENTERPRISE WEBHOOK OPTIMIZATION: Complete job state from webhook
+                    console.log(`📡 WEBHOOK UPDATE: Step ${data.step_number} ${data.status}: ${data.step_name}`);
 
-                            // Handle step 7 completion
-                            if (data.step_number === 7 && data.details?.creatomate_id) {
-                                setJobData((prev) =>
-                                    prev
-                                        ? {
-                                              ...prev,
-                                              creatomateId: data.details!.creatomate_id,
-                                          }
-                                        : null
-                                );
-                            }
+                    if (data.status === "started" && data.step_number) {
+                        setCurrentActiveStep(data.step_number);
+                        // 🎯 COMPLETE JOB UPDATE FROM WEBHOOK (NO API CALLS)
+                        setJobData(
+                            (prev) =>
+                                ({
+                                    ...(prev || {}),
+                                    id: jobId,
+                                    status: "processing",
+                                    currentStep: `Step ${data.step_number}/7: ${data.step_name} (Processing...)`,
+                                    progress: data.progress || (prev?.progress ?? 0),
+                                    startedAt: prev?.startedAt || new Date().toISOString(),
+                                    // Preserve all existing job data - webhook-driven updates only
+                                    country: prev?.country,
+                                    platform: prev?.platform,
+                                    genre: prev?.genre,
+                                    contentType: prev?.contentType,
+                                    template: prev?.template,
+                                    workerId: prev?.workerId,
+                                    parameters: prev?.parameters,
+                                    creatomateId: prev?.creatomateId,
+                                    videoUrl: prev?.videoUrl,
+                                    error: undefined, // Clear any previous errors
+                                } as Job)
+                        );
+                    } else if (data.status === "completed" && data.step_number) {
+                        console.log(`✅ Step ${data.step_number} completed: ${data.step_name}`);
+                        if (currentActiveStep === data.step_number) {
+                            setCurrentActiveStep(null);
                         }
+                        // 🎯 COMPLETE JOB UPDATE FROM WEBHOOK (NO API CALLS)
+                        setJobData((prev) => {
+                            const updatedJob = {
+                                ...(prev || {}),
+                                id: jobId,
+                                status: data.step_number === 7 ? "rendering" : "processing",
+                                currentStep: `Step ${data.step_number}/7: ${data.step_name} ✅`,
+                                progress: data.progress || (prev?.progress ?? 0),
+                                startedAt: prev?.startedAt || new Date().toISOString(),
+                                // Preserve all existing job data - webhook-driven updates only
+                                country: prev?.country,
+                                platform: prev?.platform,
+                                genre: prev?.genre,
+                                contentType: prev?.contentType,
+                                template: prev?.template,
+                                workerId: prev?.workerId,
+                                parameters: prev?.parameters,
+                                videoUrl: prev?.videoUrl,
+                                error: undefined, // Clear any previous errors
+                            } as Job;
+
+                            // Handle final step completion
+                            if (data.step_number === 7 && data.details?.creatomate_id) {
+                                console.log(`🎬 WEBHOOK: Final step completed, Creatomate ID: ${data.details.creatomate_id}`);
+                                updatedJob.creatomateId = data.details.creatomate_id;
+                                updatedJob.status = "rendering";
+                            }
+
+                            return updatedJob;
+                        });
                     }
                     break;
 
                 case "render_completed":
-                    console.log("🎬 INSTANT: Creatomate render completed via webhook!", data);
-                    if (jobData) {
-                        setJobData((prev) =>
-                            prev
-                                ? {
-                                      ...prev,
-                                      status: "completed",
-                                      progress: 100,
-                                      currentStep: "🎉 Video rendering completed successfully!",
-                                      videoUrl: data.videoUrl,
-                                      completedAt: data.timestamp,
-                                  }
-                                : null
-                        );
-                    }
+                    console.log("🎬 WEBHOOK: Render completed - NO API CALLS NEEDED!", data);
+                    // 🎯 COMPLETE JOB UPDATE FROM WEBHOOK (NO API CALLS)
+                    setJobData(
+                        (prev) =>
+                            ({
+                                ...(prev || {}),
+                                id: jobId,
+                                status: "completed",
+                                progress: 100,
+                                currentStep: "🎉 Video rendering completed successfully!",
+                                videoUrl: data.videoUrl,
+                                completedAt: data.timestamp || new Date().toISOString(),
+                                // Preserve all existing job data
+                                country: prev?.country,
+                                platform: prev?.platform,
+                                genre: prev?.genre,
+                                contentType: prev?.contentType,
+                                template: prev?.template,
+                                workerId: prev?.workerId,
+                                parameters: prev?.parameters,
+                                creatomateId: prev?.creatomateId,
+                                startedAt: prev?.startedAt,
+                                error: undefined,
+                            } as Job)
+                    );
                     break;
 
                 case "render_failed":
-                    console.log("❌ INSTANT: Creatomate render failed via webhook!", data);
-                    if (jobData) {
-                        setJobData((prev) =>
-                            prev
-                                ? {
-                                      ...prev,
-                                      status: "failed",
-                                      currentStep: `❌ Video rendering failed: ${data.error}`,
-                                      error: data.error,
-                                  }
-                                : null
-                        );
-                    }
+                    console.log("❌ WEBHOOK: Render failed - NO API CALLS NEEDED!", data);
+                    // 🎯 COMPLETE JOB UPDATE FROM WEBHOOK (NO API CALLS)
+                    setJobData(
+                        (prev) =>
+                            ({
+                                ...(prev || {}),
+                                id: jobId,
+                                status: "failed",
+                                currentStep: `❌ Video rendering failed: ${data.error}`,
+                                error: data.error,
+                                // Preserve all existing job data
+                                country: prev?.country,
+                                platform: prev?.platform,
+                                genre: prev?.genre,
+                                contentType: prev?.contentType,
+                                template: prev?.template,
+                                workerId: prev?.workerId,
+                                parameters: prev?.parameters,
+                                creatomateId: prev?.creatomateId,
+                                startedAt: prev?.startedAt,
+                                videoUrl: prev?.videoUrl,
+                                progress: prev?.progress,
+                                completedAt: prev?.completedAt,
+                            } as Job)
+                    );
                     break;
             }
         },
-        [jobId, jobData, currentActiveStep]
+        [jobId, currentActiveStep]
     );
 
-    // Initialize job-specific SSE
-    const initializeJobSSE = useCallback(() => {
-        if (jobSSE || !jobId) return;
-
-        console.log(`📡 Connecting to job-specific real-time updates for ${jobId}`);
-
-        try {
-            const eventSource = new EventSource(`/api/job/${jobId}/stream`);
-
-            eventSource.onopen = () => {
-                console.log(`📡 Real-time connection established for job ${jobId}`);
-            };
-
-            eventSource.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    handleJobSSEMessage(data);
-                } catch (error) {
-                    console.error("❌ Failed to parse job SSE message:", error);
-                }
-            };
-
-            eventSource.onerror = () => {
-                console.warn(`⚠️ Job SSE connection error for ${jobId}`);
-                setTimeout(() => {
-                    if (eventSource.readyState === EventSource.CLOSED) {
-                        setJobSSE(null);
-                        initializeJobSSE();
-                    }
-                }, 5000);
-            };
-
-            setJobSSE(eventSource);
-        } catch (error) {
-            console.error(`❌ Failed to initialize job SSE for ${jobId}:`, error);
-        }
-    }, [jobSSE, jobId, handleJobSSEMessage]);
-
-    // Initialize page
+    // Initialize page with enterprise-level optimization
     useEffect(() => {
         if (!jobId) {
             setError("Invalid job ID");
             return;
         }
 
-        loadJobData();
-        initializeJobSSE();
+        // 🎯 ENTERPRISE APPROACH: Smart initialization with deduplication
+        const initializePage = async () => {
+            console.log(`🚀 Initializing JobDetail page for: ${jobId}`);
+
+            // 1. Load existing job data with built-in deduplication
+            await loadJobData();
+
+            // 2. Setup real-time listener for ongoing updates
+            const handleJobUpdate = (event: CustomEvent) => {
+                const data = event.detail;
+                if (data.job_id === jobId) {
+                    console.log(`📡 JobDetail received real-time update:`, data);
+                    handleJobSSEMessage(data);
+                }
+            };
+
+            RealtimeService.addEventListener("jobUpdate", handleJobUpdate as EventListener);
+
+            // 3. If job is still processing and no existing SSE connection, connect
+            const connectionStatus = RealtimeService.getConnectionStatus();
+            if (!connectionStatus.isConnected || connectionStatus.connectionType === "none") {
+                console.log(`📡 No active SSE connection, connecting for job: ${jobId}`);
+                RealtimeService.connectToJob(jobId);
+            }
+
+            return () => {
+                RealtimeService.removeEventListener("jobUpdate", handleJobUpdate as EventListener);
+            };
+        };
+
+        const cleanup = initializePage();
 
         // Cleanup on unmount
         return () => {
-            if (jobSSE) {
-                jobSSE.close();
-            }
+            cleanup.then((cleanupFn) => cleanupFn && cleanupFn());
         };
-    }, [jobId, loadJobData, initializeJobSSE, jobSSE]);
+    }, [jobId, handleJobSSEMessage, loadJobData]);
 
     const handleCancelJob = async () => {
         if (!jobData) return;

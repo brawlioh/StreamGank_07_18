@@ -237,8 +237,11 @@ Write a {genre.lower()} hook with exactly 24-30 words (8-10 seconds):"""
                         logger.warning(f"   ⚠️ OpenAI {movie_name} timing wrong ({hook_word_count} words = {duration_seconds:.1f}s, need 8-10s)")
                         logger.info(f"   🔄 RETRYING with OpenAI - adjusting prompt for exact timing...")
                         
-                        # SUPER PRECISE retry prompt (last resort to save tokens)
-                        retry_prompt = f"""URGENT: Create EXACTLY {24 + (retry_attempt * 2)} words for 8-10 seconds.
+                        # Retry with OpenAI (up to 3 attempts)
+                        retry_success = False
+                        for retry_attempt in range(3):
+                            # SUPER PRECISE retry prompt (last resort to save tokens)
+                            retry_prompt = f"""URGENT: Create EXACTLY {24 + (retry_attempt * 2)} words for 8-10 seconds.
 
 Movie: {title} ({genre})
 Current attempt has {hook_word_count} words = {duration_seconds:.1f}s
@@ -250,10 +253,6 @@ EXACT TARGET: Write exactly {24 + (retry_attempt * 2)} words
 - Professional tone
 
 Write exactly {24 + (retry_attempt * 2)} words:"""
-
-                        # Retry with OpenAI (up to 3 attempts)
-                        retry_success = False
-                        for retry_attempt in range(3):
                             try:
                                 retry_response = client.chat.completions.create(
                                     model=api_config.get('model', 'gpt-3.5-turbo'),
@@ -476,3 +475,62 @@ def generate_video_scripts(raw_movies: List[Dict],
         platform=platform,
         content_type=content_type
     )
+
+
+def generate_outro_script(genre: str, platform: str = "streaming") -> str:
+    """
+    Generate outro script using the EXACT same OpenAI pattern as clean_script_generator.py
+    """
+    from openai import OpenAI
+    from config.settings import get_api_config
+    
+    # Use EXACT same pattern as clean_script_generator.py
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        print("   ⚠️ No OpenAI API key - using fallback outro")
+        return f"Thanks for watching these amazing {genre.lower()} recommendations - discover more curated content at streamgank.com!"
+    
+    try:
+        client = OpenAI(api_key=api_key)
+        api_config = get_api_config('openai')
+        
+        outro_prompt = f"""Generate a powerful, engaging outro script for a video showcasing the top 3 {genre.lower()} movies on {platform}.
+
+Requirements:
+- EXACTLY 1 sentence (very important for timing)
+- US English, TikTok/YouTube optimized
+- Must end with "streamgank.com" (critical for branding)
+- Match the {genre.lower()} genre tone and energy
+- Create call-to-action for viewers to visit website
+- Friendly, engaging, and memorable
+- Reference the viewing experience they just had
+
+Examples for {genre} on {platform}:
+- "Hope those spine-chilling {genre.lower()} picks gave you the thrills you were looking for - find more at streamgank.com!"
+- "That's a wrap on today's adrenaline-pumping {genre.lower()} recommendations - discover more at streamgank.com!"
+- "Hope those {genre.lower()} gems brought some excitement to your day - explore more curated content at streamgank.com!"
+
+Generate ONE outro sentence for {genre} genre:"""
+
+        # Use EXACT same API call as clean_script_generator.py
+        outro_response = client.chat.completions.create(
+            model=api_config.get('model', 'gpt-3.5-turbo'),
+            messages=[{"role": "user", "content": outro_prompt}],
+            max_tokens=api_config.get('intro_max_tokens', 50),
+            temperature=api_config.get('temperature', 0.8)
+        )
+        
+        outro_script = outro_response.choices[0].message.content.strip()
+        
+        # Ensure it ends with streamgank.com
+        if not outro_script.lower().endswith("streamgank.com"):
+            if not outro_script.endswith("."):
+                outro_script += " - find more at streamgank.com!"
+            else:
+                outro_script = outro_script.rstrip(".") + " - find more at streamgank.com!"
+        
+        return outro_script
+        
+    except Exception as e:
+        print(f"   ⚠️ Outro generation failed: {e}")
+        return f"Thanks for watching these amazing {genre.lower()} recommendations - discover more curated content at streamgank.com!"

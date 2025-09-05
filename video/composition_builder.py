@@ -583,6 +583,15 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                 "fit": "cover"
             },
             
+            # 🎯 ELEMENT 7.5: OUTRO HEYGEN VIDEO (Dynamic genre-based script)
+            {
+                "type": "video",
+                "track": 1,
+                "time": "auto",
+                "source": heygen_video_urls["outro"],
+                "fit": "cover",
+            },
+
             # 🎯 ELEMENT 8: OUTRO IMAGE
             {
                 "type": "image",

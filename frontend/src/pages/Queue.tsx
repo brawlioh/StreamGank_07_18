@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import Navigation from "../components/Navigation";
 import { addStatusMessage } from "../utils/statusMessages";
@@ -22,11 +22,25 @@ export default function Queue() {
     const [currentFilter, setCurrentFilter] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "warning">("connected");
+
+    // Request deduplication - prevent multiple simultaneous API calls
+    const [isLoadingData, setIsLoadingData] = useState(false);
+
+    // Throttle SSE updates to prevent spam
+    const lastUpdateTime = useRef<number>(0);
+    const UPDATE_THROTTLE_MS = 1000; // 1 second minimum between updates
     const [isLoading, setIsLoading] = useState(true);
     const [isQueueProcessing, setIsQueueProcessing] = useState(true);
 
-    // Load queue data
+    // Load queue data with deduplication
     const loadQueueData = useCallback(async () => {
+        // Prevent multiple simultaneous API calls
+        if (isLoadingData) {
+            console.log("📋 Skipping duplicate loadQueueData call");
+            return;
+        }
+
+        setIsLoadingData(true);
         try {
             console.log("📋 Loading queue data...");
 
@@ -89,8 +103,9 @@ export default function Queue() {
             addStatusMessage("error", "❌", "Failed to load queue data");
         } finally {
             setIsLoading(false);
+            setIsLoadingData(false); // Reset deduplication flag
         }
-    }, [queueStats.failed]);
+    }, [queueStats.failed, isLoadingData]);
 
     // Set page title and start auto-refresh
     useEffect(() => {
@@ -114,13 +129,26 @@ export default function Queue() {
         // Initialize realtime service
         RealtimeService.init();
 
-        // Listen for queue updates
+        // Listen for queue updates - OPTIMIZED & THROTTLED VERSION
         const handleQueueUpdate = (event: CustomEvent) => {
+            const now = Date.now();
+            console.log("📊 Queue update received:", event.detail);
+
             if (event.detail.stats) {
                 setQueueStats(event.detail.stats);
+                console.log("📊 Queue stats updated from SSE");
             }
-            // Also refresh jobs data when queue updates
-            loadQueueData();
+
+            // Only refresh jobs data if there's actual job changes AND enough time has passed
+            if (event.detail.jobChanged || event.detail.source === "manual") {
+                if (now - lastUpdateTime.current > UPDATE_THROTTLE_MS) {
+                    console.log("🔄 Refreshing jobs data due to job changes");
+                    lastUpdateTime.current = now;
+                    loadQueueData();
+                } else {
+                    console.log("⏱️ Throttling job data refresh (too soon)");
+                }
+            }
         };
 
         const handleConnectionChange = (event: CustomEvent) => {

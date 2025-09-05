@@ -899,7 +899,8 @@ app.post("/api/webhooks/step-update", async (req, res) => {
         // 📡 HANDLE INTERNAL PYTHON WORKFLOW WEBHOOKS WITH STEP VALIDATION
         const { job_id, step_number, step_name, status, duration, details, timestamp, step_key, sequence, workflow_stage } = req.body;
 
-        console.log(`📡 Real-time webhook: Job ${job_id} - Step ${step_number} (${step_name}) ${status}`);
+        console.log(`📡 WEBHOOK RECEIVED: Job ${job_id} - Step ${step_number} (${step_name}) ${status}`);
+        console.log(`📡 WEBHOOK PAYLOAD:`, JSON.stringify(req.body, null, 2));
 
         // Log only essential webhook events to reduce spam
         if (step_number >= 1 && step_number <= 7) {
@@ -1073,8 +1074,13 @@ app.post("/api/webhooks/step-update", async (req, res) => {
             }
 
             // REAL-TIME FRONTEND UPDATE: Send job update to connected SSE clients
+            console.log(`📡 Checking SSE clients for job ${job_id}...`);
+            console.log(`📡 Global SSE clients map exists: ${!!global.jobSSEClients}`);
+            console.log(`📡 Job ${job_id} has SSE clients: ${global.jobSSEClients ? global.jobSSEClients.has(job_id) : "no global map"}`);
+
             if (global.jobSSEClients && global.jobSSEClients.has(job_id)) {
                 const sseClients = global.jobSSEClients.get(job_id);
+                console.log(`📡 Found ${sseClients.size} SSE clients for job ${job_id}`);
                 const updateData = {
                     type: "step_update",
                     job_id: job_id,
@@ -1100,14 +1106,21 @@ app.post("/api/webhooks/step-update", async (req, res) => {
                     failedAt: job.failedAt || null,
                 };
 
-                sseClients.forEach((client) => {
+                console.log(`📡 SSE UPDATE DATA:`, JSON.stringify(updateData, null, 2));
+
+                sseClients.forEach((client, index) => {
                     try {
                         client.write(`data: ${JSON.stringify(updateData)}\n\n`);
-                        console.log(`📡 Sent real-time update to job ${job_id} frontend client`);
+                        console.log(`📡 ✅ Sent SSE update to client ${index + 1}/${sseClients.size} for job ${job_id}`);
                     } catch (error) {
-                        console.warn(`⚠️ Failed to send SSE to job ${job_id} client:`, error.message);
+                        console.warn(`⚠️ Failed to send SSE to job ${job_id} client ${index + 1}:`, error.message);
                     }
                 });
+            } else {
+                console.warn(`📡 ❌ No SSE clients found for job ${job_id} - UI won't update in real-time`);
+                if (global.jobSSEClients) {
+                    console.warn(`📡 Available job SSE clients: ${Array.from(global.jobSSEClients.keys()).join(", ")}`);
+                }
             }
         } else {
             console.warn(`⚠️ Webhook received for unknown job: ${job_id}`);

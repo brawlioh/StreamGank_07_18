@@ -50,6 +50,71 @@ export class RealtimeService extends EventTarget {
     }
 
     /**
+     * Connect to job-specific SSE for real-time job updates
+     */
+    connectToJob(jobId: string): void {
+        console.log(`📡 Connecting to job-specific SSE for job: ${jobId}`);
+
+        // Disconnect existing SSE connection
+        this.disconnect();
+
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL;
+            if (!backendUrl) {
+                throw new Error("❌ VITE_BACKEND_URL not set in .env file!");
+            }
+
+            // Connect to job-specific SSE endpoint
+            this.eventSource = new EventSource(`${backendUrl}/api/job/${jobId}/stream`);
+
+            this.eventSource.onopen = () => {
+                console.log(`📡 Job SSE connection opened for job: ${jobId}`);
+                this.isSSEEnabled = true;
+                this.isConnected = true;
+                this.sseRetryCount = 0;
+                this.consecutiveErrors = 0;
+                this.stopPolling();
+                this.dispatchEvent(new CustomEvent("connected", { detail: { type: "job-sse", jobId } }));
+                this.addStatusMessage("success", "📡", `Real-time updates enabled for job ${jobId}`);
+            };
+
+            this.eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log(`📡 Job SSE message received:`, data);
+                    this.handleJobUpdate(data);
+                } catch (error) {
+                    console.error("📡 Error parsing job SSE message:", error);
+                }
+            };
+
+            this.eventSource.onerror = () => {
+                console.error(`📡 Job SSE connection error for job: ${jobId}`);
+                this.isSSEEnabled = false;
+                this.isConnected = false;
+            };
+        } catch (error) {
+            console.error(`📡 Failed to connect to job SSE for ${jobId}:`, error);
+            this.isSSEEnabled = false;
+            this.isConnected = false;
+        }
+    }
+
+    /**
+     * Handle job-specific SSE updates
+     */
+    private handleJobUpdate(data: unknown): void {
+        this.lastUpdateTime = Date.now();
+        this.consecutiveErrors = 0;
+
+        // Emit job update event
+        this.dispatchEvent(new CustomEvent("jobUpdate", { detail: data }));
+
+        // Also emit as queue update for compatibility
+        this.dispatchEvent(new CustomEvent("queueUpdate", { detail: data }));
+    }
+
+    /**
      * Setup event listeners
      */
     private setupEventListeners(): void {

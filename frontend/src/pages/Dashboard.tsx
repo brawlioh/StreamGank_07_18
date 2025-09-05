@@ -191,6 +191,13 @@ export default function Dashboard() {
                 addStatusMessage("success", "✅", `Video generation started! Job ID: ${jobId}`);
 
                 if (jobId !== "Unknown") {
+                    // Connect to job-specific SSE for real-time updates
+                    import("../services/RealtimeService").then((module) => {
+                        const RealtimeService = module.default;
+                        RealtimeService.connectToJob(jobId);
+                        console.log(`📡 Connected to job-specific SSE for job: ${jobId}`);
+                    });
+
                     // Navigate to job detail page after a short delay
                     setTimeout(() => {
                         navigate(`/job/${jobId}`);

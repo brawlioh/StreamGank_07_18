@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 
 # Import modular functions
-from ai.clean_script_generator import generate_video_scripts
+from ai.clean_script_generator import generate_video_scripts, generate_outro_script
 from video.poster_generator import create_enhanced_movie_posters
 # Import clip processing (standard video processing without AI + parallel Vizard AI)
 from video.clip_processor import process_movie_trailers_to_clips, process_movie_trailers_to_clips_vizard, process_movie_trailers_to_clips_vizard_parallel
@@ -369,8 +369,17 @@ def run_full_workflow(num_movies: int = 3,
                 print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
                 raise Exception("🛑 LOCAL MODE STRICT: Invalid cached script data. Process STOPPED to prevent API calls.")
             
+            # ========================================================================
+            # 🎬 DYNAMIC OUTRO GENERATION: Genre-specific closing segment (LOCAL MODE)
+            # ========================================================================
+            print("   🎯 Generating dynamic outro script based on genre...")
+            outro_script = generate_outro_script(genre, platform)
+            individual_scripts["outro"] = outro_script
+            print(f"   ✅ OUTRO GENERATED: {outro_script[:50]}...")
+            print(f"   📝 Outro script length: {len(outro_script.split())} words")
+            
             script_result = (combined_script, script_file_path, individual_scripts)
-            print(f"   ✅ LOCAL MODE: Successfully loaded {len(individual_scripts)} cached scripts")
+            print(f"   ✅ LOCAL MODE: Successfully loaded {len(individual_scripts)} cached scripts + outro")
             
         elif cached_script_data and should_use_cache():
             # DEVELOPMENT/PRODUCTION MODE: Use cache if available
@@ -381,8 +390,17 @@ def run_full_workflow(num_movies: int = 3,
             script_file_path = cached_script_data.get('script_file_path', '') if isinstance(cached_script_data, dict) else ''
             individual_scripts = cached_script_data.get('individual_scripts', {}) if isinstance(cached_script_data, dict) else {}
             
+            # ========================================================================
+            # 🎬 DYNAMIC OUTRO GENERATION: Genre-specific closing segment (CACHED MODE)
+            # ========================================================================
+            print("   🎯 Generating dynamic outro script based on genre...")
+            outro_script = generate_outro_script(genre, platform)
+            individual_scripts["outro"] = outro_script
+            print(f"   ✅ OUTRO GENERATED: {outro_script[:50]}...")
+            print(f"   📝 Outro script length: {len(outro_script.split())} words")
+            
             script_result = (combined_script, script_file_path, individual_scripts)
-            print(f"   📋 Loaded {len(individual_scripts)} cached scripts")
+            print(f"   📋 Loaded {len(individual_scripts)} cached scripts + outro")
             
         else:
             # DEVELOPMENT/PRODUCTION MODE: Generate fresh scripts via API
@@ -401,6 +419,15 @@ def run_full_workflow(num_movies: int = 3,
                 raise Exception("Script generation failed - no scripts were generated")
             
             combined_script, script_file_path, individual_scripts = script_result
+            
+            # ========================================================================
+            # 🎬 DYNAMIC OUTRO GENERATION: Genre-specific closing segment
+            # ========================================================================
+            print("   🎯 Generating dynamic outro script based on genre...")
+            outro_script = generate_outro_script(genre, platform)
+            individual_scripts["outro"] = outro_script
+            print(f"   ✅ OUTRO GENERATED: {outro_script[:50]}...")
+            print(f"   📝 Outro script length: {len(outro_script.split())} words")
             
             # Script results saved via save_workflow_result() call below
         
@@ -731,6 +758,14 @@ def run_full_workflow(num_movies: int = 3,
             # ========================================================================
             heygen_scripts = individual_scripts.copy()  # Don't modify original
             
+            # ========================================================================
+            # 🎯 VERIFY OUTRO: Ensure outro script is included in HeyGen generation
+            # ========================================================================
+            if "outro" in heygen_scripts:
+                print(f"   ✅ OUTRO SCRIPT READY: {heygen_scripts['outro'][:50]}...")
+            else:
+                print(f"   ⚠️ Warning: Outro script missing from individual_scripts")
+            
             if "intro" in heygen_scripts and "movie1" in heygen_scripts:
                 # Combine intro + movie1 into first video script
                 combined_movie1 = f"{heygen_scripts['intro']} {heygen_scripts['movie1']}"
@@ -744,6 +779,7 @@ def run_full_workflow(num_movies: int = 3,
             else:
                 print(f"   ⚠️ Warning: Missing intro or movie1 scripts for combination")
             
+            print(f"   🎬 Creating HeyGen videos for {len(heygen_scripts)} scripts: {list(heygen_scripts.keys())}")
             heygen_video_ids = create_heygen_video(heygen_scripts, True, heygen_template_id)
             
             if not heygen_video_ids:
@@ -1160,6 +1196,15 @@ def run_full_workflow(num_movies: int = 3,
                 if creatomate_heygen_urls:
                     last_url = list(creatomate_heygen_urls.values())[-1]
                     creatomate_heygen_urls[f"movie{i}"] = last_url
+        
+        # ========================================================================
+        # 🎬 ADD OUTRO HEYGEN URL: Include dynamic outro video in Creatomate mapping
+        # ========================================================================
+        if "outro" in heygen_video_urls:
+            creatomate_heygen_urls["outro"] = heygen_video_urls["outro"]
+            logger.info(f"✅ Outro HeyGen URL added to Creatomate mapping")
+        else:
+            logger.warning(f"⚠️ No outro HeyGen URL found - outro video may not play in final video")
         
         # Log the ordering for verification
         logger.info(f"🎬 FINAL ASSET ORDERING for Creatomate:")
