@@ -13,32 +13,39 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies in single layer (optimized for size)
+# Install system dependencies in optimized layers (Railway-friendly)
+# Layer 1: Essential tools (most stable)
 RUN apt-get update && apt-get install -y \
-    # Essential tools
     curl wget ca-certificates gnupg lsb-release \
-    # Python 3.11
+    && rm -rf /var/lib/apt/lists/*
+
+# Layer 2: Node.js 20 LTS (separate for better caching)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Layer 3: Python and core dependencies
+RUN apt-get update && apt-get install -y \
     python3 python3-pip python3-dev \
-    # FFmpeg for video processing (CRITICAL)
+    && rm -rf /var/lib/apt/lists/*
+
+# Layer 4: Media processing tools
+RUN apt-get update && apt-get install -y \
     ffmpeg \
-    # FONTS for poster generation (CRITICAL - DO NOT REMOVE)
-    fonts-dejavu-core fonts-dejavu fonts-liberation \
-    fontconfig \
-    # Dependencies for Chromium
+    && rm -rf /var/lib/apt/lists/*
+
+# Layer 5: Fonts (CRITICAL - DO NOT REMOVE)
+RUN apt-get update && apt-get install -y \
+    fonts-dejavu-core fonts-dejavu fonts-liberation fontconfig \
+    && fc-cache -f -v \
+    && rm -rf /var/lib/apt/lists/*
+
+# Layer 6: Chromium and dependencies
+RUN apt-get update && apt-get install -y \
     libnss3 libatk-bridge2.0-0 libdrm2 libxcomposite1 \
     libxdamage1 libxrandr2 libgbm1 libxss1 libgconf-2-4 \
-    libasound2 libatspi2.0-0 libgtk-3-0 \
-    # Add Node.js 20 LTS
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    # Install only Chromium (not full Playwright suite)
-    && apt-get install -y chromium-browser \
-    # Refresh font cache (CRITICAL for poster fonts)
-    && fc-cache -f -v \
-    # Clean up to reduce image size
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get autoremove -y \
-    && apt-get autoclean
+    libasound2 libatspi2.0-0 libgtk-3-0 chromium-browser \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create Python alias and install pip dependencies
 RUN ln -s /usr/bin/python3 /usr/bin/python
