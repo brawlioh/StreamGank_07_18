@@ -74,14 +74,15 @@ RUN npm ci --include=dev
 RUN npm list vite || echo "Vite not found in list"
 RUN npm list @tailwindcss/postcss || echo "Tailwind PostCSS not found in list"
 
-# Pass ONLY non-sensitive build-time variables (BEFORE copying files)
+# Pass build-time variables with Railway-friendly defaults
 ARG VITE_BACKEND_URL
-ARG NODE_ENV
-ARG APP_ENV
+ARG NODE_ENV=production
+ARG APP_ENV=production
 ARG WEBHOOK_BASE_URL
 ARG WEBHOOK_CREATOMATE_URL
 ARG CACHEBUST=1
 
+# Set environment variables for build process
 ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
 ENV NODE_ENV=${NODE_ENV}
 ENV APP_ENV=${APP_ENV}
@@ -92,8 +93,7 @@ ENV WEBHOOK_CREATOMATE_URL=${WEBHOOK_CREATOMATE_URL}
 COPY frontend/ .
 
 # Build the React frontend with Tailwind v4 (CRITICAL - DO NOT REMOVE)
-# Cache bust: this will rebuild when CACHEBUST changes
-RUN echo "Cache bust: ${CACHEBUST}" && npm run build
+RUN npm run build
 
 # Return to app root
 WORKDIR /app
