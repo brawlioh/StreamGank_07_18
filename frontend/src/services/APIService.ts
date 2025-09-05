@@ -26,10 +26,6 @@ export class APIService {
     private retryDelay: number;
 
     constructor() {
-        // Debug: Check all available environment variables
-        console.log("🔍 Debug - All import.meta.env:", import.meta.env);
-        console.log("🔍 Debug - VITE_BACKEND_URL:", import.meta.env.VITE_BACKEND_URL);
-
         // Use VITE_BACKEND_URL from .env file - NO FALLBACKS, NO HARDCODING
         this.baseURL = import.meta.env.VITE_BACKEND_URL;
 
