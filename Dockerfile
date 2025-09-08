@@ -107,6 +107,9 @@ RUN mkdir -p assets videos screenshots clips covers \
 # First backup the built frontend dist folder (CRITICAL)
 RUN cp -r frontend/dist /tmp/frontend-dist-backup 2>/dev/null || true
 
+# Force cache invalidation for code changes (vm-update/vm-restart)
+COPY .docker-build-timestamp* ./
+
 # Copy all application code
 COPY . .
 

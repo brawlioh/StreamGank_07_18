@@ -102,3 +102,6 @@ Dockerfile.gui
 Dockerfile.unified
 Dockerfile.*
 !Dockerfile
+
+# Allow build timestamp for cache invalidation
+!.docker-build-timestamp

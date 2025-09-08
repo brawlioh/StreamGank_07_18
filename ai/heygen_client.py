@@ -444,6 +444,11 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
         STRICT MODE - Returns None if any video fails. No fallbacks allowed.
     """
     logger.info(f"🔗 Getting HeyGen video URLs for {len(heygen_video_ids)} videos - STRICT MODE")
+    logger.info(f"   Expected videos: movie1, movie2, movie3, outro")
+    
+    # Log input video IDs
+    for key, video_id in heygen_video_ids.items():
+        logger.info(f"   {key}: {video_id}")
     
     # Check if we're in local mode - return hardcoded URLs directly
     from utils.test_data_cache import is_local_mode
@@ -490,6 +495,16 @@ def get_heygen_videos_for_creatomate(heygen_video_ids: dict, scripts: dict = Non
             logger.error(f"   Status: {status_result}")
             logger.error("❌ STRICT MODE - No fallback URLs allowed")
             return None
+    
+    # CRITICAL DEBUG: Log final result with expected keys
+    logger.info(f"🔍 DEBUG: Final result - Got {len(video_urls)} video URLs")
+    expected_keys = ['movie1', 'movie2', 'movie3', 'outro']
+    
+    for key in expected_keys:
+        if key in video_urls:
+            logger.info(f"   ✅ {key}: {video_urls[key][:50]}...")
+        else:
+            logger.error(f"   ❌ MISSING: {key} not found in results")
     
     logger.info(f"✅ Obtained {len(video_urls)} video URLs")
     return video_urls
@@ -601,10 +616,10 @@ def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_min
                 print(f"\r✅ HeyGen video completed! [{'█' * bar_length}] 100.0% │ {time_str} │ Verifying URL...{' ' * 5}")
                 logger.info(f"🎬 Video completed in {minutes}:{seconds:02d}")
                 
-                # Verify video URL is accessible for duration analysis
-                if video_url and _verify_video_url_ready(video_url):
-                    print(f"\r✅ HeyGen video ready!     [{'█' * bar_length}] 100.0% │ {time_str} │ URL verified!{' ' * 10}")
-                    logger.info(f"🔗 Video URL verified and ready for duration analysis")
+                # CRITICAL FIX: Check if video URL exists (function _verify_video_url_ready doesn't exist)
+                if video_url:
+                    print(f"\r✅ HeyGen video ready!     [{'█' * bar_length}] 100.0% │ {time_str} │ URL obtained!{' ' * 10}")
+                    logger.info(f"🔗 Video URL obtained: {video_url[:50]}...")
                     
                     return {
                         'success': True,
@@ -613,7 +628,7 @@ def wait_for_heygen_video(video_id: str, script_length: int = None, max_wait_min
                         'data': status_info.get('data', {})
                     }
                 else:
-                    logger.warning(f"⚠️ Video marked completed but URL not ready yet: {video_url}")
+                    logger.warning(f"⚠️ Video marked completed but no URL provided: {video_url}")
                     # Continue waiting - sometimes there's a delay between completion and URL accessibility
                 
             elif status in ["failed", "error"]:

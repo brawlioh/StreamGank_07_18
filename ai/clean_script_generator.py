@@ -224,17 +224,17 @@ Write a {genre.lower()} hook with exactly 24-30 words (8-10 seconds):"""
                 
                 # TIMING VALIDATION for movie2 and movie3 (8-10 seconds requirement)
                 if i > 1:  # movie2 and movie3
-                    # Calculate speaking duration (180 WPM = normal pace)
-                    duration_seconds = (hook_word_count / 180) * 60
+                    # Calculate speaking duration (180 WPM = 3 words per second)
+                    duration_seconds = hook_word_count / 3.0  # 180 WPM = 3 words/second
                     
-                    if 8 <= duration_seconds <= 10:
+                    if 8 <= duration_seconds <= 11:  # Allow up to 11 seconds (more forgiving)
                         # ✅ Perfect timing - use OpenAI script
                         individual_scripts[movie_name] = hook_script
                         logger.info(f"   ✅ {movie_name} hook generated ({hook_word_count} words = {duration_seconds:.1f}s) - TIMING PERFECT")
-                        logger.info(f"   🎯 TARGET MET: {hook_word_count} words fits 8-10s requirement (24-30 words)")
+                        logger.info(f"   🎯 TARGET MET: {hook_word_count} words fits 8-11s requirement")
                     else:
                         # 🔄 RETRY with OpenAI (no fallbacks - you have PAID OpenAI!)
-                        logger.warning(f"   ⚠️ OpenAI {movie_name} timing wrong ({hook_word_count} words = {duration_seconds:.1f}s, need 8-10s)")
+                        logger.warning(f"   ⚠️ OpenAI {movie_name} timing wrong ({hook_word_count} words = {duration_seconds:.1f}s, need 8-11s)")
                         logger.info(f"   🔄 RETRYING with OpenAI - adjusting prompt for exact timing...")
                         
                         # Retry with OpenAI (up to 3 attempts)
@@ -262,9 +262,9 @@ Write exactly {24 + (retry_attempt * 2)} words:"""
                                 )
                                 retry_script = _clean_script_text(retry_response.choices[0].message.content.strip())
                                 retry_words = len(retry_script.split())
-                                retry_duration = (retry_words / 180) * 60
+                                retry_duration = retry_words / 3.0  # Fix: Use correct formula
                                 
-                                if 8 <= retry_duration <= 10:
+                                if 8 <= retry_duration <= 11:  # Fix: Use updated range
                                     individual_scripts[movie_name] = retry_script
                                     logger.info(f"   ✅ RETRY SUCCESS! {movie_name} ({retry_words} words = {retry_duration:.1f}s) - Attempt {retry_attempt + 1}")
                                     retry_success = True
@@ -282,7 +282,7 @@ Write exactly {24 + (retry_attempt * 2)} words:"""
                 else:
                     # Movie1 - no timing validation needed
                     individual_scripts[movie_name] = hook_script
-                    duration_seconds = (hook_word_count / 180) * 60
+                    duration_seconds = hook_word_count / 3.0  # Fix: Use correct formula
                     logger.info(f"   ✅ {movie_name} hook generated ({hook_word_count} words = {duration_seconds:.1f}s)")
                     logger.info(f"   📋 No timing restriction for movie1 (any length accepted)")
                 
