@@ -4,8 +4,8 @@
   "description": "Professional GUI for StreamGank Video Generator - Modular Architecture",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "PORT=3001 node server.js",
+    "dev": "PORT=3001 nodemon server.js",
     "dev:client": "vite --port 3001",
     "build": "vite build",
     "preview": "vite preview",
@@ -30,7 +30,7 @@
     "nodemon": "^3.0.1",
     "prettier": "^3.0.3",
     "rimraf": "^5.0.5",
-    "vite": "^5.4.19"
+    "vite": "^7.1.5"
   },
   "engines": {
     "node": ">=16.0.0",

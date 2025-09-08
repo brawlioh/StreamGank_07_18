@@ -37,8 +37,10 @@ npm start
 2. Open your browser and navigate to:
 
 ```
-http://localhost:3000
+http://localhost:3001
 ```
+
+   Note: The default port has been changed to 3001 to avoid conflicts. If you need to use a different port, you can set it in the `.env.local` file or run with `PORT=your_port npm start`
 
 3. Select your video generation parameters:
    - Streaming Country

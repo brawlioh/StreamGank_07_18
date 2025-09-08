@@ -10,7 +10,7 @@ Usage:
     python main.py --country FR --platform Netflix --genre Horreur --content-type Film --heygen-template-id ed21a309a5c84b0d873fde68642adea3
 
     python main.py --check-env
-    python main.py --check-creatomate <render_id>
+    python main.py --check-creatomate <render_id>   
     python main.py --wait-creatomate <render_id>
     python main.py --process-heygen <file_path>
 """
