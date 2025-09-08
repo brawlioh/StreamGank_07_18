@@ -363,7 +363,7 @@ export class JobDetailApp {
                         ${this.getStepIcon(step.id, iconClass)}
                     </div>
                     <div class="step-title">${step.name}</div>
-                    <div class="step-status text-muted">${this.getStepStatusText(iconClass, timestamp)}</div>
+                    <div class="step-status text-light">${this.getStepStatusText(iconClass, timestamp)}</div>
                 </div>
             `;
             })
@@ -449,7 +449,7 @@ export class JobDetailApp {
                 ${
                     this.jobData.errorTimestamp
                         ? `
-                <small class="text-muted d-block mt-2">
+                <small class="text-light d-block mt-2">
                     <i class="fas fa-clock me-1"></i> 
                     Error occurred: ${new Date(this.jobData.errorTimestamp).toLocaleString()}
                 </small>
@@ -510,18 +510,18 @@ export class JobDetailApp {
         const creatomateSection = document.getElementById('creatomate-section');
         if (!creatomateSection) return;
 
-        // Check if workflow steps 1-7 are completed (creatomateId presence means step 7 is done)
-        // We don't need to wait for progress=100% or status='completed' because those wait for Creatomate
-        const workflowStepsComplete =
-            this.jobData.creatomateId && (this.jobData.stepDetails?.step_7 || this.jobData.progress >= 90);
+        // Show Creatomate section when Step 7 starts (85%+) or if we have creatomateId
+        // Don't wait for Step 7 to complete - show as soon as Creatomate processing begins
+        const step7Started = this.jobData.progress >= 85 || this.jobData.stepDetails?.step_7;
+        const workflowStepsComplete = step7Started || this.jobData.creatomateId;
 
         console.log(
             `🔍 Creatomate section check - CreatomateId: ${this.jobData.creatomateId}, Progress: ${this.jobData.progress}, StepDetails: ${JSON.stringify(this.jobData.stepDetails)}, WorkflowComplete: ${workflowStepsComplete}`
         );
 
-        if (workflowStepsComplete && this.jobData.creatomateId) {
+        if (workflowStepsComplete) {
             console.log(
-                `🎬 Workflow steps 1-7 completed, showing Creatomate section. ID: ${this.jobData.creatomateId}`
+                `🎬 Step 7 started or completed, showing Creatomate section. ID: ${this.jobData.creatomateId || 'Pending...'}`
             );
 
             // Show the section
@@ -530,17 +530,24 @@ export class JobDetailApp {
             // Update Creatomate ID display
             const creatomateIdElement = document.getElementById('creatomate-id');
             if (creatomateIdElement) {
-                creatomateIdElement.textContent = this.jobData.creatomateId;
+                creatomateIdElement.textContent = this.jobData.creatomateId || 'Processing Step 7...';
             }
 
-            // Check if we already have video URL or need to fetch it
-            if (this.jobData.videoUrl) {
-                console.log('🎬 Video URL already available, showing video result directly');
-                this.showCreatomateVideoResult();
+            // Only check status if we have creatomateId and video processing
+            if (this.jobData.creatomateId) {
+                // Check if we already have video URL or need to fetch it
+                if (this.jobData.videoUrl) {
+                    console.log('🎬 Video URL already available, showing video result directly');
+                    this.showCreatomateVideoResult();
+                } else {
+                    console.log('🔍 No video URL yet, checking Creatomate status automatically...');
+                    // Always check Creatomate status to get the latest video info
+                    this.checkCreatomateStatusAutomatically();
+                }
             } else {
-                console.log('🔍 No video URL yet, checking Creatomate status automatically...');
-                // Always check Creatomate status to get the latest video info
-                this.checkCreatomateStatusAutomatically();
+                // Step 7 is running but no creatomateId yet - show preparation status
+                console.log('⏳ Step 7 in progress, waiting for Creatomate ID...');
+                this.showCreatomatePreparationStatus();
             }
         } else {
             // Hide the section if conditions not met
@@ -675,6 +682,42 @@ export class JobDetailApp {
     }
 
     /**
+     * Show preparation status while Step 7 is running but no creatomateId yet
+     */
+    showCreatomatePreparationStatus() {
+        // Hide other views
+        document.getElementById('video-result')?.classList.add('d-none');
+        document.getElementById('error-status')?.classList.add('d-none');
+
+        // Show progress indicator
+        const creatomateProgress = document.getElementById('creatomate-progress');
+        const renderingStatus = document.getElementById('rendering-status');
+
+        if (creatomateProgress) {
+            const statusText = document.getElementById('creatomate-status-text');
+            const progressBar = document.getElementById('creatomate-progress-bar');
+
+            if (statusText) {
+                statusText.textContent = 'Preparing video for rendering...';
+            }
+
+            if (progressBar) {
+                progressBar.style.width = '80%';
+                progressBar.classList.add('progress-bar-animated');
+            }
+
+            creatomateProgress.classList.remove('d-none');
+        }
+
+        if (renderingStatus) {
+            renderingStatus.classList.remove('d-none');
+        }
+
+        // Update status badge to show preparation
+        this.updateCreatomateStatusBadge('preparing');
+    }
+
+    /**
      * Show rendering status while video is being processed
      */
     showCreatomateRenderingStatus(status = 'processing') {
@@ -692,16 +735,25 @@ export class JobDetailApp {
 
             if (statusText) {
                 const statusMessages = {
-                    planned: 'Video queued for rendering...',
+                    planned: 'Video queued for processing...',
                     processing: 'Video is being rendered...',
-                    rendering: 'Video is being rendered...'
+                    rendering: 'Video is being rendered...',
+                    waiting: 'Video is being rendered...',
+                    transcribing: 'Video is being rendered...'
                 };
                 statusText.textContent = statusMessages[status] || 'Checking video status...';
             }
 
             if (progressBar) {
-                // Show indeterminate progress for processing
-                progressBar.style.width = status === 'processing' ? '75%' : '25%';
+                // Show specific progress based on status
+                const progressMap = {
+                    planned: '85%',
+                    waiting: '87%',
+                    transcribing: '88%',
+                    rendering: '90%',
+                    processing: '75%'
+                };
+                progressBar.style.width = progressMap[status] || '25%';
                 progressBar.classList.add('progress-bar-animated');
             }
 
@@ -747,6 +799,10 @@ export class JobDetailApp {
                 succeeded: { text: 'Ready', class: 'bg-success' },
                 processing: { text: 'Rendering', class: 'bg-warning' },
                 planned: { text: 'Queued', class: 'bg-info' },
+                waiting: { text: 'Rendering', class: 'bg-warning' },
+                transcribing: { text: 'Rendering', class: 'bg-warning' },
+                rendering: { text: 'Rendering', class: 'bg-warning' },
+                preparing: { text: 'Preparing', class: 'bg-primary' },
                 failed: { text: 'Failed', class: 'bg-danger' },
                 error: { text: 'Error', class: 'bg-danger' }
             };
@@ -945,7 +1001,7 @@ export class JobDetailApp {
                     <div class="text-center">
                         <i class="fas fa-exclamation-triangle text-warning mb-2" style="font-size: 2rem;"></i>
                         <div class="text-light small">Error loading video</div>
-                        <div class="text-muted small">Code: ${videoElement.error?.code}</div>
+                        <div class="text-light small">Code: ${videoElement.error?.code}</div>
                     </div>
                 `;
             }
@@ -1499,6 +1555,30 @@ export class JobDetailApp {
 
             case 'step_update':
                 console.log(`📡 Real-time step update: Step ${data.step_number} ${data.status}`);
+                console.log(`   🔑 Step Key: ${data.step_key || 'N/A'}`);
+                console.log(`   📊 Sequence: ${data.sequence || 'N/A'}`);
+                console.log(`   ✅ Validated: ${data.validated || false}`);
+
+                // ✅ FRONTEND VALIDATION: Check if update should be processed
+                if (!data.validated) {
+                    console.warn(`⚠️ REJECTED: Non-validated step update for ${data.step_number} ${data.status}`);
+                    break;
+                }
+
+                // Check sequence order to prevent processing old updates
+                const lastSequence = this.lastStepSequence || 0;
+                const currentSequence = data.sequence || Date.now();
+
+                if (currentSequence < lastSequence) {
+                    console.warn(`⚠️ REJECTED: Out-of-order frontend update`);
+                    console.warn(`   Current: ${currentSequence}, Last: ${lastSequence}`);
+                    break;
+                }
+
+                // Update last sequence
+                this.lastStepSequence = currentSequence;
+
+                console.log(`✅ FRONTEND VALIDATED: Processing step ${data.step_number} ${data.status}`);
 
                 // Update job data with real-time info
                 if (this.jobData) {
@@ -1507,20 +1587,42 @@ export class JobDetailApp {
                         // Step is starting - track as currently active step
                         this.currentActiveStep = data.step_number;
                         this.jobData.currentStep = `Step ${data.step_number}/7: ${data.step_name} (Processing...)`;
-                        this.jobData.progress = Math.max(((data.step_number - 1) / 7) * 100, 0);
-                        console.log(`📋 Step ${data.step_number} started: ${data.step_name}`);
-                    } else if (data.status === 'completed') {
+                        // ✅ FIXED: Use backend progress calculation, don't override
+                        this.jobData.progress = data.progress || this.jobData.progress;
+                        console.log(
+                            `📋 Step ${data.step_number} started: ${data.step_name} (${this.jobData.progress}%)`
+                        );
+                    } else if (data.status === 'completed' || data.status === 'creatomate_ready') {
                         // Step completed - no longer active, update progress
                         if (this.currentActiveStep === data.step_number) {
                             this.currentActiveStep = null; // Step no longer active
                         }
                         this.jobData.currentStep = `Step ${data.step_number}/7: ${data.step_name} ✅`;
-                        this.jobData.progress = Math.min((data.step_number / 7) * 100, 100);
-                        console.log(`✅ Step ${data.step_number} completed: ${data.step_name}`);
+                        // ✅ FIXED: Use backend progress calculation, don't override
+                        this.jobData.progress = data.progress || this.jobData.progress;
+                        console.log(
+                            `✅ Step ${data.step_number} completed: ${data.step_name} (${this.jobData.progress}%)`
+                        );
 
-                        // 🎯 FIX: When step 7 completes, refresh job data to get Creatomate ID for video display
-                        if (data.step_number === 7) {
-                            console.log('🎬 Step 7 completed - refreshing job data to get Creatomate ID...');
+                        // 🎯 FIX: When step 7 completes or creatomate_ready, extract Creatomate ID immediately
+                        if (data.step_number === 7 || data.status === 'creatomate_ready') {
+                            console.log(`🎬 Step 7 ${data.status} - checking for immediate Creatomate ID...`);
+                            
+                            // 🚀 IMMEDIATE UPDATE: Check if creatomate_id is in the webhook details
+                            const creatomateId = data.details?.creatomate_id;
+                            if (creatomateId) {
+                                console.log(`🎬 IMMEDIATE: Got Creatomate ID from Step 7 webhook: ${creatomateId}`);
+                                this.jobData.creatomateId = creatomateId;
+                                
+                                // Immediately update Creatomate section with the new ID
+                                this.updateCreatomateSection();
+                                
+                                // Start monitoring if not already started
+                                console.log('🚀 Starting Creatomate monitoring with immediate ID...');
+                                setTimeout(() => {
+                                    this.startCreatomateMonitoring();
+                                }, 100);
+                            }
                             setTimeout(async () => {
                                 try {
                                     await this.refreshJobData();
@@ -1592,6 +1694,90 @@ export class JobDetailApp {
 
                     // Stop polling
                     this.stopRealTimeUpdates();
+                }
+                break;
+
+            case 'render_planned':
+                console.log('📋 REAL-TIME: Video queued for processing via webhook!', data);
+
+                // Update job data with queued status
+                if (this.jobData) {
+                    this.jobData.status = 'rendering';
+                    this.jobData.progress = 85;
+                    this.jobData.currentStep = '📋 Video queued for processing...';
+
+                    console.log('📋 Video queued for processing');
+
+                    // Update UI to show queued status
+                    this.updateUI();
+                    this.updateProgressSection();
+
+                    // Update Creatomate section specifically
+                    this.updateCreatomateStatusBadge('planned');
+                    this.showCreatomateRenderingStatus('planned');
+                }
+                break;
+
+            case 'render_waiting':
+                console.log('⏳ REAL-TIME: Video waiting for processing via webhook!', data);
+
+                // Update job data with waiting status
+                if (this.jobData) {
+                    this.jobData.status = 'rendering';
+                    this.jobData.progress = 87;
+                    this.jobData.currentStep = '⏳ Video is being rendered...';
+
+                    console.log('⏳ Video is being rendered (waiting)');
+
+                    // Update UI to show waiting status
+                    this.updateUI();
+                    this.updateProgressSection();
+
+                    // Update Creatomate section specifically
+                    this.updateCreatomateStatusBadge('processing');
+                    this.showCreatomateRenderingStatus('processing');
+                }
+                break;
+
+            case 'render_transcribing':
+                console.log('💬 REAL-TIME: Video transcribing via webhook!', data);
+
+                // Update job data with transcribing status
+                if (this.jobData) {
+                    this.jobData.status = 'rendering';
+                    this.jobData.progress = 88;
+                    this.jobData.currentStep = '💬 Video is being rendered...';
+
+                    console.log('💬 Video is being rendered (transcribing)');
+
+                    // Update UI to show transcribing status
+                    this.updateUI();
+                    this.updateProgressSection();
+
+                    // Update Creatomate section specifically
+                    this.updateCreatomateStatusBadge('processing');
+                    this.showCreatomateRenderingStatus('processing');
+                }
+                break;
+
+            case 'render_rendering':
+                console.log('🎬 REAL-TIME: Video actively rendering via webhook!', data);
+
+                // Update job data with rendering status
+                if (this.jobData) {
+                    this.jobData.status = 'rendering';
+                    this.jobData.progress = 90;
+                    this.jobData.currentStep = '🎬 Video is being rendered...';
+
+                    console.log('🎬 Video is being rendered (actively)');
+
+                    // Update UI to show active rendering status
+                    this.updateUI();
+                    this.updateProgressSection();
+
+                    // Update Creatomate section specifically
+                    this.updateCreatomateStatusBadge('processing');
+                    this.showCreatomateRenderingStatus('rendering');
                 }
                 break;
 

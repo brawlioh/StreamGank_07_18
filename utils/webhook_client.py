@@ -6,6 +6,7 @@ Sends step completion notifications to Node.js server for real-time frontend upd
 import requests
 import os
 import time
+import json
 import logging
 from typing import Dict, Any, Optional
 
@@ -57,6 +58,9 @@ class WebhookClient:
         
         webhook_url = f"{self.base_url}/api/webhooks/step-update"
         
+        # Generate unique step tracking key for accuracy
+        step_key = f"{self.job_id}_{step_number}_{status}_{int(time.time() * 1000)}"
+        
         payload = {
             'job_id': self.job_id,
             'step_number': step_number,
@@ -64,11 +68,16 @@ class WebhookClient:
             'status': status,
             'duration': duration,
             'details': details or {},
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'step_key': step_key,  # ✅ NEW: Unique tracking key
+            'sequence': int(time.time() * 1000),  # ✅ NEW: Microsecond sequence for ordering
+            'workflow_stage': f"step_{step_number}_{status}"  # ✅ NEW: Clear stage identifier
         }
         
         try:
             logger.info(f"📡 Sending webhook: Step {step_number} {status} for job {self.job_id}")
+            logger.debug(f"   Webhook URL: {webhook_url}")
+            logger.debug(f"   Payload: {json.dumps(payload, indent=2)}")
             
             response = self.session.post(
                 webhook_url, 
@@ -77,17 +86,31 @@ class WebhookClient:
             )
             
             if response.status_code == 200:
-                logger.debug(f"✅ Webhook sent successfully: Step {step_number}")
+                logger.info(f"✅ Webhook sent successfully: Step {step_number}")
+                logger.debug(f"   Response: {response.text}")
                 return True
             else:
                 logger.warning(f"⚠️ Webhook returned status {response.status_code}: {response.text}")
+                logger.warning(f"   URL: {webhook_url}")
+                logger.warning(f"   Payload: {json.dumps(payload, indent=2)}")
                 return False
                 
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"❌ Webhook connection failed for step {step_number}: {str(e)}")
+            logger.error(f"   URL: {webhook_url}")
+            logger.error(f"   💡 Check if frontend server is running on {self.base_url}")
+            return False
+        except requests.exceptions.Timeout as e:
+            logger.error(f"❌ Webhook timeout for step {step_number}: {str(e)}")
+            logger.error(f"   URL: {webhook_url}")
+            return False
         except requests.exceptions.RequestException as e:
-            logger.warning(f"⚠️ Webhook failed for step {step_number}: {str(e)}")
+            logger.error(f"❌ Webhook request failed for step {step_number}: {str(e)}")
+            logger.error(f"   URL: {webhook_url}")
             return False
         except Exception as e:
-            logger.warning(f"⚠️ Unexpected webhook error for step {step_number}: {str(e)}")
+            logger.error(f"❌ Unexpected webhook error for step {step_number}: {str(e)}")
+            logger.error(f"   URL: {webhook_url}")
             return False
     
     def send_workflow_started(self, total_steps: int = 7) -> bool:
@@ -113,12 +136,61 @@ class WebhookClient:
         )
     
     def send_workflow_failed(self, error: str, step_number: int = None) -> bool:
-        """Send workflow failure notification"""
+        """Send workflow failure notification with immediate failure status."""
+        logger.error(f"🚨 Sending workflow failure webhook: {error}")
+        
         return self.send_step_update(
             step_number=step_number or 0,
             step_name="Workflow Failed",
             status="failed",
-            details={'error': error}
+            details={
+                'error': error,
+                'failure_type': 'workflow_error',
+                'immediate_failure': True,
+                'requires_manual_intervention': True
+            }
+        )
+    
+    def send_step_failed(self, step_number: int, step_name: str, error: str, duration: float = None) -> bool:
+        """Send step failure notification with immediate failure status."""
+        logger.error(f"🚨 Sending step failure webhook: Step {step_number} - {error}")
+        
+        return self.send_step_update(
+            step_number=step_number,
+            step_name=step_name,
+            status="failed",
+            duration=duration,
+            details={
+                'error': error,
+                'failure_type': 'step_error',
+                'immediate_failure': True,
+                'failed_step': step_number
+            }
+        )
+    
+    def send_creatomate_ready(self, creatomate_id: str, step_duration: float = 0) -> bool:
+        """
+        Send immediate notification that Creatomate ID is ready and monitoring should start
+        
+        Args:
+            creatomate_id (str): The Creatomate render ID
+            step_duration (float): Duration of step 7 completion
+            
+        Returns:
+            bool: True if webhook sent successfully, False otherwise
+        """
+        logger.info(f"🎬 Sending immediate Creatomate ready notification: {creatomate_id}")
+        
+        return self.send_step_update(
+            step_number=7,
+            step_name="Creatomate Assembly",
+            status="creatomate_ready",  # Special status for immediate monitoring trigger
+            duration=step_duration,
+            details={
+                'creatomate_id': creatomate_id,
+                'immediate_monitoring': True,
+                'ready_for_rendering': True
+            }
         )
 
 

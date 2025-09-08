@@ -51,7 +51,21 @@ queueManager.setWebhookManager(webhookManager);
 
 // Middleware for parsing JSON and serving static files from built dist/
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'dist')));
+app.use(express.urlencoded({ extended: true }));
+
+// Configure proper MIME types for JavaScript modules
+express.static.mime.define({ 'application/javascript': ['js'] });
+
+// Serve static files from dist with proper MIME types
+app.use(
+    express.static(path.join(__dirname, 'dist'), {
+        setHeaders: (res, path) => {
+            if (path.endsWith('.js')) {
+                res.setHeader('Content-Type', 'application/javascript');
+            }
+        }
+    })
+);
 
 // Also serve original CSS and assets from gui folder (for style.css)
 app.use('/css', express.static(path.join(__dirname, 'css')));
@@ -118,14 +132,16 @@ app.get('/health', (req, res) => {
     });
 });
 
-// SPA Routing - Serve appropriate HTML files for client-side routes
-app.get(['/dashboard', '/jobs'], (req, res) => {
+// Job Detail Pages - Serve main SPA index.html for client-side routing (MUST come first)
+app.get('/job/:jobId', (req, res) => {
+    console.log(`📄 Serving index.html for job route: ${req.params.jobId}`);
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-// Job Detail Pages - Serve professional job detail page
-app.get('/job/:jobId', (req, res) => {
-    res.sendFile(path.join(__dirname, 'job-detail.html'));
+// SPA Routing - Serve appropriate HTML files for client-side routes
+app.get(['/dashboard', '/jobs', '/queue'], (req, res) => {
+    console.log(`📄 Serving index.html for SPA route: ${req.path}`);
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // REMOVED: Catch-all route moved to end of file after all API routes
@@ -438,7 +454,7 @@ app.get('/api/status/:creatomateId', async (req, res) => {
                             job.videoUrl = statusResult.url;
                             job.currentStep = '✅ Video creation completed';
                             job.completedAt = new Date().toISOString();
-                            await queueManager.updateJob(job); // Persist to Redis
+                            await queueManager.updateJobFast(job); // RAILWAY OPTIMIZATION: Use fast pipelined update
                             console.log(`✅ Job ${job.id} updated with video URL: ${statusResult.url}`);
                         }
                     }
@@ -524,7 +540,7 @@ app.get('/api/job/:jobId', async (req, res) => {
 
         // PRODUCTION: Shorter timeout to fail fast and use cache fallback
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Redis request timeout')), 5000); // 5 second timeout for production
+            setTimeout(() => reject(new Error('Redis request timeout')), 10000); // Increased to 10s for Railway production
         });
 
         const jobPromise = queueManager.getJob(jobId);
@@ -645,7 +661,7 @@ app.get('/api/queue/status', async (req, res) => {
 
         // PROFESSIONAL: Longer timeout since webhooks handle real-time updates
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Status request timeout')), 5000); // 5 second timeout
+            setTimeout(() => reject(new Error('Status request timeout')), 10000); // Increased to 10s for Railway
         });
 
         // Get fresh stats from Redis
@@ -884,8 +900,19 @@ app.get('/api/webhooks/status', (req, res) => {
 // API endpoint to receive step completion webhooks from Python workflow
 app.post('/api/webhooks/step-update', async (req, res) => {
     try {
-        // 📡 HANDLE INTERNAL PYTHON WORKFLOW WEBHOOKS ONLY
-        const { job_id, step_number, step_name, status, duration, details, timestamp } = req.body;
+        // 📡 HANDLE INTERNAL PYTHON WORKFLOW WEBHOOKS WITH STEP VALIDATION
+        const {
+            job_id,
+            step_number,
+            step_name,
+            status,
+            duration,
+            details,
+            timestamp,
+            step_key,
+            sequence,
+            workflow_stage
+        } = req.body;
 
         console.log(`📡 Real-time webhook: Job ${job_id} - Step ${step_number} (${step_name}) ${status}`);
 
@@ -894,9 +921,48 @@ app.post('/api/webhooks/step-update', async (req, res) => {
             fileLogger.logWebhookReceived(job_id, step_number, step_name, status, details);
         }
 
-        // Update job with step progress
+        // Update job with step progress - WITH STEP VALIDATION
         const job = await queueManager.getJob(job_id);
         if (job) {
+            // ✅ STEP VALIDATION: Prevent out-of-order step updates
+            const lastSequence = job.lastStepSequence || 0;
+            const currentSequence = sequence || Date.now();
+
+            if (currentSequence < lastSequence) {
+                console.warn(`⚠️ REJECTED: Out-of-order step update for ${job_id}`);
+                console.warn(`   Current sequence: ${currentSequence}, Last: ${lastSequence}`);
+                console.warn(`   Step ${step_number} ${status} SKIPPED to prevent UI desync`);
+                return res.json({
+                    success: false,
+                    message: 'Out-of-order step update rejected',
+                    reason: 'sequence_validation_failed'
+                });
+            }
+
+            // Update last sequence to prevent future out-of-order updates
+            job.lastStepSequence = currentSequence;
+
+            // ✅ STEP PROGRESSION VALIDATION: Ensure logical step progression
+            const currentStepNum = job.currentStepNumber || 0;
+
+            // Allow step progression or completion of current step
+            if (status === 'started' && step_number < currentStepNum) {
+                console.warn(`⚠️ REJECTED: Backward step progression for ${job_id}`);
+                console.warn(`   Trying to start step ${step_number}, but already on step ${currentStepNum}`);
+                return res.json({
+                    success: false,
+                    message: 'Backward step progression rejected',
+                    reason: 'step_progression_validation_failed'
+                });
+            }
+
+            // Update current step number tracking
+            if (status === 'started') {
+                job.currentStepNumber = step_number;
+            }
+
+            console.log(`✅ VALIDATED: Step ${step_number} ${status} (sequence: ${currentSequence})`);
+
             // Handle special cases for workflow start/completion
             if (step_number === 0 && step_name === 'Workflow Started') {
                 job.currentStep = '🚀 Workflow started - processing movies...';
@@ -922,10 +988,41 @@ app.post('/api/webhooks/step-update', async (req, res) => {
                 job.status = 'failed';
                 job.error = details?.error || 'Workflow failed';
             } else {
-                // Normal step progression (1-7)
-                job.currentStep = `${step_name} - ${status}`;
+                // 🎬 CRITICAL FIX: Handle Step 7 (Creatomate Assembly) completion to immediately store creatomate_id
+                if (
+                    step_number === 7 &&
+                    (status === 'completed' || status === 'creatomate_ready') &&
+                    details?.creatomate_id
+                ) {
+                    console.log(`🎬 Step 7 ${status} with Creatomate ID: ${details.creatomate_id}`);
+                    job.creatomateId = details.creatomate_id;
+
+                    if (status === 'creatomate_ready') {
+                        job.currentStep = `🚀 Creatomate ID ready - starting video rendering...`;
+                        job.status = 'rendering'; // Immediately set to rendering status
+                    } else {
+                        job.currentStep = `${step_name} - ✅ Completed (ID: ${details.creatomate_id.substring(0, 8)}...)`;
+                    }
+
+                    // 🚀 IMMEDIATE UPDATE: Trigger Creatomate monitoring right after step 7 completes
+                    console.log(`🚀 Starting immediate Creatomate monitoring for job ${job_id}...`);
+                    setTimeout(() => {
+                        queueManager.startCreatomateMonitoring(job_id, details.creatomate_id);
+                    }, 100); // Faster trigger for creatomate_ready
+                } else {
+                    // Normal step progression display
+                    job.currentStep = `${step_name} - ${status}`;
+                }
+
+                // Normal step progression (1-7) - UNIFIED progress calculation
                 if (step_number <= 7) {
-                    job.progress = Math.max(job.progress || 0, Math.round((step_number / 7) * 90)); // Max 90% until video ready
+                    // Standardized progress: started = (step-1)/7 * 85, completed = step/7 * 85
+                    // This matches frontend expectations and caps at 85% (leaving 15% for Creatomate)
+                    if (status === 'started') {
+                        job.progress = Math.max(job.progress || 0, Math.round(((step_number - 1) / 7) * 85));
+                    } else if (status === 'completed') {
+                        job.progress = Math.max(job.progress || 0, Math.round((step_number / 7) * 85));
+                    }
                 }
             }
 
@@ -939,7 +1036,8 @@ app.post('/api/webhooks/step-update', async (req, res) => {
                 job.stepDuration = { ...job.stepDuration, [`step_${step_number}`]: duration };
             }
 
-            await queueManager.updateJob(job);
+            // RAILWAY OPTIMIZATION: Use fast pipelined job update
+            await queueManager.updateJobFast(job);
 
             // CRITICAL FIX: Immediately clear job cache to ensure UI shows real-time updates
             // This prevents the UI from showing stale data while workflow progresses
@@ -982,7 +1080,16 @@ app.post('/api/webhooks/step-update', async (req, res) => {
                     status: status,
                     progress: job.progress,
                     currentStep: job.currentStep,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    // ✅ NEW: Step tracking for accuracy
+                    step_key: step_key,
+                    sequence: currentSequence,
+                    workflow_stage: workflow_stage,
+                    validated: true, // Indicates this update passed validation
+                    // 🎬 CRITICAL: Include details in SSE update for immediate frontend access
+                    details: details || {},
+                    // 🚀 IMMEDIATE ACCESS: If step 7 completed, include creatomate_id directly
+                    creatomate_id: step_number === 7 && status === 'completed' ? details?.creatomate_id : undefined
                 };
 
                 sseClients.forEach((client) => {
@@ -1041,18 +1148,40 @@ app.post('/api/webhooks/test', async (req, res) => {
  * SAFE: Original Creatomate webhook endpoint - FULLY FUNCTIONAL
  * Keeping original implementation to ensure no breaking changes
  */
-app.post('/api/webhooks/creatomate-completion', async (req, res) => {
+app.post('/api/webhooks/creatomate', async (req, res) => {
     try {
+        // Security: Log webhook source for debugging
+        const clientIP = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
+        const userAgent = req.headers['user-agent'] || 'Unknown';
+
+        console.log(`🔐 Webhook received from IP: ${clientIP}, User-Agent: ${userAgent}`);
+
         const { id: render_id, status, url: video_url, error, data } = req.body;
 
-        console.log(`🎬 Creatomate webhook received (legacy endpoint) - Render ID: ${render_id}, Status: ${status}`);
+        console.log(`🎬 Creatomate PROJECT-LEVEL webhook received - Render ID: ${render_id}, Status: ${status}`);
 
+        // Security: Basic validation of webhook payload
         if (!render_id) {
+            console.warn(`⚠️ Security: Invalid webhook - missing render_id from ${clientIP}`);
             return res.status(400).json({
                 success: false,
-                message: 'Render ID is required'
+                message: 'Invalid webhook: missing render_id'
             });
         }
+
+        if (!status) {
+            console.warn(`⚠️ Security: Invalid webhook - missing status from ${clientIP}`);
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid webhook: missing status'
+            });
+        }
+
+        // Security: Log successful webhook reception
+        console.log(`✅ Security: Valid webhook payload received from ${clientIP}`);
+
+        // Note: Creatomate doesn't support custom webhook secrets/signatures
+        // Current security relies on payload validation + HTTPS + server access control
 
         // Find job by creatomateId
         const allJobs = await queueManager.getAllJobs();
@@ -1068,21 +1197,26 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
 
         console.log(`📋 Processing Creatomate webhook for job: ${job.id}`);
 
-        // Handle successful completion
-        if (status === 'completed' && video_url) {
-            console.log(`✅ Creatomate render completed successfully: ${video_url}`);
+        // Handle successful completion - using exact Creatomate status from documentation
+        if (status === 'succeeded' && video_url) {
+            console.log(`✅ Creatomate render succeeded: ${video_url}`);
 
-            // Update job with final video URL
+            // Update job with final video URL and completion data
             job.status = 'completed';
             job.progress = 100;
-            job.currentStep = '🎉 Video rendering completed successfully!';
+            job.currentStep = '✅ Video creation completed successfully!';
             job.videoUrl = video_url;
             job.completedAt = new Date().toISOString();
 
             await queueManager.updateJob(job);
-            await queueManager.addJobLog(job.id, `✅ Video rendered successfully: ${video_url}`, 'success');
 
-            // Send real-time update to frontend
+            // Add persistent job logs for completed status
+            await queueManager.addJobLog(job.id, `✅ Video rendered successfully`, 'success');
+            await queueManager.addJobLog(job.id, `🔗 Video URL: ${video_url}`, 'success');
+            await queueManager.addJobLog(job.id, `🎉 Job completed at: ${job.completedAt}`, 'success');
+            await queueManager.addJobLog(job.id, `📊 Final progress: 100%`, 'success');
+
+            // Send real-time update to frontend for video display
             if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
                 const sseClients = global.jobSSEClients.get(job.id);
                 const updateData = {
@@ -1092,7 +1226,7 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
                     progress: 100,
                     currentStep: job.currentStep,
                     videoUrl: video_url,
-                    timestamp: new Date().toISOString()
+                    timestamp: job.completedAt
                 };
 
                 sseClients.forEach((client) => {
@@ -1115,16 +1249,23 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
                     completed_at: job.completedAt
                 });
             }
-        } else if (status === 'failed' || error) {
-            console.error(`❌ Creatomate render failed: ${error || 'Unknown error'}`);
+        } else if (status === 'failed') {
+            // Handle failed renders - using exact Creatomate status from documentation
+            console.error(`❌ Creatomate render failed: ${render_id} - ${error || 'Unknown error'}`);
 
-            // Update job with error status
+            // Update job with error status and completion timestamp
             job.status = 'failed';
             job.currentStep = `❌ Video rendering failed: ${error || 'Unknown error'}`;
             job.error = error || 'Creatomate render failed';
+            job.completedAt = new Date().toISOString();
 
             await queueManager.updateJob(job);
+
+            // Add persistent job logs for failed status
             await queueManager.addJobLog(job.id, `❌ Render failed: ${error || 'Unknown error'}`, 'error');
+            await queueManager.addJobLog(job.id, `⚠️ Failure time: ${job.completedAt}`, 'error');
+            await queueManager.addJobLog(job.id, `🔍 Render ID: ${render_id}`, 'error');
+            await queueManager.addJobLog(job.id, `📊 Progress at failure: ${job.progress || 0}%`, 'error');
 
             // Send real-time update to frontend
             if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
@@ -1135,7 +1276,7 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
                     status: 'failed',
                     currentStep: job.currentStep,
                     error: job.error,
-                    timestamp: new Date().toISOString()
+                    timestamp: job.completedAt
                 };
 
                 sseClients.forEach((client) => {
@@ -1153,22 +1294,143 @@ app.post('/api/webhooks/creatomate-completion', async (req, res) => {
                 await webhookManager.sendWebhookNotification('job.failed', {
                     job_id: job.id,
                     error: job.error,
-                    parameters: job.parameters
+                    parameters: job.parameters,
+                    failed_at: job.completedAt
+                });
+            }
+        } else if (status === 'planned') {
+            // Video planned/queued - using exact Creatomate status from documentation
+            console.log(`📋 Creatomate render planned (queued): ${render_id}`);
+
+            job.currentStep = '📋 Video queued for processing...';
+            job.progress = 85;
+            job.status = 'rendering'; // Keep internal status as 'rendering'
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, '📋 Video queued for processing', 'info');
+
+            // Send real-time SSE update
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_planned',
+                    job_id: job.id,
+                    status: 'rendering',
+                    progress: 85,
+                    currentStep: job.currentStep,
+                    timestamp: new Date().toISOString()
+                };
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent render planned update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
+                });
+            }
+        } else if (status === 'waiting') {
+            // Video waiting for third-party integration - using exact Creatomate status
+            console.log(`⏳ Creatomate render waiting: ${render_id}`);
+
+            job.currentStep = '⏳ Video is being rendered...';
+            job.progress = 87;
+            job.status = 'rendering';
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, '⏳ Waiting for third-party integration', 'info');
+
+            // Send real-time SSE update
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_waiting',
+                    job_id: job.id,
+                    status: 'rendering',
+                    progress: 87,
+                    currentStep: job.currentStep,
+                    timestamp: new Date().toISOString()
+                };
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent render waiting update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
+                });
+            }
+        } else if (status === 'transcribing') {
+            // Video transcribing (generating subtitles) - using exact Creatomate status
+            console.log(`💬 Creatomate render transcribing: ${render_id}`);
+
+            job.currentStep = '💬 Video is being rendered...';
+            job.progress = 88;
+            job.status = 'rendering';
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, '💬 Generating subtitles', 'info');
+
+            // Send real-time SSE update
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_transcribing',
+                    job_id: job.id,
+                    status: 'rendering',
+                    progress: 88,
+                    currentStep: job.currentStep,
+                    timestamp: new Date().toISOString()
+                };
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent render transcribing update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
+                });
+            }
+        } else if (status === 'rendering') {
+            // Video actively rendering - using exact Creatomate status from documentation
+            console.log(`🎬 Creatomate actively rendering: ${render_id}`);
+
+            job.currentStep = '🎬 Video is being rendered...';
+            job.progress = 90;
+            job.status = 'rendering';
+
+            await queueManager.updateJob(job);
+            await queueManager.addJobLog(job.id, '🎬 Video is currently being generated', 'info');
+
+            // Send real-time SSE update
+            if (global.jobSSEClients && global.jobSSEClients.has(job.id)) {
+                const sseClients = global.jobSSEClients.get(job.id);
+                const updateData = {
+                    type: 'render_rendering',
+                    job_id: job.id,
+                    status: 'rendering',
+                    progress: 90,
+                    currentStep: job.currentStep,
+                    timestamp: new Date().toISOString()
+                };
+                sseClients.forEach((client) => {
+                    try {
+                        client.write(`data: ${JSON.stringify(updateData)}\n\n`);
+                        console.log(`📡 Sent rendering progress update to job ${job.id} frontend client`);
+                    } catch (error) {
+                        console.warn(`⚠️ Failed to send SSE to job ${job.id} client:`, error.message);
+                    }
                 });
             }
         } else {
-            // Handle in-progress status updates
-            console.log(`📊 Creatomate render in progress: ${status}`);
+            // Handle any other status updates (project-level webhook)
+            console.log(`📊 Creatomate status update: ${status} for ${render_id}`);
 
-            job.currentStep = `🎬 Rendering video: ${status}...`;
+            job.currentStep = `🎬 Video status: ${status}...`;
 
-            // Update progress based on status
-            if (status === 'queued') {
-                job.progress = 85;
-            } else if (status === 'rendering') {
-                job.progress = 90;
-            } else if (status === 'processing') {
-                job.progress = 95;
+            // Set generic progress if not already set
+            if (!job.progress || job.progress < 85) {
+                job.progress = 88;
             }
 
             await queueManager.updateJob(job);
@@ -1271,6 +1533,55 @@ app.post('/api/queue/clear', async (req, res) => {
     }
 });
 
+// API endpoint to toggle queue processing (pause/resume)
+app.post('/api/queue/toggle', async (req, res) => {
+    try {
+        const wasProcessing = queueManager.isProcessing;
+
+        if (wasProcessing) {
+            queueManager.stopProcessing();
+        } else {
+            queueManager.startProcessing();
+        }
+
+        const newStatus = queueManager.isProcessing;
+        res.json({
+            success: true,
+            message: `Queue processing ${newStatus ? 'started' : 'stopped'}`,
+            isProcessing: newStatus,
+            wasProcessing: wasProcessing
+        });
+    } catch (error) {
+        console.error('❌ Failed to toggle queue processing:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to toggle queue processing',
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to clear failed jobs only
+app.post('/api/queue/clear-failed', async (req, res) => {
+    try {
+        const beforeCount = await queueManager.llenAsync(queueManager.keys.failed);
+        await queueManager.delAsync(queueManager.keys.failed);
+
+        res.json({
+            success: true,
+            message: `Cleared ${beforeCount} failed jobs`,
+            clearedCount: beforeCount
+        });
+    } catch (error) {
+        console.error('❌ Failed to clear failed jobs:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to clear failed jobs',
+            error: error.message
+        });
+    }
+});
+
 // API endpoint to clean up stuck processing jobs
 app.post('/api/queue/cleanup', async (req, res) => {
     try {
@@ -1352,6 +1663,71 @@ app.post('/api/job/:jobId/cancel', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to cancel job',
+            error: error.message
+        });
+    }
+});
+
+// API endpoint to retry a failed job
+app.post('/api/job/:jobId/retry', async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        console.log(`🔄 Retrying job: ${jobId}`);
+
+        // Get the job details
+        const job = await queueManager.getJob(jobId);
+        if (!job) {
+            return res.status(404).json({
+                success: false,
+                message: 'Job not found'
+            });
+        }
+
+        // Only allow retry for failed jobs
+        if (job.status !== 'failed') {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot retry job with status: ${job.status}. Only failed jobs can be retried.`
+            });
+        }
+
+        // Reset job status and add back to queue
+        job.status = 'pending';
+        job.error = null;
+        job.progress = 0;
+        job.currentStep = 'Queued for retry...';
+        job.startedAt = null;
+        job.completedAt = null;
+        job.retryCount = (job.retryCount || 0) + 1;
+
+        // Update job in storage
+        await queueManager.updateJob(job);
+
+        // Add back to pending queue
+        await queueManager.lpushAsync(queueManager.keys.pending, JSON.stringify(job));
+
+        // Remove from failed queue
+        const failedJobs = await queueManager.lrangeAsync(queueManager.keys.failed, 0, -1);
+        const updatedFailedJobs = failedJobs.filter((jobStr) => {
+            const failedJob = JSON.parse(jobStr);
+            return failedJob.id !== jobId;
+        });
+
+        await queueManager.delAsync(queueManager.keys.failed);
+        if (updatedFailedJobs.length > 0) {
+            await queueManager.lpushAsync(queueManager.keys.failed, ...updatedFailedJobs);
+        }
+
+        res.json({
+            success: true,
+            message: `Job retry initiated (attempt ${job.retryCount})`,
+            job: job
+        });
+    } catch (error) {
+        console.error('❌ Failed to retry job:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retry job',
             error: error.message
         });
     }
@@ -1898,6 +2274,26 @@ app.get('/api/genres/:country', async (req, res) => {
                 'Sport',
                 'War & Military',
                 'Western'
+            ],
+            FR: [
+                'Action & Aventure',
+                'Animation',
+                'Comédie',
+                'Crime & Thriller',
+                'Documentaire',
+                'Drame',
+                'Fantastique',
+                'Film de guerre',
+                'Histoire',
+                'Horreur',
+                'Musique & Musicale',
+                'Mystère & Thriller',
+                'Pour enfants',
+                'Reality TV',
+                'Réalisé en Europe',
+                'Science-Fiction',
+                'Sport & Fitness',
+                'Western'
             ]
         };
 
@@ -2020,6 +2416,20 @@ app.get('*', (req, res) => {
             error: 'API endpoint not found'
         });
     }
+});
+
+// Global error handler (MUST be last)
+app.use((error, req, res, next) => {
+    console.error('❌ Server Error:', error);
+    
+    // Don't send error details in production
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    res.status(error.status || 500).json({
+        success: false,
+        error: isDevelopment ? error.message : 'Internal server error',
+        ...(isDevelopment && { stack: error.stack })
+    });
 });
 
 // Initialize Redis connection and start server

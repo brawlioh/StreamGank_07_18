@@ -255,9 +255,10 @@ vm_restart() {
 vm_update() {
     print_status "🚀 VM Update - Quick build-start sequence for code changes..."
     print_status "This will:"
-    echo "  1. Rebuild Docker images with cache (for code changes)"
+    echo "  1. Rebuild Docker images with CACHED dependencies (for code changes only)"
     echo "  2. Start services with new image (containers auto-updated)"
-    echo "  ⚡ FASTER: No stop step needed - Docker handles the update!"
+    echo "  ⚡ FASTER: Uses cached npm dependencies - only rebuilds changed code!"
+    echo "  💡 Use 'vm-rebuild' if package.json or requirements.txt changed"
     echo ""
     
     # Step 1: Build with cache (perfect for code changes)
@@ -274,6 +275,7 @@ vm_update() {
     print_success "🎉 VM Update completed successfully!"
     print_status "GUI available at: http://localhost:3000"
     print_status "💡 Use 'vm-update' for code changes | 'vm-restart' for config changes | 'vm-rebuild' for dependency changes"
+    print_status "⚡ vm-update now uses cached dependencies - much faster for code-only changes!"
 }
 
 # VM-optimized simple restart (NO rebuild - saves disk space!)
@@ -388,7 +390,7 @@ show_vm_help() {
     echo "  vm-start      - Start in VM-optimized production mode"
     echo "  vm-restart    - Full restart: down → build → start (complete refresh)"
     echo "  vm-simple-restart - Simple restart: down → start (NO BUILD - saves disk space!)"
-    echo "  vm-update     - Quick update: build → start (FAST - for code changes only)"
+    echo "  vm-update     - Quick update: build → start (FASTEST - cached dependencies!)"
     echo "  vm-status     - Show detailed VM and container status"
     echo "  vm-monitor    - Real-time VM performance monitoring"
     echo "  vm-cleanup    - VM-optimized cleanup with space reclamation"

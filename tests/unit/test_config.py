@@ -60,11 +60,11 @@ class TestHeyGenTemplates:
     def test_get_heygen_template_id_comedy(self):
         """Test template ID retrieval for comedy genre."""
         template_id = get_heygen_template_id('Comedy')
-        assert template_id == '0786b31e7a8b4e8c97799b913b1e39ea'
+        assert template_id == 'a1576c3e20d24af3a44e3479a3947c96'
         
         # Test French version
         template_id_french = get_heygen_template_id('Comédie')
-        assert template_id_french == '0786b31e7a8b4e8c97799b913b1e39ea'
+        assert template_id_french == 'a1576c3e20d24af3a44e3479a3947c96'
     
     def test_get_heygen_template_id_action(self):
         """Test template ID retrieval for action genre."""

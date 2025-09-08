@@ -62,11 +62,12 @@ def _get_webhook_url() -> Optional[str]:
         str: Webhook URL or None if not configured
     """
     try:
-        # Get the base webhook URL from environment or use localhost for development
-        base_url = os.getenv('WEBHOOK_BASE_URL', 'http://localhost:3000')
-        webhook_endpoint = '/api/webhooks/creatomate-completion'  # Using original reliable endpoint
+        # Get the complete Creatomate webhook URL from environment
+        webhook_url = os.getenv('WEBHOOK_CREATOMATE_URL')
         
-        webhook_url = f"{base_url}{webhook_endpoint}"
+        if not webhook_url:
+            logger.error("❌ WEBHOOK_CREATOMATE_URL environment variable is required")
+            return None
         
         # Validate URL format
         if not webhook_url.startswith(('http://', 'https://')):
@@ -199,8 +200,23 @@ def send_creatomate_request(composition: Dict[str, Any]) -> Optional[str]:
         logger.info(f"   Elements: {len(composition.get('elements', []))}")
         logger.info(f"   Duration: {composition.get('duration', 'auto')}")
         
-        # Get webhook URL for completion notifications
+        # PROJECT-LEVEL WEBHOOK CONFIGURATION:
+        # 1. Go to Creatomate Dashboard → Project Settings
+        # 2. Set webhook URL using WEBHOOK_CREATOMATE_URL environment variable:
+        #    - Local: http://localhost:3000/api/webhooks/creatomate
+        #    - Railway: https://streamgank-app-production.up.railway.app/api/webhooks/creatomate  
+        # 3. This provides ALL status updates: planned, waiting, transcribing, rendering, succeeded, failed  
+        # No need to add webhook_url parameter - project handles it automatically
+        logger.info("🔗 Using project-level webhook configured in Creatomate dashboard")
+        logger.info("   📡 Webhook receives ALL status updates: planned → waiting → transcribing → rendering → succeeded/failed")
+        
+        # Log the webhook URL that should be configured in Creatomate
         webhook_url = _get_webhook_url()
+        if webhook_url:
+            logger.info(f"   🔗 Webhook URL: {webhook_url}")
+            logger.info("   ✅ Using WEBHOOK_CREATOMATE_URL environment variable")
+        else:
+            logger.warning("   ⚠️ WEBHOOK_CREATOMATE_URL environment variable is required but not set")
         
         # Prepare payload to match legacy format EXACTLY  
         payload = {
@@ -208,13 +224,6 @@ def send_creatomate_request(composition: Dict[str, Any]) -> Optional[str]:
             "output_format": "mp4", # Must match legacy payload exactly
             "render_scale": 1       # Must match legacy payload exactly  
         }
-        
-        # Add webhook URL for completion notifications (avoids polling)
-        if webhook_url:
-            payload["webhook_url"] = webhook_url
-            logger.info(f"🔗 Webhook URL configured: {webhook_url}")
-        else:
-            logger.warning("⚠️ No webhook URL configured - falling back to polling")
         
         # Submit request with retry logic
         for attempt in range(config.get('retry_attempts', 3)):

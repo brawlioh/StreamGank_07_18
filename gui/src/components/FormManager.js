@@ -64,7 +64,6 @@ export class FormManager {
                 'Action & Aventure': 'Action & Adventure',
                 Animation: 'Animation',
                 Comédie: 'Comedy',
-                'Comédie Romantique': 'Romantic Comedy',
                 'Crime & Thriller': 'Crime & Thriller',
                 Documentaire: 'Documentary',
                 Drame: 'Drama',
@@ -72,7 +71,7 @@ export class FormManager {
                 'Film de guerre': 'War Movies',
                 Histoire: 'History',
                 Horreur: 'Horror',
-                'Musique & Comédie Musicale': 'Music & Musical Comedy',
+                'Musique & Musicale': 'Music & Musical',
                 'Mystère & Thriller': 'Mystery & Thriller',
                 'Pour enfants': 'Kids',
                 'Reality TV': 'Reality TV',
@@ -96,10 +95,10 @@ export class FormManager {
                 'Music & Musical': 'Music & Musical',
                 'Mystery & Thriller': 'Mystery & Thriller',
                 'Reality TV': 'Reality TV',
-                'Romance Movies': 'Romance Movies',
-                'Science Fiction': 'Science Fiction',
-                'Sport & Fitness': 'Sport & Fitness',
-                'Stand-up Comedy': 'Stand-up Comedy',
+                Romance: 'Romance',
+                'Science-Fiction': 'Science-Fiction',
+                Sport: 'Sport',
+                'War & Military': 'War & Military',
                 Western: 'Western'
             }
         };
@@ -109,32 +108,44 @@ export class FormManager {
      * Load template mappings for genres
      */
     loadTemplatesByGenre() {
-        // Genre-specific HeyGen templates (from memory)
-        this.templatesByGenre = {
-            // Horror templates (FIXED: Use correct template ID from config/templates.py)
-            Horror: 'ed21a309a5c84b0d873fde68642adea3',
-            Horreur: 'ed21a309a5c84b0d873fde68642adea3',
-
+        // SINGLE SOURCE OF TRUTH for all HeyGen templates
+        this.templates = {
+            // Default template
+            cc6718c5363e42b282a123f99b94b335: { name: 'Default Template', genres: ['default'] },
+            
+            // Horror templates
+            ed21a309a5c84b0d873fde68642adea3: { 
+                name: 'Horror/Thriller Cinematic', 
+                genres: ['Horror', 'Horreur'] 
+            },
+            
             // Comedy templates
-            Comedy: '0786b31e7a8b4e8c97799b913b1e39ea',
-            Comédie: '0786b31e7a8b4e8c97799b913b1e39ea',
-            'Stand-up Comedy': '0786b31e7a8b4e8c97799b913b1e39ea',
-
+            '0786b31e7a8b4e8c97799b913b1e39ea': { 
+                name: 'Comedy Upbeat', 
+                genres: ['Comedy', 'Comédie', 'Stand-up Comedy'] 
+            },
+            
             // Action templates
-            'Action & Adventure': '7f8db20ddcd94a33a1235599aa8bf473',
-            'Action & Aventure': '7f8db20ddcd94a33a1235599aa8bf473',
+            '7f8db20ddcd94a33a1235599aa8bf473': { 
+                name: 'Action Adventure', 
+                genres: ['Action & Adventure', 'Action & Aventure'] 
+            },
+            
+            // Romance templates
+            bc62f68a6b074406b571df42bdc6b71a: { 
+                name: 'Romance', 
+                genres: ['Romance', 'Romantic', 'Romance Movies', 'Romantic Comedy', 'Comédie Romantique', 'Romance & Drama'] 
+            }
 
-            // Romance template
-            'Romance': 'bc62f68a6b074406b571df42bdc6b71a',
-            'Romantic': 'bc62f68a6b074406b571df42bdc6b71a',
-            'Romance Movies': 'bc62f68a6b074406b571df42bdc6b71a',
-            'Romantic Comedy': 'bc62f68a6b074406b571df42bdc6b71a',
-            'Comédie Romantique': 'bc62f68a6b074406b571df42bdc6b71a',
-            'Romance & Drama': 'bc62f68a6b074406b571df42bdc6b71a',
-
-            // Default template for other genres
-            default: 'cc6718c5363e42b282a123f99b94b335'
         };
+
+        // Create backward-compatible templatesByGenre from single source
+        this.templatesByGenre = {};
+        Object.entries(this.templates).forEach(([templateId, templateInfo]) => {
+            templateInfo.genres.forEach((genre) => {
+                this.templatesByGenre[genre] = templateId;
+            });
+        });
     }
 
     /**
@@ -236,19 +247,11 @@ export class FormManager {
         // Clear existing options except first
         templateSelect.innerHTML = '<option value="">Select Template...</option>';
 
-        // Add default templates (FIXED: Use correct Horror template ID)
-        const templates = [
-            { value: 'cc6718c5363e42b282a123f99b94b335', text: 'Default Template' },
-            { value: 'ed21a309a5c84b0d873fde68642adea3', text: 'Horror/Thriller Cinematic' },
-            { value: '15d9eadcb46a45dbbca1834aa0a23ede', text: 'Comedy Upbeat' },
-            { value: 'e44b139a1b94446a997a7f2ac5ac4178', text: 'Action Adventure' },
-            { value: 'bc62f68a6b074406b571df42bdc6b71a', text: 'Romance' }
-        ];
-
-        templates.forEach((template) => {
+        // Use single source of truth - this.templates
+        Object.entries(this.templates).forEach(([templateId, templateInfo]) => {
             const option = document.createElement('option');
-            option.value = template.value;
-            option.textContent = template.text;
+            option.value = templateId;
+            option.textContent = templateInfo.name;
             templateSelect.appendChild(option);
         });
 
@@ -1081,27 +1084,60 @@ export class FormManager {
     }
 
     /**
-     * Create a movie card element
+     * Create a professional movie card element
      */
     createMovieCard(movie, index) {
-        const col = document.createElement('div');
-        col.className = 'col-md-4';
-
         const card = document.createElement('div');
-        card.className = 'movie-card';
+        card.className = 'card bg-dark border-secondary h-100 shadow-sm';
+        card.style.width = '200px';
+        card.style.minWidth = '200px';
+        card.style.cursor = 'pointer';
 
         const posterUrl =
-            movie.poster_url || movie.backdrop_url || 'https://via.placeholder.com/300x450/333/fff?text=No+Image';
+            movie.poster_url || movie.backdrop_url || 'https://via.placeholder.com/300x450/1a1a1a/16c784?text=No+Image';
         const title = movie.title || 'Unknown Title';
+        const year = movie.year || 'Unknown Year';
+        const rating = movie.imdb || movie.rating || 'No Rating';
+
+        // Extract numeric rating for display
+        const numericRating = rating.toString().match(/(\d+\.?\d*)/)?.[1];
+        const displayRating = numericRating ? `⭐ ${numericRating}/10` : rating;
 
         card.innerHTML = `
-            <img src="${posterUrl}" alt="${title}" class="movie-poster" 
-                 onerror="this.src='https://via.placeholder.com/300x450/333/fff?text=No+Image'">
-            <div class="movie-title-large">${title}</div>
+            <img src="${posterUrl}" alt="${title}" class="card-img-top" 
+                 style="height: 250px; object-fit: cover;"
+                 onerror="this.src='https://via.placeholder.com/300x450/1a1a1a/16c784?text=No+Image'"
+                 loading="lazy">
+            <div class="card-body p-2">
+                <h6 class="card-title text-light mb-1" style="font-size: 0.9rem; line-height: 1.2;">${title}</h6>
+                <p class="card-text mb-1">
+                    <small class="text-success fw-bold">${year}</small>
+                </p>
+                <p class="card-text">
+                    <small class="text-warning">${displayRating}</small>
+                </p>
+            </div>
         `;
 
-        col.appendChild(card);
-        return col;
+        // Add Bootstrap hover effect
+        card.addEventListener('mouseenter', () => {
+            card.classList.add('shadow-lg');
+            card.style.transform = 'translateY(-5px)';
+            card.style.transition = 'all 0.3s ease';
+        });
+
+        card.addEventListener('mouseleave', () => {
+            card.classList.remove('shadow-lg');
+            card.style.transform = 'translateY(0)';
+        });
+
+        // Add click handler for future functionality
+        card.addEventListener('click', () => {
+            console.log(`🎬 Movie selected: ${title} (${year})`);
+            // Future: Add movie selection logic
+        });
+
+        return card;
     }
 
     /**
@@ -1205,7 +1241,7 @@ export class FormManager {
         if (this.formState.genre && this.formState.genre !== 'all') {
             const genreMapping = {
                 Horreur: 'Horror',
-                Comédie: 'Comedy',
+
                 'Action & Aventure': 'Action',
                 Animation: 'Animation'
             };

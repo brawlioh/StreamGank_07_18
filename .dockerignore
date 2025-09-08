@@ -34,11 +34,13 @@ venv/
 env/
 
 # Node.js (for main Dockerfile)
-gui/node_modules/
-gui/package-lock.json
-gui/npm-debug.log*
-gui/yarn-debug.log*
-gui/yarn-error.log*
+frontend/node_modules/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# GUI folder is reference only - exclude from Docker build
+gui/
 
 # IDE
 .idea/

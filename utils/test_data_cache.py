@@ -78,9 +78,12 @@ def should_save_results() -> bool:
     """
     app_env = get_app_env()
     
-    if app_env in ['local', 'dev', 'development']:
+    if app_env in ['dev', 'development']:
         logger.info(f"🌍 APP_ENV='{app_env}': Cache saving ENABLED - will save all results")
         return True
+    elif app_env == 'local':
+        logger.info(f"🌍 APP_ENV='local': Cache saving DISABLED - LOCAL mode only reads cache")
+        return False
     elif app_env in ['prod', 'production']:
         logger.info(f"🌍 APP_ENV='{app_env}': Cache saving DISABLED - will not save results")
         return False
@@ -126,7 +129,7 @@ def is_production_mode() -> bool:
 # TEST DATA CACHING FUNCTIONS
 # =============================================================================
 
-def get_test_data_path(data_type: str, country: str, genre: str, platform: str) -> str:
+def get_test_data_path(data_type: str, country: str, genre: str, platform: str, content_type: str = "Movies", template: str = "auto") -> str:
     """
     Generate standardized path for test data files.
     
@@ -135,20 +138,25 @@ def get_test_data_path(data_type: str, country: str, genre: str, platform: str) 
         country (str): Country parameter
         genre (str): Genre parameter  
         platform (str): Platform parameter
+        content_type (str): Content type parameter (Movies, TV Shows, All)
+        template (str): Template parameter (auto, horror, action, etc.)
         
     Returns:
         str: Path to test data file
     """
-    # Create safe filename from parameters
+    # Create safe filename from parameters - Format: Workflow_Country_Platform_Genre_Type_Template
     safe_country = country.replace(' ', '_').lower()
     safe_genre = genre.replace(' ', '_').replace('&', 'and').lower()
     safe_platform = platform.replace(' ', '_').lower()
+    safe_content_type = content_type.replace(' ', '_').lower()
+    safe_template = template.replace(' ', '_').lower()
     
-    filename = f"{data_type}_{safe_country}_{safe_genre}_{safe_platform}.json"
+    # New format: workflow_country_platform_genre_type_template.json
+    filename = f"{data_type}_{safe_country}_{safe_platform}_{safe_genre}_{safe_content_type}_{safe_template}.json"
     return os.path.join('test_output', filename)
 
 
-def save_test_data(data: Any, data_type: str, country: str, genre: str, platform: str) -> str:
+def save_test_data(data: Any, data_type: str, country: str, genre: str, platform: str, content_type: str = "Movies", template: str = "auto") -> str:
     """
     Save test data to test_output directory based on environment.
     
@@ -158,6 +166,8 @@ def save_test_data(data: Any, data_type: str, country: str, genre: str, platform
         country (str): Country parameter
         genre (str): Genre parameter
         platform (str): Platform parameter
+        content_type (str): Content type parameter (Movies, TV Shows, All)
+        template (str): Template parameter (auto, horror, action, etc.)
         
     Returns:
         str: Path where data was saved, empty string if failed or not saved
@@ -171,7 +181,7 @@ def save_test_data(data: Any, data_type: str, country: str, genre: str, platform
         # Ensure test_output directory exists
         os.makedirs('test_output', exist_ok=True)
         
-        file_path = get_test_data_path(data_type, country, genre, platform)
+        file_path = get_test_data_path(data_type, country, genre, platform, content_type, template)
         
         # Add metadata to the saved data
         data_with_metadata = {
@@ -181,7 +191,9 @@ def save_test_data(data: Any, data_type: str, country: str, genre: str, platform
                 'parameters': {
                     'country': country,
                     'genre': genre,
-                    'platform': platform
+                    'platform': platform,
+                    'content_type': content_type,
+                    'template': template
                 },
                 'saved_timestamp': time.time(),
                 'saved_datetime': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
@@ -200,7 +212,7 @@ def save_test_data(data: Any, data_type: str, country: str, genre: str, platform
         return ""
 
 
-def try_load_from_workflow(data_type: str, country: str, genre: str, platform: str) -> Optional[Any]:
+def try_load_from_workflow(data_type: str, country: str, genre: str, platform: str, content_type: str = "Movies", template: str = "auto") -> Optional[Any]:
     """
     Try to extract specific data from existing workflow files as fallback.
     
@@ -209,22 +221,26 @@ def try_load_from_workflow(data_type: str, country: str, genre: str, platform: s
         country (str): Country parameter
         genre (str): Genre parameter  
         platform (str): Platform parameter
+        content_type (str): Content type parameter (Movies, TV Shows, All)
+        template (str): Template parameter (auto, horror, action, etc.)
         
     Returns:
         Any: Extracted data or None if not found
     """
     try:
-        # Construct workflow file path - FIXED ORDER: Replace & with 'and' BEFORE removing special chars
+        # Construct workflow file path using new format - workflow_country_platform_genre_type_template.json
         country_clean = re.sub(r'[^\w\s-]', '', country.strip()).replace(' ', '_').lower()
         genre_clean = genre.strip().replace('&', 'and').replace(' ', '_').lower()
         genre_clean = re.sub(r'[^\w-]', '', genre_clean)  # Clean after replacements
         platform_clean = re.sub(r'[^\w\s-]', '', platform.strip()).replace(' ', '_').lower()
+        content_type_clean = content_type.replace(' ', '_').lower()
+        template_clean = template.replace(' ', '_').lower()
         
-        workflow_filename = f"workflow_{country_clean}_{genre_clean}_{platform_clean}.json"
+        workflow_filename = f"workflow_{country_clean}_{platform_clean}_{genre_clean}_{content_type_clean}_{template_clean}.json"
         workflow_path = os.path.join('test_output', workflow_filename)
         
         logger.info(f"🔍 CONSTRUCTED filename: {workflow_filename}")
-        logger.info(f"   Parameters: country='{country}' -> '{country_clean}', genre='{genre}' -> '{genre_clean}', platform='{platform}' -> '{platform_clean}'")
+        logger.info(f"   Parameters: country='{country}' -> '{country_clean}', genre='{genre}' -> '{genre_clean}', platform='{platform}' -> '{platform_clean}', content_type='{content_type}' -> '{content_type_clean}', template='{template}' -> '{template_clean}'")
         logger.info(f"🔍 WORKFLOW FALLBACK: Looking for {data_type} in {workflow_filename}")
         
         if not os.path.exists(workflow_path):
@@ -251,10 +267,23 @@ def try_load_from_workflow(data_type: str, country: str, genre: str, platform: s
             if 'step_2_script_generation' in workflow_data:
                 step_data = workflow_data['step_2_script_generation']
                 logger.info(f"✅ FOUND script data in step_2_script_generation!")
+                
+                # ✅ VALIDATION: Check if script data is actually populated
+                combined_script = step_data.get('combined_script', '')
+                individual_scripts = step_data.get('individual_scripts', {})
+                
+                if not combined_script and not individual_scripts:
+                    logger.warning(f"❌ INCOMPLETE CACHE: Script data exists but is empty - treating as cache miss")
+                    logger.warning(f"   Combined script length: {len(combined_script)}")
+                    logger.warning(f"   Individual scripts count: {len(individual_scripts)}")
+                    if is_local_mode():
+                        logger.error(f"💡 LOCAL MODE: Run with APP_ENV=development to regenerate complete script data")
+                    return None
+                
                 result = {
-                    'combined_script': step_data.get('combined_script', ''),
+                    'combined_script': combined_script,
                     'script_file_path': step_data.get('script_file_path', ''),
-                    'individual_scripts': step_data.get('individual_scripts', {})
+                    'individual_scripts': individual_scripts
                 }
                 logger.info(f"✅ RETURNING script data with {len(result['individual_scripts'])} individual scripts")
                 return result
@@ -347,7 +376,7 @@ def try_load_from_workflow(data_type: str, country: str, genre: str, platform: s
         return None
 
 
-def load_test_data(data_type: str, country: str, genre: str, platform: str) -> Optional[Any]:
+def load_test_data(data_type: str, country: str, genre: str, platform: str, content_type: str = "Movies", template: str = "auto") -> Optional[Any]:
     """
     Load test data from unified workflow files in test_output directory.
     
@@ -359,6 +388,8 @@ def load_test_data(data_type: str, country: str, genre: str, platform: str) -> O
         country (str): Country parameter
         genre (str): Genre parameter
         platform (str): Platform parameter
+        content_type (str): Content type parameter (Movies, TV Shows, All)
+        template (str): Template parameter (auto, horror, action, etc.)
         
     Returns:
         Any: Loaded data or None if file doesn't exist, loading fails, or cache disabled
@@ -374,7 +405,7 @@ def load_test_data(data_type: str, country: str, genre: str, platform: str) -> O
         logger.info(f"🔍 Loading {data_type} from workflow file for APP_ENV='{app_env}'")
         
         # Load directly from workflow file (new unified system)
-        workflow_data = try_load_from_workflow(data_type, country, genre, platform)
+        workflow_data = try_load_from_workflow(data_type, country, genre, platform, content_type, template)
         if workflow_data:
             logger.info(f"✅ Loaded {data_type} from workflow file")
             return workflow_data
@@ -523,7 +554,7 @@ def list_test_data() -> Dict[str, Any]:
 # CONVENIENCE FUNCTIONS FOR SPECIFIC DATA TYPES
 # =============================================================================
 
-def save_script_result(script_data: Dict, country: str, genre: str, platform: str) -> str:
+def save_script_result(script_data: Dict, country: str, genre: str, platform: str, content_type: str = "Movies", template: str = "auto") -> str:
     """
     Save script generation result with additional metadata based on environment.
     
@@ -532,6 +563,8 @@ def save_script_result(script_data: Dict, country: str, genre: str, platform: st
         country (str): Country parameter
         genre (str): Genre parameter
         platform (str): Platform parameter
+        content_type (str): Content type parameter (Movies, TV Shows, All)
+        template (str): Template parameter (auto, horror, action, etc.)
         
     Returns:
         str: Path where data was saved, empty string if not saved
@@ -549,10 +582,10 @@ def save_script_result(script_data: Dict, country: str, genre: str, platform: st
         'generation_timestamp': time.time()
     }
     
-    return save_test_data(enhanced_data, 'script_result', country, genre, platform)
+    return save_test_data(enhanced_data, 'script_result', country, genre, platform, content_type, template)
 
 
-def save_assets_result(assets_data: Dict, country: str, genre: str, platform: str) -> str:
+def save_assets_result(assets_data: Dict, country: str, genre: str, platform: str, content_type: str = "Movies", template: str = "auto") -> str:
     """
     Save asset generation result with additional metadata based on environment.
     
@@ -561,6 +594,8 @@ def save_assets_result(assets_data: Dict, country: str, genre: str, platform: st
         country (str): Country parameter
         genre (str): Genre parameter
         platform (str): Platform parameter
+        content_type (str): Content type parameter (Movies, TV Shows, All)
+        template (str): Template parameter (auto, horror, action, etc.)
         
     Returns:
         str: Path where data was saved, empty string if not saved
@@ -579,10 +614,10 @@ def save_assets_result(assets_data: Dict, country: str, genre: str, platform: st
         'generation_timestamp': time.time()
     }
     
-    return save_test_data(enhanced_data, 'assets', country, genre, platform)
+    return save_test_data(enhanced_data, 'assets', country, genre, platform, content_type, template)
 
 
-def save_heygen_result(heygen_data: Dict, country: str, genre: str, platform: str) -> str:
+def save_heygen_result(heygen_data: Dict, country: str, genre: str, platform: str, content_type: str = "Movies", template: str = "auto") -> str:
     """
     Save HeyGen generation result based on environment.
     
@@ -591,6 +626,8 @@ def save_heygen_result(heygen_data: Dict, country: str, genre: str, platform: st
         country (str): Country parameter
         genre (str): Genre parameter
         platform (str): Platform parameter
+        content_type (str): Content type parameter (Movies, TV Shows, All)
+        template (str): Template parameter (auto, horror, action, etc.)
         
     Returns:
         str: Path where data was saved, empty string if not saved
@@ -606,10 +643,10 @@ def save_heygen_result(heygen_data: Dict, country: str, genre: str, platform: st
         'generation_timestamp': time.time()
     }
     
-    return save_test_data(enhanced_data, 'heygen', country, genre, platform)
+    return save_test_data(enhanced_data, 'heygen', country, genre, platform, content_type, template)
 
 
-def save_creatomate_result(creatomate_data: Dict, country: str, genre: str, platform: str) -> str:
+def save_creatomate_result(creatomate_data: Dict, country: str, genre: str, platform: str, content_type: str = "Movies", template: str = "auto") -> str:
     """
     Save Creatomate generation result based on environment.
     
@@ -618,6 +655,8 @@ def save_creatomate_result(creatomate_data: Dict, country: str, genre: str, plat
         country (str): Country parameter
         genre (str): Genre parameter
         platform (str): Platform parameter
+        content_type (str): Content type parameter (Movies, TV Shows, All)
+        template (str): Template parameter (auto, horror, action, etc.)
         
     Returns:
         str: Path where data was saved, empty string if not saved
@@ -632,10 +671,10 @@ def save_creatomate_result(creatomate_data: Dict, country: str, genre: str, plat
         'generation_timestamp': time.time()
     }
     
-    return save_test_data(enhanced_data, 'creatomate', country, genre, platform)
+    return save_test_data(enhanced_data, 'creatomate', country, genre, platform, content_type, template)
 
 
-def save_workflow_result(workflow_data: Dict, country: str, genre: str, platform: str) -> str:
+def save_workflow_result(workflow_data: Dict, country: str, genre: str, platform: str, content_type: str = "Movies", template: str = "auto") -> str:
     """
     Save complete workflow result based on environment.
     
@@ -644,6 +683,8 @@ def save_workflow_result(workflow_data: Dict, country: str, genre: str, platform
         country (str): Country parameter
         genre (str): Genre parameter
         platform (str): Platform parameter
+        content_type (str): Content type parameter (Movies, TV Shows, All)
+        template (str): Template parameter (auto, horror, action, etc.)
         
     Returns:
         str: Path where data was saved, empty string if not saved
@@ -659,7 +700,7 @@ def save_workflow_result(workflow_data: Dict, country: str, genre: str, platform
         'final_timestamp': time.time()
     }
     
-    return save_test_data(enhanced_data, 'workflow', country, genre, platform)
+    return save_test_data(enhanced_data, 'workflow', country, genre, platform, content_type, template)
 
 
 def get_cache_stats() -> Dict[str, Any]:

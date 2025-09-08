@@ -2795,7 +2795,7 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
     - 🎬 Automatic highlight detection and editing
     - 📱 Mobile-optimized clips with subtitles and headlines
     - 📥 Downloads clips from Vizard AI servers
-    - ⏱️ Smart duration control (trims clips ≥30s to 20s max)
+    - ⏱️ Smart duration control (only downloads clips >20s, then trims to 20s max)
     - ☁️ Uploads clips to Cloudinary (streamgank-reels/movie-clips)
     - 📊 Clip duration extraction and metadata
     - 🔄 Synchronous waiting (blocks like HeyGen workflow)
@@ -2881,8 +2881,16 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                 project_data = project_response.json()
                 
                 if project_data.get('code') != 2000:
-                    logger.error(f"❌ Vizard API error for {title}: {project_data}")
-                    break  # Exit project attempt loop and try next movie
+                    # Handle rate limiting specifically
+                    if project_data.get('code') == 4003:
+                        error_msg = project_data.get('errMsg', 'Rate limit exceeded')
+                        logger.error(f"🚫 VIZARD RATE LIMIT for {title}: {error_msg}")
+                        logger.error(f"   ⏰ Waiting 60 seconds before retry...")
+                        time.sleep(60)  # Wait 1 minute for rate limit reset
+                        continue  # Retry the same project
+                    else:
+                        logger.error(f"❌ Vizard API error for {title}: {project_data}")
+                        break  # Exit project attempt loop and try next movie
                     
                 project_id = project_data.get('projectId')
                 if not project_id:
@@ -2996,30 +3004,41 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                             logger.info(f"     💡 Viral Reason: {viral_reason}")
                             logger.info(f"     🔗 URL: {video_url}")
                             
-                            if video_url:
-                                # Download Vizard clip and upload to Cloudinary (same path as old system)
-                                logger.info(f"   📥 Downloading Vizard clip for Cloudinary upload...")
-                                cloudinary_url = _download_and_upload_vizard_clip(
-                                    video_url, title, str(movie.get('id', i+1)), transform_mode
-                                )
-                                
-                                if cloudinary_url:
-                                    clip_urls[title] = cloudinary_url
-                                    # Store additional metadata as movie properties for later use
-                                    movie['clip_duration'] = duration_seconds
-                                    movie['clip_viral_score'] = viral_score
-                                    movie['clip_title'] = clip_title
-                                    movie['clip_viral_reason'] = viral_reason
-                                    
-                                    logger.info(f"   ✅ VIZARD PROCESSING COMPLETE: {title}")
-                                    logger.info(f"   ☁️ Cloudinary URL: {cloudinary_url}")
-                                    clip_ready = True
-                                else:
-                                    logger.error(f"   ❌ Failed to upload Vizard clip to Cloudinary")
-                                    break
-                            else:
-                                logger.error(f"   ❌ Code 2000 received but no video URL - API error")
+                            # Check API duration before downloading - only download if MORE than 21 seconds
+                            if not video_url:
+                                logger.error(f"   ❌ No video URL in Vizard response for: {title}")
                                 break
+                            
+                            if duration_seconds <= 20.9:
+                                logger.info(f"   ⏭️ SKIPPING DOWNLOAD: Duration {duration_seconds:.1f}s ≤ 21.0s")
+                                logger.info(f"     📋 Clip already optimal length - no trimming needed")
+                                logger.warning(f"   ⚠️ Vizard clip too short for processing: {title}")
+                                break
+                            
+                            # Duration > 20 seconds - download and trim
+                            logger.info(f"   ✂️ Duration {duration_seconds:.1f}s > 20.0s - downloading for trimming...")
+                            logger.info(f"   📥 Downloading Vizard clip for Cloudinary upload...")
+                            cloudinary_url = _download_and_upload_vizard_clip(
+                                video_url, title, str(movie.get('id', i+1)), transform_mode
+                            )
+                            
+                            if cloudinary_url:
+                                clip_urls[title] = cloudinary_url
+                                # Store additional metadata as movie properties for later use
+                                movie['clip_duration'] = duration_seconds
+                                movie['clip_viral_score'] = viral_score
+                                movie['clip_title'] = clip_title
+                                movie['clip_viral_reason'] = viral_reason
+                                
+                                logger.info(f"   ✅ VIZARD PROCESSING COMPLETE: {title}")
+                                logger.info(f"   ☁️ Cloudinary URL: {cloudinary_url}")
+                                clip_ready = True
+                            else:
+                                logger.error(f"   ❌ Failed to upload Vizard clip to Cloudinary")
+                                break
+                            
+                            # Exit the processing loop since we found a valid clip
+                            break
                         else:
                             # Code 2000 but no videos - PROJECT FAILED, CREATE NEW PROJECT
                             logger.warning(f"   ⚠️ Code 2000 received but no videos in response (attempt {attempt}/{max_attempts})")
@@ -3216,10 +3235,18 @@ def process_movie_trailers_to_clips_vizard_parallel(movie_data: List[Dict], max_
                 project_data = project_response.json()
                 
                 if project_data.get('code') != 2000:
-                    logger.error(f"❌ [Thread-{thread_id}] Vizard API error for {movie_title}: {project_data}")
-                    if project_attempt >= max_project_attempts:
-                        return (movie_title, None)
-                    continue  # Try creating a new project
+                    # Handle rate limiting specifically
+                    if project_data.get('code') == 4003:
+                        error_msg = project_data.get('errMsg', 'Rate limit exceeded')
+                        logger.error(f"🚫 [Thread-{thread_id}] VIZARD RATE LIMIT for {movie_title}: {error_msg}")
+                        logger.error(f"   ⏰ [Thread-{thread_id}] Waiting 120 seconds before retry...")
+                        time.sleep(120)  # Wait 2 minutes for rate limit reset (longer in parallel mode)
+                        continue  # Retry the same project
+                    else:
+                        logger.error(f"❌ [Thread-{thread_id}] Vizard API error for {movie_title}: {project_data}")
+                        if project_attempt >= max_project_attempts:
+                            return (movie_title, None)
+                        continue  # Try creating a new project
                 
                 project_id = project_data.get('projectId')
                 if not project_id:
@@ -3426,7 +3453,7 @@ def _download_and_upload_vizard_clip(vizard_url: str, movie_title: str, movie_id
         file_size = os.path.getsize(temp_file.name)
         logger.info(f"   📁 Downloaded: {file_size:,} bytes")
         
-        # Check video duration and trim if necessary (30+ seconds → 20 seconds)
+        # Check video duration and trim if necessary (>20 seconds → 20 seconds)
         processed_file = _check_and_trim_clip_duration(temp_file.name, movie_title)
         if not processed_file:
             logger.error(f"   ❌ Failed to process clip duration for: {movie_title}")
@@ -3474,11 +3501,11 @@ def _download_and_upload_vizard_clip(vizard_url: str, movie_title: str, movie_id
 
 
 def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duration: float = 20.0, 
-                                  trim_threshold: float = 30.0) -> Optional[str]:
+                                  trim_threshold: float = 20.0) -> str:
     """
     Check video duration and trim if it exceeds the threshold.
     
-    If the video is 30 seconds or longer, it will be trimmed to 20 seconds maximum.
+    If the video is MORE than 20 seconds, it will be trimmed to 20 seconds maximum.
     This ensures optimal clip length for social media platforms.
     
     Args:
@@ -3501,64 +3528,115 @@ def _check_and_trim_clip_duration(video_path: str, movie_title: str, max_duratio
         
         logger.info(f"   📊 Original duration: {duration:.1f}s")
         
-        # Check if trimming is needed
-        if duration < trim_threshold:
-            logger.info(f"   ✅ Duration OK ({duration:.1f}s < {trim_threshold:.1f}s), no trimming needed")
+        # Check if trimming is needed (trim if MORE than 20 seconds)  
+        if duration <= trim_threshold:
+            logger.info(f"   ✅ Duration OK ({duration:.1f}s <= {trim_threshold:.1f}s), keeping original")
             return video_path
         
         # Trim video to max_duration
-        logger.info(f"   ✂️ Duration {duration:.1f}s >= {trim_threshold:.1f}s, trimming to {max_duration:.1f}s...")
+        logger.info(f"   ✂️ Duration {duration:.1f}s > {trim_threshold:.1f}s, trimming to {max_duration:.1f}s...")
         
         # Create output file path
         base_name = os.path.splitext(video_path)[0]
         trimmed_path = f"{base_name}_trimmed_{max_duration:.0f}s.mp4"
         
-        # Use FFmpeg to trim video with improved compatibility
+        # PRODUCTION-OPTIMIZED FFmpeg command (tested & reliable)
+        is_railway = os.getenv('RAILWAY_ENVIRONMENT') is not None
+        
         ffmpeg_cmd = [
             'ffmpeg',
             '-i', video_path,
-            '-t', str(max_duration),  # Trim to max_duration seconds
-            '-c:v', 'libx264',  # Video codec
-            '-c:a', 'aac',      # Audio codec
-            '-preset', 'fast',  # Encoding speed
-            '-crf', '23',       # Quality (lower = better quality)
+            '-ss', '0',          # Start from beginning (explicit)
+            '-t', str(max_duration),  # Trim to EXACTLY 20 seconds
+            '-c:v', 'libx264',   # Reliable H.264 codec
+            '-c:a', 'copy',      # Copy audio (no re-encoding = FAST)
+            '-preset', 'ultrafast',  # Maximum speed for Railway
+            '-crf', '30',        # Balanced quality/speed (production tested)
             '-movflags', '+faststart',  # Optimize for streaming
-            '-pix_fmt', 'yuv420p',  # Ensure compatible pixel format
-            '-max_muxing_queue_size', '1024',  # Handle large videos
+            '-pix_fmt', 'yuv420p',  # Universal compatibility
             '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
+            '-max_muxing_queue_size', '512' if is_railway else '1024',
+            '-threads', '1' if is_railway else '2',  # Railway: single thread, Local: dual thread
             '-y',               # Overwrite output file
             trimmed_path
         ]
         
-        # Execute FFmpeg command
+        # Fixed timeout for production reliability (no complex calculations)
+        file_size_mb = os.path.getsize(video_path) / (1024 * 1024) if os.path.exists(video_path) else 0
+        
+        # PRODUCTION TIMEOUT: Simple and reliable
+        if is_railway:
+            timeout = 120  # 2 minutes max for Railway (tested)  
+        else:
+            timeout = 180  # 3 minutes max for local/VM
+            
+        logger.info(f"   ⏱️ Trimming {file_size_mb:.1f}MB file with {timeout}s timeout")
+        
+        # Execute FFmpeg trimming (production-grade)
+        import time
+        start_time = time.time()
+        logger.info(f"   ✂️ Trimming to exactly {max_duration:.0f} seconds...")
+        
         result = subprocess.run(
             ffmpeg_cmd,
             capture_output=True,
             text=True,
-            timeout=60  # 1 minute timeout
+            timeout=timeout
         )
         
+        processing_time = time.time() - start_time
+        logger.info(f"   ⏱️ FFmpeg processing completed in {processing_time:.1f}s")
+        
         if result.returncode == 0:
-            # Verify trimmed file exists and has reasonable size
+            # Verify trimmed file was created successfully
             if os.path.exists(trimmed_path):
                 trimmed_size = os.path.getsize(trimmed_path)
-                logger.info(f"   ✅ Successfully trimmed to {max_duration:.1f}s")
-                logger.info(f"   📁 Trimmed file size: {trimmed_size:,} bytes")
-                return trimmed_path
+                if trimmed_size > 1024:  # At least 1KB (valid file)
+                    logger.info(f"   ✅ SUCCESS: Trimmed to exactly {max_duration:.0f} seconds")
+                    logger.info(f"   📁 Output: {trimmed_size:,} bytes | {processing_time:.1f}s processing")
+                    return trimmed_path
+                else:
+                    logger.error(f"   ❌ Created empty file ({trimmed_size} bytes)")
             else:
-                logger.error(f"   ❌ Trimmed file not created: {trimmed_path}")
-                return video_path
+                logger.error(f"   ❌ Output file not created: {trimmed_path}")
         else:
-            logger.error(f"   ❌ FFmpeg trimming failed for {movie_title}")
-            logger.error(f"   FFmpeg error: {result.stderr}")
-            logger.warning(f"   ⚠️ Using original clip without trimming")
-            return video_path
+            logger.error(f"   ❌ FFmpeg failed (exit code {result.returncode})")
+            logger.error(f"   📋 Error: {result.stderr[:300]}...")
+        
+        # SIMPLE FALLBACK: Try stream copy (no re-encoding)
+        logger.warning(f"   🔄 Trying stream copy fallback...")
+        fallback_path = f"{base_name}_stream_copy_{max_duration:.0f}s.mp4"
+        try:
+            fallback_cmd = [
+                'ffmpeg', '-i', video_path, '-t', str(max_duration),
+                '-c', 'copy', '-avoid_negative_ts', 'make_zero', '-y', fallback_path
+            ]
+            fb_result = subprocess.run(fallback_cmd, capture_output=True, text=True, timeout=60)
+            
+            if fb_result.returncode == 0 and os.path.exists(fallback_path):
+                fb_size = os.path.getsize(fallback_path)
+                if fb_size > 1024:
+                    logger.info(f"   ✅ Stream copy success: {fallback_path} ({fb_size:,} bytes)")
+                    return fallback_path
+                    
+        except Exception as e:
+            logger.error(f"   ❌ Stream copy failed: {str(e)[:200]}")
+        
+        # FINAL: Use original (workflow continues)
+        logger.warning(f"   📄 Using original clip - workflow continues")
+        return video_path
             
     except subprocess.TimeoutExpired:
-        logger.error(f"   ❌ FFmpeg trimming timeout for {movie_title}")
+        logger.error(f"   ⏰ Timeout after {timeout}s - file too large/complex")
+        logger.warning(f"   📄 Using original clip - workflow continues")
+        return video_path
+    except FileNotFoundError:
+        logger.error(f"   ❌ FFmpeg not found - check Docker installation")
+        logger.warning(f"   📄 Using original clip - workflow continues")
         return video_path
     except Exception as e:
-        logger.error(f"   ❌ Error checking/trimming duration for {movie_title}: {str(e)}")
+        logger.error(f"   ❌ Trim error: {str(e)[:200]}...")
+        logger.warning(f"   📄 Using original clip - workflow continues")
         return video_path
 
 
@@ -3586,7 +3664,7 @@ def _get_video_duration(video_path: str) -> Optional[float]:
             ffprobe_cmd,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=60  # Increased timeout for large files
         )
         
         if result.returncode == 0:

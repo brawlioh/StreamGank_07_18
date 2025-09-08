@@ -12,30 +12,41 @@ const { getFileLogger } = require('./utils/file_logger');
 class VideoQueueManager {
     constructor() {
         // Redis client configuration with database selection - OPTIMIZED for performance and connection pooling
-        const redisConfig = {
-            host: process.env.REDIS_HOST,
-            port: parseInt(process.env.REDIS_PORT),
-            password: process.env.REDIS_PASSWORD,
-            db: parseInt(process.env.REDIS_DB), // Database selection (0-15)
-            retry_delay_on_failover: 100, // Faster failover for status requests
-            enable_ready_check: true, // Enable ready check for better connection reliability
-            max_attempts: 3, // Reduced retry attempts for faster failure
-            connect_timeout: 1500, // Reduced connection timeout for status requests
-            socket_keepalive: true, // Keep connections alive
-            no_ready_check: false, // Ensure connection is ready
-            // Connection pooling settings to prevent exhaustion during heavy processing
-            return_buffers: false, // Use strings instead of buffers for better performance
-            detect_buffers: false, // Disable buffer detection for speed
-            socket_nodelay: true, // Disable Nagle algorithm for low latency
-            family: 'IPv4' // Force IPv4 to avoid DNS lookup delays
-        };
+        // RAILWAY OPTIMIZATION: Use Railway's Redis URL if available (fastest connection)
+        const redisUrl = process.env.REDIS_URL;
 
-        console.log(`🔗 Connecting to Redis database ${redisConfig.db} on ${redisConfig.host}:${redisConfig.port}`);
+        const redisConfig = redisUrl
+            ? redisUrl
+            : {
+                  host: process.env.REDISHOST || process.env.REDIS_HOST, // Railway standard + fallback
+                  port: parseInt(process.env.REDISPORT || process.env.REDIS_PORT), // Railway standard + fallback
+                  password: process.env.REDISPASSWORD || process.env.REDIS_PASSWORD, // Railway standard + fallback
+                  username: process.env.REDISUSER || 'default', // Railway username
+                  db: parseInt(process.env.REDIS_DB || '0'), // Database selection (0-15)
+                  retry_delay_on_failover: 100, // Faster failover for status requests
+                  enable_ready_check: true, // Enable ready check for better connection reliability
+                  max_attempts: 3, // Reduced retry attempts for faster failure
+                  connect_timeout: 8000, // Increased for Railway production (was 1500ms)
+                  socket_keepalive: true, // Keep connections alive
+                  no_ready_check: false, // Ensure connection is ready
+                  // Connection pooling settings to prevent exhaustion during heavy processing
+                  return_buffers: false, // Use strings instead of buffers for better performance
+                  detect_buffers: false, // Disable buffer detection for speed
+                  socket_nodelay: true, // Disable Nagle algorithm for low latency
+                  family: 'IPv4' // Force IPv4 to avoid DNS lookup delays
+              };
+
+        // Log connection info
+        if (redisUrl) {
+            console.log(`🔗 Connecting to Railway Redis via URL: ${redisUrl.substring(0, 20)}...`);
+        } else {
+            console.log(`🔗 Connecting to Redis database ${redisConfig.db} on ${redisConfig.host}:${redisConfig.port}`);
+        }
 
         // Production-level Redis connection pooling for high concurrency
         this.clients = [];
         this.currentClientIndex = 0;
-        this.poolSize = parseInt(process.env.REDIS_POOL_SIZE) || 1; // Single connection for efficiency
+        this.poolSize = parseInt(process.env.REDIS_POOL_SIZE) || 3; // Increased pool size for Railway performance
 
         console.log(`🔗 Creating Redis connection (professional single connection)...`);
 
@@ -87,7 +98,7 @@ class VideoQueueManager {
         );
 
         // Redis queue keys with database-aware namespace
-        const dbNumber = redisConfig.db;
+        const dbNumber = redisUrl ? parseInt(process.env.REDIS_DB) || 0 : redisConfig.db;
         const namespace = `streamgankvideos:db${dbNumber}`;
         this.keys = {
             pending: `${namespace}:queue:pending`,
@@ -113,6 +124,39 @@ class VideoQueueManager {
         this.lrangeAsync = promisify(this.client.lrange).bind(this.client);
         this.hdelAsync = promisify(this.client.hdel).bind(this.client);
         this.quitAsync = promisify(this.client.quit).bind(this.client);
+
+        // RAILWAY OPTIMIZATION: Redis pipelining for batch operations
+        this.executePipeline = (operations) => {
+            return new Promise((resolve, reject) => {
+                const multi = this.client.multi();
+                operations.forEach((op) => {
+                    multi[op.command](...op.args);
+                });
+                multi.exec((err, results) => {
+                    if (err) reject(err);
+                    else resolve(results);
+                });
+            });
+        };
+
+        // PERFORMANCE: Pipelined job update for Railway Redis optimization
+        this.updateJobFast = async (job) => {
+            const jobKey = `${this.keys.jobs}:${job.id}`;
+            const operations = [
+                { command: 'hset', args: [jobKey, 'data', JSON.stringify(job)] },
+                { command: 'hset', args: [jobKey, 'status', job.status] },
+                { command: 'hset', args: [jobKey, 'progress', job.progress || 0] },
+                { command: 'hset', args: [jobKey, 'lastUpdate', new Date().toISOString()] }
+            ];
+
+            // Add expiration if job is completed/failed
+            if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+                operations.push({ command: 'expire', args: [jobKey, 86400] }); // 24 hours
+            }
+
+            await this.executePipeline(operations);
+            console.log(`📝 Fast job update: ${job.id} -> ${job.status} (${job.progress}%)`);
+        };
 
         // Production-level error tracking and recovery
         this.errorCount = 0;
@@ -313,15 +357,17 @@ class VideoQueueManager {
                 setTimeout(() => reject(new Error('Queue status timeout')), 800); // 800ms timeout for Redis operations
             });
 
-            // Use connection pool for Redis operations with load balancing
-            const statusPromise = Promise.all([
-                this.executeWithPool(this.getNextClient().llen, [this.keys.pending], 'llen_pending'),
-                this.executeWithPool(this.getNextClient().llen, [this.keys.processing], 'llen_processing'),
-                this.executeWithPool(this.getNextClient().llen, [this.keys.completed], 'llen_completed'),
-                this.executeWithPool(this.getNextClient().llen, [this.keys.failed], 'llen_failed')
-            ]);
+            // RAILWAY OPTIMIZATION: Use pipelining instead of 4 separate Redis calls (50-75% faster)
+            const statusOperations = [
+                { command: 'llen', args: [this.keys.pending] },
+                { command: 'llen', args: [this.keys.processing] },
+                { command: 'llen', args: [this.keys.completed] },
+                { command: 'llen', args: [this.keys.failed] }
+            ];
 
-            const [pending, processing, completed, failed] = await Promise.race([statusPromise, timeoutPromise]);
+            const statusPromise = this.executePipeline(statusOperations);
+            const results = await Promise.race([statusPromise, timeoutPromise]);
+            const [pending, processing, completed, failed] = results;
 
             return {
                 pending,
@@ -431,7 +477,7 @@ class VideoQueueManager {
         try {
             // Add timeout protection specifically for Redis operations
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error(`Redis timeout for job ${jobId.slice(-8)}`)), 5000);
+                setTimeout(() => reject(new Error(`Redis timeout for job ${jobId.slice(-8)}`)), 10000); // Increased from 5s to 10s for Railway
             });
 
             const redisPromise = this.executeWithPool(this.getNextClient().hget, [this.keys.jobs, jobId], 'hget_job');
@@ -2349,17 +2395,17 @@ class VideoQueueManager {
 
         let attempts = 0;
         const maxAttempts = 4; // Reduced to 4 - webhooks handle most cases
-        let checkInterval = 300000; // Start with 5 minutes (webhook backup only)
-        const maxInterval = 600000; // Max 10 minutes between checks
+        let checkInterval = 600000; // Start with 10 minutes (project-level webhook backup only)
+        const maxInterval = 900000; // Max 15 minutes between checks
         let lastLoggedStatus = null;
         let lastProgressUpdate = 0;
 
         // Single startup log
         console.log(
-            `🎬 Starting webhook-backup monitoring [${this.activeMonitoring.size}/${this.maxConcurrentMonitoring}]: ${jobId} → ${creatomateId}`
+            `🎬 Starting PROJECT-LEVEL webhook backup monitoring [${this.activeMonitoring.size}/${this.maxConcurrentMonitoring}]: ${jobId} → ${creatomateId}`
         );
         console.log(
-            `🔗 Primary: Webhook notifications | 🔄 Backup: ${maxAttempts} checks over ${Math.round((maxAttempts * checkInterval) / 60000)}min`
+            `🔗 Primary: Project-level webhook (ALL statuses) | 🔄 Backup: ${maxAttempts} checks over ${Math.round((maxAttempts * checkInterval) / 60000)}min`
         );
 
         const checkStatus = async () => {

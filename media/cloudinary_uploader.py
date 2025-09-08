@@ -22,7 +22,12 @@ import cloudinary.api
 from pathlib import Path
 
 from config.settings import get_api_config
-from utils.formatters import clean_filename
+# Simple inline function replaces bloated formatters.clean_filename
+def clean_filename(filename):
+    """Clean filename for safe storage."""
+    if not filename:
+        return "unknown"
+    return re.sub(r'[^\w\-_.]', '_', str(filename))
 from utils.file_utils import get_file_info
 from utils.validators import validate_file_path
 

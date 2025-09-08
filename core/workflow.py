@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 
 # Import modular functions
-from ai.robust_script_generator import generate_video_scripts
+from ai.clean_script_generator import generate_video_scripts, generate_outro_script
 from video.poster_generator import create_enhanced_movie_posters
 # Import clip processing (standard video processing without AI + parallel Vizard AI)
 from video.clip_processor import process_movie_trailers_to_clips, process_movie_trailers_to_clips_vizard, process_movie_trailers_to_clips_vizard_parallel
@@ -111,6 +111,25 @@ def run_full_workflow(num_movies: int = 3,
     # Enhanced environment logging
     if is_local_mode():
         print(f"🌍 Environment: APP_ENV='{app_env}' (LOCAL: Cache only, no API calls)")
+        
+        # 🛑 STRICT LOCAL MODE: Pre-check all required cached data before starting workflow
+        print(f"🔍 LOCAL MODE: Pre-checking required cached data availability...")
+        required_data_types = ['script_result', 'assets', 'heygen', 'heygen_urls', 'creatomate']
+        missing_cache = []
+        
+        for data_type in required_data_types:
+            template = heygen_template_id or "auto"
+            cached_data = load_test_data(data_type, country, genre, platform, content_type, template)
+            if not cached_data:
+                missing_cache.append(data_type)
+        
+        if missing_cache:
+            print(f"   ❌ LOCAL MODE: Missing cached data: {', '.join(missing_cache)}")
+            print(f"   💡 SOLUTION: Run with APP_ENV=development first to generate complete cache")
+            raise Exception(f"🛑 LOCAL MODE STRICT: Missing cached data types: {missing_cache}. Process STOPPED to prevent API calls.")
+        
+        print(f"   ✅ LOCAL MODE: All required cached data found - proceeding with cached workflow")
+        
     elif is_development_mode():
         print(f"🌍 Environment: APP_ENV='{app_env}' (DEVELOPMENT: API calls + save results)")
     elif is_production_mode():
@@ -153,12 +172,14 @@ def run_full_workflow(num_movies: int = 3,
         'step_7_creatomate_assembly': {}
     }
     
-    # Initialize webhook client for real-time step updates
-    webhook_client = create_webhook_client()
+    # Get or generate job_id first
+    job_id = os.getenv('JOB_ID', f"workflow_{int(time.time())}")
+    
+    # Initialize webhook client for real-time step updates with job_id
+    webhook_client = create_webhook_client(job_id)
     
     # Initialize job logger for persistent logging
     job_logger = get_job_logger()
-    job_id = os.getenv('JOB_ID', f"workflow_{int(time.time())}")
     
     # Log workflow start
     job_logger.log_job_event(job_id, "workflow_started", "Video generation workflow initiated", {
@@ -250,7 +271,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 1 COMPLETED - Found {len(raw_movies)} movies in {step_duration:.1f}s")
@@ -324,11 +346,43 @@ def run_full_workflow(num_movies: int = 3,
         })
         
         # Try to load existing script data from test_output
-        cached_script_data = load_test_data('script_result', country, genre, platform)
+        template = heygen_template_id or "auto"
+        cached_script_data = load_test_data('script_result', country, genre, platform, content_type, template)
         
-        # For testing intelligent highlights, we want to use cached scripts if available
-        if cached_script_data and should_use_cache():
-        #if True:
+        if is_local_mode():
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+            if not cached_script_data:
+                print("   ❌ LOCAL MODE: No cached script data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached script data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached script data from test_output...")
+            
+            # Extract data from cached result (with safe fallbacks)
+            combined_script = cached_script_data.get('combined_script', '') if isinstance(cached_script_data, dict) else ''
+            script_file_path = cached_script_data.get('script_file_path', '') if isinstance(cached_script_data, dict) else ''
+            individual_scripts = cached_script_data.get('individual_scripts', {}) if isinstance(cached_script_data, dict) else {}
+            
+            # Validate cached data completeness
+            if not combined_script or not individual_scripts:
+                print("   ❌ LOCAL MODE: Cached script data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached script data. Process STOPPED to prevent API calls.")
+            
+            # ========================================================================
+            # 🎬 DYNAMIC OUTRO GENERATION: Genre-specific closing segment (LOCAL MODE)
+            # ========================================================================
+            print("   🎯 Generating dynamic outro script based on genre...")
+            outro_script = generate_outro_script(genre, platform)
+            individual_scripts["outro"] = outro_script
+            print(f"   ✅ OUTRO GENERATED: {outro_script[:50]}...")
+            print(f"   📝 Outro script length: {len(outro_script.split())} words")
+            
+            script_result = (combined_script, script_file_path, individual_scripts)
+            print(f"   ✅ LOCAL MODE: Successfully loaded {len(individual_scripts)} cached scripts + outro")
+            
+        elif cached_script_data and should_use_cache():
+            # DEVELOPMENT/PRODUCTION MODE: Use cache if available
             print("   📂 Using cached script data from test_output...")
             
             # Extract data from cached result (with safe fallbacks)
@@ -336,11 +390,20 @@ def run_full_workflow(num_movies: int = 3,
             script_file_path = cached_script_data.get('script_file_path', '') if isinstance(cached_script_data, dict) else ''
             individual_scripts = cached_script_data.get('individual_scripts', {}) if isinstance(cached_script_data, dict) else {}
             
-            script_result = (combined_script, script_file_path, individual_scripts)
+            # ========================================================================
+            # 🎬 DYNAMIC OUTRO GENERATION: Genre-specific closing segment (CACHED MODE)
+            # ========================================================================
+            print("   🎯 Generating dynamic outro script based on genre...")
+            outro_script = generate_outro_script(genre, platform)
+            individual_scripts["outro"] = outro_script
+            print(f"   ✅ OUTRO GENERATED: {outro_script[:50]}...")
+            print(f"   📝 Outro script length: {len(outro_script.split())} words")
             
-            print(f"   📋 Loaded {len(individual_scripts)} cached scripts")
+            script_result = (combined_script, script_file_path, individual_scripts)
+            print(f"   📋 Loaded {len(individual_scripts)} cached scripts + outro")
             
         else:
+            # DEVELOPMENT/PRODUCTION MODE: Generate fresh scripts via API
             print("   🔄 No cached data found, generating new scripts...")
             print("   Using modular script generation...")
             
@@ -356,6 +419,15 @@ def run_full_workflow(num_movies: int = 3,
                 raise Exception("Script generation failed - no scripts were generated")
             
             combined_script, script_file_path, individual_scripts = script_result
+            
+            # ========================================================================
+            # 🎬 DYNAMIC OUTRO GENERATION: Genre-specific closing segment
+            # ========================================================================
+            print("   🎯 Generating dynamic outro script based on genre...")
+            outro_script = generate_outro_script(genre, platform)
+            individual_scripts["outro"] = outro_script
+            print(f"   ✅ OUTRO GENERATED: {outro_script[:50]}...")
+            print(f"   📝 Outro script length: {len(outro_script.split())} words")
             
             # Script results saved via save_workflow_result() call below
         
@@ -373,7 +445,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 2 COMPLETED - Using {len(individual_scripts)} scripts in {step_duration:.1f}s")
@@ -416,9 +489,43 @@ def run_full_workflow(num_movies: int = 3,
         })
         
         # Try to load existing asset data from test_output
-        cached_assets_data = load_test_data('assets', country, genre, platform)
+        template = heygen_template_id or "auto"
+        cached_assets_data = load_test_data('assets', country, genre, platform, content_type, template)
         
-        if cached_assets_data and should_use_cache():
+        if is_local_mode():
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+            if not cached_assets_data:
+                print("   ❌ LOCAL MODE: No cached asset data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached asset data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached asset data from test_output...")
+            
+            # Extract cached data variables for LOCAL mode
+            enhanced_posters = cached_assets_data.get('enhanced_posters', {})
+            dynamic_clips = cached_assets_data.get('dynamic_clips', {})
+            
+            # Validate cached data completeness
+            if not enhanced_posters or not dynamic_clips:
+                print("   ❌ LOCAL MODE: Cached asset data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached asset data. Process STOPPED to prevent API calls.")
+            
+            print(f"   ✅ LOCAL MODE: Successfully loaded {len(enhanced_posters)} cached posters and {len(dynamic_clips)} cached clips")
+            
+            # Extract cached background music
+            if 'background_music_url' in cached_assets_data:
+                background_music_url = cached_assets_data['background_music_url']
+                background_music_info = cached_assets_data.get('background_music_info', 
+                    get_background_music_info(genre))
+                print(f"   ✅ LOCAL MODE: Loaded cached background music: {background_music_info['type']}")
+            else:
+                print("   ❌ LOCAL MODE: No cached background music found")
+                raise Exception("🛑 LOCAL MODE STRICT: Missing background music in cached data.")
+            
+            print(f"   🔗 Music URL: {background_music_url}")
+            
+        elif cached_assets_data and should_use_cache():
         # if False: # TESTING POSTER UPLOAD TO streamgank-reels/enhanced-poster-cover
             print("   📂 Using cached asset data from test_output...")
             
@@ -558,7 +665,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 3 COMPLETED - Created {len(movie_covers)} posters and {len(movie_clips)} clips in {step_duration:.1f}s")
@@ -605,9 +713,31 @@ def run_full_workflow(num_movies: int = 3,
         })
         
         # Try to load existing HeyGen data from cache
-        cached_heygen_data = load_test_data('heygen', country, genre, platform)
+        template = heygen_template_id or "auto"
+        cached_heygen_data = load_test_data('heygen', country, genre, platform, content_type, template)
         
-        if cached_heygen_data and should_use_cache():
+        if is_local_mode():
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+            if not cached_heygen_data:
+                print("   ❌ LOCAL MODE: No cached HeyGen data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached HeyGen data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached HeyGen data from test_output...")
+            
+            # Extract cached data variables for LOCAL mode
+            heygen_video_ids = cached_heygen_data.get('video_ids', {}) if isinstance(cached_heygen_data, dict) else {}
+            template_id_used = cached_heygen_data.get('template_id', heygen_template_id) if isinstance(cached_heygen_data, dict) else heygen_template_id
+            
+            # Validate cached data completeness
+            if not heygen_video_ids:
+                print("   ❌ LOCAL MODE: Cached HeyGen data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached HeyGen data. Process STOPPED to prevent API calls.")
+            
+            print(f"   ✅ LOCAL MODE: Successfully loaded {len(heygen_video_ids)} cached HeyGen video IDs")
+            
+        elif cached_heygen_data and should_use_cache():
             print("   📂 Using cached HeyGen data from test_output...")
             
             # Extract data from cached result (with safe fallbacks)
@@ -623,7 +753,34 @@ def run_full_workflow(num_movies: int = 3,
             print("   🔄 No cached HeyGen data found, creating new videos...")
             print("   Using HeyGen API for video generation...")
             
-            heygen_video_ids = create_heygen_video(individual_scripts, True, heygen_template_id)
+            # ========================================================================
+            # 🎯 CRITICAL FIX: Combine intro + movie1 for first HeyGen video
+            # ========================================================================
+            heygen_scripts = individual_scripts.copy()  # Don't modify original
+            
+            # ========================================================================
+            # 🎯 VERIFY OUTRO: Ensure outro script is included in HeyGen generation
+            # ========================================================================
+            if "outro" in heygen_scripts:
+                print(f"   ✅ OUTRO SCRIPT READY: {heygen_scripts['outro'][:50]}...")
+            else:
+                print(f"   ⚠️ Warning: Outro script missing from individual_scripts")
+            
+            if "intro" in heygen_scripts and "movie1" in heygen_scripts:
+                # Combine intro + movie1 into first video script
+                combined_movie1 = f"{heygen_scripts['intro']} {heygen_scripts['movie1']}"
+                heygen_scripts["movie1"] = combined_movie1
+                
+                # Remove standalone intro (it's now part of movie1)
+                del heygen_scripts["intro"]
+                
+                print(f"   ✅ INTRO COMBINED: First HeyGen video = intro + movie1")
+                print(f"   📝 Combined script length: {len(combined_movie1.split())} words")
+            else:
+                print(f"   ⚠️ Warning: Missing intro or movie1 scripts for combination")
+            
+            print(f"   🎬 Creating HeyGen videos for {len(heygen_scripts)} scripts: {list(heygen_scripts.keys())}")
+            heygen_video_ids = create_heygen_video(heygen_scripts, True, heygen_template_id)
             
             if not heygen_video_ids:
                 raise Exception("HeyGen video creation failed")
@@ -643,7 +800,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 4 COMPLETED - {'Loaded' if should_use_cache() and cached_heygen_data else 'Created'} {len(heygen_video_ids)} HeyGen videos in {step_duration:.1f}s")
@@ -689,9 +847,30 @@ def run_full_workflow(num_movies: int = 3,
         })
         
         # Try to load existing HeyGen URLs from cache
-        cached_heygen_urls_data = load_test_data('heygen_urls', country, genre, platform)
+        template = heygen_template_id or "auto"
+        cached_heygen_urls_data = load_test_data('heygen_urls', country, genre, platform, content_type, template)
         
-        if cached_heygen_urls_data and should_use_cache():
+        if is_local_mode():
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+            if not cached_heygen_urls_data:
+                print("   ❌ LOCAL MODE: No cached HeyGen URL data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached HeyGen URL data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached HeyGen URLs from test_output...")
+            
+            # Extract cached data variables for LOCAL mode
+            heygen_video_urls = cached_heygen_urls_data.get('video_urls', {}) if isinstance(cached_heygen_urls_data, dict) else {}
+            
+            # Validate cached data completeness
+            if not heygen_video_urls:
+                print("   ❌ LOCAL MODE: Cached HeyGen URL data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached HeyGen URL data. Process STOPPED to prevent API calls.")
+            
+            print(f"   ✅ LOCAL MODE: Successfully loaded {len(heygen_video_urls)} cached HeyGen video URLs")
+            
+        elif cached_heygen_urls_data and should_use_cache():
             print("   📂 Using cached HeyGen URLs from test_output...")
             
             # Extract data from cached result (with safe fallbacks)
@@ -709,7 +888,33 @@ def run_full_workflow(num_movies: int = 3,
             heygen_video_urls = get_heygen_videos_for_creatomate(heygen_video_ids, individual_scripts)
             
             if not heygen_video_urls:
-                raise Exception("HeyGen video URL retrieval failed")
+                # 🚨 PRODUCTION FIX: Don't fail the entire workflow on HeyGen timeout
+                # Instead, save the job with partial completion for manual retry
+                print("   ⚠️ HeyGen video processing timed out - saving job for manual retry")
+                print("   💡 This job can be retried later when HeyGen servers are less busy")
+                
+                # Save partial workflow results for recovery
+                workflow_results['status'] = 'heygen_timeout'
+                workflow_results['heygen_timeout'] = {
+                    'video_ids': heygen_video_ids,
+                    'timeout_timestamp': time.time(),
+                    'recovery_instructions': 'Retry this job or check HeyGen video status manually'
+                }
+                
+                # Save the partial progress
+                if save_enabled:
+                    template = heygen_template_id or "auto"
+                    save_workflow_result(workflow_results, country, genre, platform, content_type, template)
+                
+                # Return partial results instead of raising exception
+                return {
+                    'success': False,
+                    'status': 'heygen_timeout',
+                    'message': 'HeyGen video processing timed out - job saved for retry',
+                    'video_ids': heygen_video_ids,
+                    'recovery_possible': True,
+                    'workflow_results': workflow_results
+                }
             
             # HeyGen URLs saved via save_workflow_result() call below
         
@@ -764,9 +969,30 @@ def run_full_workflow(num_movies: int = 3,
             })
             
             # Try to load existing scroll video data from cache
-            cached_scroll_data = load_test_data('scroll_video', country, genre, platform)
+            template = heygen_template_id or "auto"
+            cached_scroll_data = load_test_data('scroll_video', country, genre, platform, content_type, template)
             
-            if cached_scroll_data and should_use_cache():
+            if is_local_mode():
+                # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+                if not cached_scroll_data:
+                    print("   ❌ LOCAL MODE: No cached scroll video data found")
+                    print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                    raise Exception("🛑 LOCAL MODE STRICT: No cached scroll video data available. Process STOPPED to prevent API calls.")
+                
+                print("   📂 LOCAL MODE: Using cached scroll video data from test_output...")
+                
+                # Extract cached data variables for LOCAL mode
+                scroll_video_url = cached_scroll_data.get('scroll_video_url', None) if isinstance(cached_scroll_data, dict) else None
+                
+                # Validate cached data completeness
+                if not scroll_video_url:
+                    print("   ❌ LOCAL MODE: Cached scroll video data is incomplete or corrupted")
+                    print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                    raise Exception("🛑 LOCAL MODE STRICT: Invalid cached scroll video data. Process STOPPED to prevent API calls.")
+                
+                print(f"   ✅ LOCAL MODE: Successfully loaded cached scroll video URL")
+                
+            elif cached_scroll_data and should_use_cache():
                 print("   📂 Using cached scroll video data from test_output...")
                 
                 # Extract data from cached result (with safe fallbacks)
@@ -910,7 +1136,8 @@ def run_full_workflow(num_movies: int = 3,
         if 'individual_scripts' not in locals() or not individual_scripts:
             logger.warning("⚠️ individual_scripts not available - this should not happen")
             # Try to load from workflow file as fallback
-            workflow_data = load_test_data('workflow', country, genre, platform)
+            template = heygen_template_id or "auto"
+            workflow_data = load_test_data('workflow', country, genre, platform, content_type, template)
             if workflow_data and 'step_2_script_generation' in workflow_data:
                 individual_scripts = workflow_data['step_2_script_generation'].get('individual_scripts', {})
                 logger.info(f"✅ Loaded {len(individual_scripts)} scripts from workflow file")
@@ -921,7 +1148,8 @@ def run_full_workflow(num_movies: int = 3,
         if 'heygen_video_urls' not in locals() or not heygen_video_urls:
             logger.warning("⚠️ heygen_video_urls not available - this should not happen")
             # Try to load from workflow file as fallback
-            workflow_data = load_test_data('workflow', country, genre, platform)
+            template = heygen_template_id or "auto"
+            workflow_data = load_test_data('workflow', country, genre, platform, content_type, template)
             if workflow_data and 'step_5_heygen_processing' in workflow_data:
                 heygen_video_urls = workflow_data['step_5_heygen_processing'].get('heygen_video_urls', {})
                 logger.info(f"✅ Loaded {len(heygen_video_urls)} HeyGen URLs from workflow file")
@@ -969,6 +1197,15 @@ def run_full_workflow(num_movies: int = 3,
                     last_url = list(creatomate_heygen_urls.values())[-1]
                     creatomate_heygen_urls[f"movie{i}"] = last_url
         
+        # ========================================================================
+        # 🎬 ADD OUTRO HEYGEN URL: Include dynamic outro video in Creatomate mapping
+        # ========================================================================
+        if "outro" in heygen_video_urls:
+            creatomate_heygen_urls["outro"] = heygen_video_urls["outro"]
+            logger.info(f"✅ Outro HeyGen URL added to Creatomate mapping")
+        else:
+            logger.warning(f"⚠️ No outro HeyGen URL found - outro video may not play in final video")
+        
         # Log the ordering for verification
         logger.info(f"🎬 FINAL ASSET ORDERING for Creatomate:")
         for i, movie in enumerate(ordered_movies):
@@ -983,21 +1220,26 @@ def run_full_workflow(num_movies: int = 3,
         
         # Create Creatomate video based on environment
         if is_local_mode():
-            # LOCAL MODE: Try to use cached Creatomate data
-            cached_creatomate_data = load_test_data('creatomate', country, genre, platform)
+            # 🛑 STRICT LOCAL MODE: ONLY cached data, NEVER API calls
+            template = heygen_template_id or "auto"
+            cached_creatomate_data = load_test_data('creatomate', country, genre, platform, content_type, template)
             
-            if cached_creatomate_data:
-                print("   📂 Using cached Creatomate data from test_output...")
-                
-                # Extract data from cached result (with safe fallbacks)
-                creatomate_id = cached_creatomate_data.get('render_id', '') if isinstance(cached_creatomate_data, dict) else ''
-                
-                if creatomate_id and not creatomate_id.startswith('error'):
-                    print(f"   📋 Loaded cached Creatomate render ID: {creatomate_id}")
-                else:
-                    raise Exception(f"LOCAL MODE: Invalid cached Creatomate data: {creatomate_id}")
-            else:
-                raise Exception("LOCAL MODE: No cached Creatomate data available. Run with APP_ENV=development first to generate and cache data.")
+            if not cached_creatomate_data:
+                print("   ❌ LOCAL MODE: No cached Creatomate data found")
+                print("   💡 SOLUTION: Run with APP_ENV=development first to generate and cache data")
+                raise Exception("🛑 LOCAL MODE STRICT: No cached Creatomate data available. Process STOPPED to prevent API calls.")
+            
+            print("   📂 LOCAL MODE: Using cached Creatomate data from test_output...")
+            
+            # Extract data from cached result (with safe fallbacks)
+            creatomate_id = cached_creatomate_data.get('render_id', '') if isinstance(cached_creatomate_data, dict) else ''
+            
+            if not creatomate_id or creatomate_id.startswith('error'):
+                print("   ❌ LOCAL MODE: Cached Creatomate data is incomplete or corrupted")
+                print("   💡 SOLUTION: Delete incomplete cache and run with APP_ENV=development")
+                raise Exception("🛑 LOCAL MODE STRICT: Invalid cached Creatomate data. Process STOPPED to prevent API calls.")
+            
+            print(f"   ✅ LOCAL MODE: Successfully loaded cached Creatomate render ID: {creatomate_id}")
         
         else:
             # DEVELOPMENT/PRODUCTION MODE: Always create new video
@@ -1034,7 +1276,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         step_duration = time.time() - step_start
         print(f"✅ STEP 7 COMPLETED - {'Loaded' if should_use_cache() and cached_creatomate_data else 'Created'} final video in {step_duration:.1f}s")
@@ -1058,6 +1301,10 @@ def run_full_workflow(num_movies: int = 3,
             }
         )
         
+        # 🎬 CRITICAL FIX: Send immediate Creatomate ready notification for instant UI update
+        print(f"🚀 Sending immediate Creatomate ready notification...")
+        webhook_client.send_creatomate_ready(creatomate_id, step_duration)
+        
         # =============================================================================
         # WORKFLOW COMPLETION
         # =============================================================================
@@ -1066,8 +1313,10 @@ def run_full_workflow(num_movies: int = 3,
         workflow_results['total_duration'] = total_duration
         workflow_results['end_time'] = time.time()
         
-        # Save complete workflow results for development mode
-        save_workflow_result(workflow_results, country, genre, platform)
+        # Save complete workflow results (only in development/production modes)
+        if save_enabled:
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         print(f"\n🎉 WORKFLOW COMPLETED SUCCESSFULLY!")
         print(f"   ⏱️ Total duration: {total_duration:.1f}s")

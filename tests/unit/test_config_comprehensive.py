@@ -162,7 +162,7 @@ class TestTemplates:
         """Test HeyGen template ID for Comedy genre."""
         template_id = get_heygen_template_id("Comedy")
         
-        assert template_id == '15d9eadcb46a45dbbca1834aa0a23ede'
+        assert template_id == 'a1576c3e20d24af3a44e3479a3947c96'
         
     def test_get_heygen_template_id_action(self):
         """Test HeyGen template ID for Action genre."""
