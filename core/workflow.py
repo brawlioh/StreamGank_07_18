@@ -526,7 +526,6 @@ def run_full_workflow(num_movies: int = 3,
             print(f"   🔗 Music URL: {background_music_url}")
             
         elif cached_assets_data and should_use_cache():
-        # if False: # TESTING POSTER UPLOAD TO streamgank-reels/enhanced-poster-cover
             print("   📂 Using cached asset data from test_output...")
             
             enhanced_posters = cached_assets_data.get('enhanced_posters', {})
@@ -930,7 +929,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         print(f"✅ STEP 5 COMPLETED - Got {len(heygen_video_urls)} video URLs in {time.time() - step_start:.1f}s")
         
@@ -1070,7 +1070,8 @@ def run_full_workflow(num_movies: int = 3,
         
         # Save incremental progress in development mode
         if save_enabled:
-            save_workflow_result(workflow_results, country, genre, platform)
+            template = heygen_template_id or "auto"
+            save_workflow_result(workflow_results, country, genre, platform, content_type, template)
         
         # =============================================================================
         # STEP 7: CREATOMATE FINAL ASSEMBLY (WITH ENVIRONMENT-AWARE CACHING)

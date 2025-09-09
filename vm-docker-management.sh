@@ -168,6 +168,10 @@ build_vm_optimized() {
     print_status "Building VM-optimized Docker images..."
     check_vm_resources
     
+    # Force Docker to rebuild code layers by updating timestamp
+    print_status "Invalidating Docker cache for code changes..."
+    echo "# Build timestamp: $(date)" > .docker-build-timestamp
+    
     # Build with limited parallel jobs to avoid overwhelming VM
     export DOCKER_BUILDKIT=1
     export BUILDKIT_PROGRESS=plain
@@ -175,6 +179,9 @@ build_vm_optimized() {
     docker-compose -f docker-compose.vm-optimized.yml build \
         --parallel \
         --memory=1g
+    
+    # Clean up timestamp file
+    rm -f .docker-build-timestamp
     
     print_success "VM-optimized build complete!"
 }
@@ -255,10 +262,11 @@ vm_restart() {
 vm_update() {
     print_status "🚀 VM Update - Quick build-start sequence for code changes..."
     print_status "This will:"
-    echo "  1. Rebuild Docker images with CACHED dependencies (for code changes only)"
-    echo "  2. Start services with new image (containers auto-updated)"
-    echo "  ⚡ FASTER: Uses cached npm dependencies - only rebuilds changed code!"
-    echo "  💡 Use 'vm-rebuild' if package.json or requirements.txt changed"
+    echo "  1. Invalidate Docker cache for code layers (forces Python/JS code rebuild)"
+    echo "  2. Rebuild Docker images with CACHED dependencies (keeps npm/pip cache)"
+    echo "  3. Start services with new image (containers auto-updated)"
+    echo "  ⚡ PERFECT for variable changes, Python code, frontend code!"
+    echo "  💡 Use 'vm-rebuild' only if package.json or requirements.txt changed"
     echo ""
     
     # Step 1: Build with cache (perfect for code changes)
@@ -274,8 +282,8 @@ vm_update() {
     
     print_success "🎉 VM Update completed successfully!"
     print_status "GUI available at: http://localhost:3000"
-    print_status "💡 Use 'vm-update' for code changes | 'vm-restart' for config changes | 'vm-rebuild' for dependency changes"
-    print_status "⚡ vm-update now uses cached dependencies - much faster for code-only changes!"
+    print_status "💡 Use 'vm-update' for code/variable changes | 'vm-restart' for config changes | 'vm-rebuild' for dependency changes"
+    print_status "⚡ vm-update now forces code layer rebuild while keeping dependency cache!"
 }
 
 # VM-optimized simple restart (NO rebuild - saves disk space!)
@@ -390,7 +398,7 @@ show_vm_help() {
     echo "  vm-start      - Start in VM-optimized production mode"
     echo "  vm-restart    - Full restart: down → build → start (complete refresh)"
     echo "  vm-simple-restart - Simple restart: down → start (NO BUILD - saves disk space!)"
-    echo "  vm-update     - Quick update: build → start (FASTEST - cached dependencies!)"
+    echo "  vm-update     - Quick update: build → start (BEST for code changes - forces code rebuild, keeps dependency cache!)"
     echo "  vm-status     - Show detailed VM and container status"
     echo "  vm-monitor    - Real-time VM performance monitoring"
     echo "  vm-cleanup    - VM-optimized cleanup with space reclamation"
@@ -405,7 +413,7 @@ show_vm_help() {
     echo "  $0 vm-setup   # Initialize VM environment"
     echo "  $0 vm-start   # Start production mode"
     echo "  $0 vm-simple-restart # Simple restart (RECOMMENDED - saves 50GB!)"
-    echo "  $0 vm-update  # Quick update after code changes (FASTEST)"
+    echo "  $0 vm-update  # Quick update after code/variable changes (BEST - forces code rebuild)"
     echo "  $0 vm-restart # Full restart: stop → build → start (creates cache)"
     echo "  $0 vm-monitor # Monitor performance"
     echo ""

@@ -604,26 +604,49 @@ def select_background_music(genre: str) -> str:
         >>> select_background_music('comedy')  # Case insensitive
         'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218702/comedy_uju3dv.mp3'
         
-        >>> select_background_music('Drama')   # Uses default horror for unknown genres
-        'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3'
+        >>> select_background_music('Drama')   # Uses action music
+        'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3'
     """
     logger.info(f"🎵 Selecting background music for genre: {genre}")
     
-    # Background music URLs by genre - ALL LOWERCASE for easy matching
+    # Background music URLs by genre - Based on US API genres and music theory
+    # Available music types: Comedy (upbeat/fun), Action (energetic), Romance (romantic/soft), Horror (dark/suspenseful)
+    #
+    # US API Genres Coverage (19 total):
+    # 🎭 COMEDY: Animation, Comedy, Kids & Family, Music & Musical, Reality TV (5 genres)
+    # ⚡ ACTION: Action & Adventure, Crime, Drama, Documentary, Fantasy, History, 
+    #           Made in Europe, Science-Fiction, Sport, War & Military, Western (11 genres)
+    # 💕 ROMANCE: Romance (1 genre)
+    # 👻 HORROR: Horror, Mystery & Thriller (2 genres)
     BACKGROUND_MUSIC_URLS = {
-        # Comedy genres
+        # COMEDY MUSIC - Light, upbeat, fun genres
         'comedy': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218702/comedy_uju3dv.mp3',
+        'animation': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218702/comedy_uju3dv.mp3',
+        'kids & family': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218702/comedy_uju3dv.mp3',
+        'music & musical': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218702/comedy_uju3dv.mp3',
+        'reality tv': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756218702/comedy_uju3dv.mp3',
         
-        # Action & Adventure genres  
-        'action': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        # ACTION MUSIC - High energy, dynamic genres
         'action & adventure': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
-        'action & aventure': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'action': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'crime': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'fantasy': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'science-fiction': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'sport': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'war & military': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'western': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'drama': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'documentary': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'history': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
+        'made in europe': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3',
         
-        # Horror genres
+        # ROMANCE MUSIC - Romantic, soft, emotional genres
+        'romance': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/romance_v1_bcer37.mp3',
+        
+        # HORROR MUSIC - Dark, suspenseful, tense genres
         'horror': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
-        'horreur': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
-        'thriller': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
         'mystery & thriller': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
+        'thriller': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1754637489/horror_bg_rbvweq.mp3',
         
         # Default fallback (using Action as default)
         'default': 'https://res.cloudinary.com/dodod8s0v/video/upload/v1756304832/action_bg_fopcv1.mp3'
@@ -660,9 +683,11 @@ def get_background_music_info(genre: str) -> Dict[str, str]:
     music_url = select_background_music(genre)
     
     # Extract music type from URL for metadata
-    music_type = 'horror'  # default
+    music_type = 'action'  # default (matches default URL)
     if 'comedy' in music_url:
         music_type = 'comedy'
+    elif 'romance' in music_url:
+        music_type = 'romance'
     elif 'action' in music_url:
         music_type = 'action'
     elif 'horror' in music_url:

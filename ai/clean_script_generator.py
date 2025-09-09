@@ -224,17 +224,17 @@ Write a {genre.lower()} hook with exactly 24-30 words (8-10 seconds):"""
                 
                 # TIMING VALIDATION for movie2 and movie3 (8-10 seconds requirement)
                 if i > 1:  # movie2 and movie3
-                    # Calculate speaking duration (180 WPM = normal pace)
-                    duration_seconds = (hook_word_count / 180) * 60
+                    # Calculate speaking duration (180 WPM = 3 words per second)
+                    duration_seconds = hook_word_count / 3.0  # 180 WPM = 3 words/second
                     
-                    if 8 <= duration_seconds <= 10:
+                    if 8 <= duration_seconds <= 11:  # Allow up to 11 seconds (more forgiving)
                         # ✅ Perfect timing - use OpenAI script
                         individual_scripts[movie_name] = hook_script
                         logger.info(f"   ✅ {movie_name} hook generated ({hook_word_count} words = {duration_seconds:.1f}s) - TIMING PERFECT")
-                        logger.info(f"   🎯 TARGET MET: {hook_word_count} words fits 8-10s requirement (24-30 words)")
+                        logger.info(f"   🎯 TARGET MET: {hook_word_count} words fits 8-11s requirement")
                     else:
                         # 🔄 RETRY with OpenAI (no fallbacks - you have PAID OpenAI!)
-                        logger.warning(f"   ⚠️ OpenAI {movie_name} timing wrong ({hook_word_count} words = {duration_seconds:.1f}s, need 8-10s)")
+                        logger.warning(f"   ⚠️ OpenAI {movie_name} timing wrong ({hook_word_count} words = {duration_seconds:.1f}s, need 8-11s)")
                         logger.info(f"   🔄 RETRYING with OpenAI - adjusting prompt for exact timing...")
                         
                         # Retry with OpenAI (up to 3 attempts)
@@ -262,9 +262,9 @@ Write exactly {24 + (retry_attempt * 2)} words:"""
                                 )
                                 retry_script = _clean_script_text(retry_response.choices[0].message.content.strip())
                                 retry_words = len(retry_script.split())
-                                retry_duration = (retry_words / 180) * 60
+                                retry_duration = retry_words / 3.0  # Fix: Use correct formula
                                 
-                                if 8 <= retry_duration <= 10:
+                                if 8 <= retry_duration <= 11:  # Fix: Use updated range
                                     individual_scripts[movie_name] = retry_script
                                     logger.info(f"   ✅ RETRY SUCCESS! {movie_name} ({retry_words} words = {retry_duration:.1f}s) - Attempt {retry_attempt + 1}")
                                     retry_success = True
@@ -282,7 +282,7 @@ Write exactly {24 + (retry_attempt * 2)} words:"""
                 else:
                     # Movie1 - no timing validation needed
                     individual_scripts[movie_name] = hook_script
-                    duration_seconds = (hook_word_count / 180) * 60
+                    duration_seconds = hook_word_count / 3.0  # Fix: Use correct formula
                     logger.info(f"   ✅ {movie_name} hook generated ({hook_word_count} words = {duration_seconds:.1f}s)")
                     logger.info(f"   📋 No timing restriction for movie1 (any length accepted)")
                 
@@ -488,7 +488,7 @@ def generate_outro_script(genre: str, platform: str = "streaming") -> str:
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         print("   ⚠️ No OpenAI API key - using fallback outro")
-        return f"Thanks for watching these amazing {genre.lower()} recommendations - discover more curated content at streamgank.com!"
+        return f"Thanks for watching these amazing {genre.lower()} recommendations - find more at streamgank.com!"
     
     try:
         client = OpenAI(api_key=api_key)
@@ -499,18 +499,18 @@ def generate_outro_script(genre: str, platform: str = "streaming") -> str:
 Requirements:
 - EXACTLY 1 sentence (very important for timing)
 - US English, TikTok/YouTube optimized
-- Must end with "streamgank.com" (critical for branding)
 - Match the {genre.lower()} genre tone and energy
 - Create call-to-action for viewers to visit website
 - Friendly, engaging, and memorable
 - Reference the viewing experience they just had
+- DO NOT include any website URLs - we'll add the branding separately
 
 Examples for {genre} on {platform}:
-- "Hope those spine-chilling {genre.lower()} picks gave you the thrills you were looking for - find more at streamgank.com!"
-- "That's a wrap on today's adrenaline-pumping {genre.lower()} recommendations - discover more at streamgank.com!"
-- "Hope those {genre.lower()} gems brought some excitement to your day - explore more curated content at streamgank.com!"
+- "Hope those spine-chilling {genre.lower()} picks gave you the thrills you were looking for"
+- "That's a wrap on today's adrenaline-pumping {genre.lower()} recommendations"
+- "Hope those {genre.lower()} gems brought some excitement to your day"
 
-Generate ONE outro sentence for {genre} genre:"""
+Generate ONE outro sentence for {genre} genre (without website URL):"""
 
         # Use EXACT same API call as clean_script_generator.py
         outro_response = client.chat.completions.create(
@@ -522,15 +522,16 @@ Generate ONE outro sentence for {genre} genre:"""
         
         outro_script = outro_response.choices[0].message.content.strip()
         
-        # Ensure it ends with streamgank.com
-        if not outro_script.lower().endswith("streamgank.com"):
-            if not outro_script.endswith("."):
-                outro_script += " - find more at streamgank.com!"
-            else:
-                outro_script = outro_script.rstrip(".") + " - find more at streamgank.com!"
+        # Clean up the script and ensure proper punctuation
+        outro_script = outro_script.strip('"').strip()
+        if not outro_script.endswith(('.', '!', '?')):
+            outro_script += "!"
         
-        return outro_script
+        # Always add consistent branding
+        final_outro = f"{outro_script} - find more at streamgank.com!"
+        
+        return final_outro
         
     except Exception as e:
         print(f"   ⚠️ Outro generation failed: {e}")
-        return f"Thanks for watching these amazing {genre.lower()} recommendations - discover more curated content at streamgank.com!"
+        return f"Thanks for watching these amazing {genre.lower()} recommendations - find more at streamgank.com!"

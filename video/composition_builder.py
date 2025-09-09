@@ -154,14 +154,16 @@ def build_video_composition(heygen_video_urls: Dict[str, str],
     """
     logger.info("🎬 Starting STRICT video composition building (no fallbacks)")
     
-    # STRICT VALIDATION - All required inputs must be present
-    if not heygen_video_urls or len(heygen_video_urls) != 3:
-        raise ValueError("❌ CRITICAL: Exactly 3 HeyGen video URLs required (movie1, movie2, movie3)")
+    # STRICT VALIDATION - All required inputs must be present (including outro)
+    if not heygen_video_urls or len(heygen_video_urls) != 4:
+        raise ValueError("❌ CRITICAL: Exactly 4 HeyGen video URLs required (movie1, movie2, movie3, outro)")
     
-    required_keys = {"movie1", "movie2", "movie3"}
+    required_keys = {"movie1", "movie2", "movie3", "outro"}
     if not required_keys.issubset(set(heygen_video_urls.keys())):
         missing_keys = required_keys - set(heygen_video_urls.keys())
         raise ValueError(f"❌ CRITICAL: Missing required HeyGen video keys: {missing_keys}")
+    
+    logger.info("✅ All 4 HeyGen videos found (movie1, movie2, movie3, outro)")
     
     # STRICT: Movie covers are REQUIRED (no fallback)
     if not movie_covers or len(movie_covers) != 3:
