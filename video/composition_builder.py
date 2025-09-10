@@ -414,7 +414,8 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
     
     # Element duration variables
     intro_duration = 1
-    outro_duration = 3 - outro_fade_duration
+    outro_duration = heygen_durations["outro"]  # Use actual HeyGen outro video duration
+    outro_static_duration = 3 - outro_fade_duration  # Static outro image duration after HeyGen outro
     scroll_video_start_time = 2
     scroll_video_duration = 4
     
@@ -424,6 +425,7 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
     heygen1_audio_timing = -0.5
     heygen2_audio_timing = heygen1_audio_timing + -0.5 # 0.5 heygen2 fade
     heygen3_audio_timing = heygen2_audio_timing + -0.5 # heygen2_audio_timing + 0.5 heygen3 fade 
+    outro_audio_timing = heygen3_audio_timing + -0.5 # heygen3_audio_timing + 0.5 outro fade 
 
     # Audio settings
     audio_volume = "40%"
@@ -436,10 +438,11 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                          clip_durations["clip2"] + 
                          heygen_durations["heygen3"] + 
                          clip_durations["clip3"] + 
-                         outro_duration)  # Outro
+                         outro_duration +  # HeyGen outro video
+                         outro_static_duration)  # Static outro image
         
     # Branding duration = total - intro - outro - fade durations
-    branding_duration = total_video_length - intro_duration - outro_duration - outro_fade_duration - (heygen_fade_duration * 2)
+    branding_duration = total_video_length - intro_duration - outro_static_duration - outro_fade_duration - (heygen_fade_duration * 4)
         
     # LOG DETAILED TIMING FOR EASY CREATOMATE DEBUGGING
     logger.info("🎬 CREATOMATE COMPOSITION TIMING BREAKDOWN:")
@@ -464,7 +467,10 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
     logger.info(f"   🎬 CLIP3: {current_time:.2f}s → {current_time + clip_durations['clip3']:.2f}s ({clip_durations['clip3']:.2f}s duration)")
     current_time += clip_durations["clip3"]
     
-    logger.info(f"   📐 OUTRO: {current_time:.2f}s → {total_video_length:.2f}s ({outro_duration:.2f}s duration)")
+    logger.info(f"   🎤 HEYGEN OUTRO: {current_time:.2f}s → {current_time + outro_duration:.2f}s ({outro_duration:.2f}s duration)")
+    current_time += outro_duration
+    
+    logger.info(f"   📐 STATIC OUTRO: {current_time:.2f}s → {total_video_length:.2f}s ({outro_static_duration:.2f}s duration)")
     
     logger.info(f"📊 TOTAL VIDEO LENGTH: {total_video_length:.2f}s ({total_video_length/60:.1f} minutes)")
     logger.info(f"🏷️ BRANDING: {intro_duration:.2f}s → {intro_duration + branding_duration:.2f}s ({branding_duration:.2f}s duration)")
@@ -592,14 +598,22 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                 "time": "auto",
                 "source": heygen_video_urls["outro"],
                 "fit": "cover",
+                "animations": [
+                    {
+                    "time": 0,
+                    "duration": heygen_fade_duration,
+                    "transition": True,
+                    "type": "fade"
+                    }
+                ]
             },
 
-            # 🎯 ELEMENT 8: OUTRO IMAGE
+            # 🎯 ELEMENT 8: STATIC OUTRO IMAGE
             {
                 "type": "image",
                 "track": 1,
                 "time": "auto",
-                "duration": outro_duration,
+                "duration": outro_static_duration,
                 "source": "https://res.cloudinary.com/dodod8s0v/image/upload/v1752587571/streamgank_bg_heecu7.png",
                 "fit": "cover",
                 "animations": [
@@ -771,6 +785,17 @@ def _build_composition_structure(heygen_video_urls: Dict[str, str],
                         "track": 1,
                         "time": intro_duration + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + heygen3_audio_timing,
                         "duration": heygen_durations["heygen3"],
+                        "source": background_music_url,
+                        "volume": audio_volume
+                    },
+                    
+                    # AUDIO 4 - Start with HeyGen outro video, duration matches HeyGen outro
+                    {
+                        "name": "Audio-Outro",
+                        "type": "audio",
+                        "track": 1,
+                        "time": intro_duration + heygen_durations["heygen1"] + clip_durations["clip1"] + heygen_durations["heygen2"] + clip_durations["clip2"] + heygen_durations["heygen3"] + clip_durations["clip3"] + outro_audio_timing,
+                        "duration": outro_duration,
                         "source": background_music_url,
                         "volume": audio_volume
                     }

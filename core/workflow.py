@@ -592,12 +592,11 @@ def run_full_workflow(num_movies: int = 3,
             #     transform_mode="youtube_shorts"
             # )
             
-            # Enhanced: Allow partial success with graceful handling
+            # STRICT MODE: All 3 clips required - NO partial success allowed
             if not dynamic_clips or len(dynamic_clips) == 0:
                 raise Exception("Failed to create any movie clips - cannot proceed without video content")
             elif len(dynamic_clips) < 3:
-                logger.warning(f"⚠️ Partial clip success: Got {len(dynamic_clips)}/3 clips - continuing with available content")
-                print(f"   ⚠️ Some trailers failed processing (YouTube restrictions/short videos) - continuing with {len(dynamic_clips)} clips")
+                raise Exception(f"STRICT MODE: Only {len(dynamic_clips)}/3 clips generated - ALL 3 clips are required, no partial success allowed")
             
             # Asset results saved via save_workflow_result() call below
         

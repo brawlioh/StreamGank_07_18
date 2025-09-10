@@ -838,26 +838,36 @@ class VideoQueueManager {
                 }
             } else {
                 // No video URL or Creatomate ID - something went wrong
-                job.status = "completed";
-                job.progress = 100;
-                job.currentStep = "Script completed but no video information available";
-                job.error = "No video URL or Creatomate ID returned";
+                job.status = "failed"; // CRITICAL FIX: Should be failed, not completed
+                job.progress = 0; // CRITICAL FIX: Reset progress on failure
+                job.currentStep = "❌ FAILED: Workflow completed but no video information available";
+                job.error = "No video URL or Creatomate ID returned - workflow failed";
+                job.failedAt = new Date().toISOString();
 
-                // Remove from processing queue and add to completed
+                // Add error logs
+                this.addJobLog(job.id, `❌ Workflow failed: No video output generated`, "error");
+                this.addJobLog(job.id, `❌ Missing: Video URL and Creatomate ID`, "error");
+
+                // Remove from processing queue and add to failed queue
                 await this.lremAsync(this.keys.processing, 1, processingJobState);
-                await this.lpushAsync(this.keys.completed, JSON.stringify(job));
+                await this.rpushAsync(this.keys.failed, JSON.stringify(job)); // CRITICAL FIX: Use failed queue
 
-                // Send webhook notification for incomplete completion
-                this.sendWebhookNotification("job.completed_with_issues", job);
+                // Send webhook notification for failure
+                this.sendWebhookNotification("job.failed", job);
             }
 
             await this.updateJob(job);
 
-            // Set TTL for completed jobs (24 hours)
-            await this.expireAsync(`${this.keys.jobs}:${job.id}`, 86400);
+            // Set TTL for jobs (24 hours for completed, 72 hours for failed for debugging)
+            const ttl = job.status === "failed" ? 259200 : 86400; // 72 hours for failed, 24 hours for completed
+            await this.expireAsync(`${this.keys.jobs}:${job.id}`, ttl);
 
-            console.log(`\n--- Job Completed ---`);
-            console.log(`✅ ${job.id} completed successfully`);
+            console.log(`\n--- Job ${job.status === "failed" ? "Failed" : "Completed"} ---`);
+            if (job.status === "failed") {
+                console.log(`❌ ${job.id} failed: ${job.error}`);
+            } else {
+                console.log(`✅ ${job.id} completed successfully`);
+            }
             if (job.videoUrl) {
                 console.log(`🎬 Video URL: ${job.videoUrl}`);
             }
@@ -1089,6 +1099,22 @@ class VideoQueueManager {
             return "🔧 API Error - External service temporarily unavailable";
         }
 
+        // Vizard AI specific errors (NEW - for strict mode and rate limiting)
+        if (message.includes("strict mode") && message.includes("clips generated")) {
+            const clipMatch = message.match(/only (\d+)\/3 clips generated/i);
+            const clipCount = clipMatch ? clipMatch[1] : "some";
+            return `🎬 Vizard AI Strict Mode Failed - Only ${clipCount}/3 movie clips generated (all 3 required)`;
+        }
+        if (message.includes("vizard rate limit") || message.includes("rate limit exceeded")) {
+            return "🚫 Vizard AI Rate Limited - Too many API requests, please wait before retrying";
+        }
+        if (message.includes("failed to create any movie clips")) {
+            return "🎬 Vizard AI Failed - No movie clips could be generated from trailers";
+        }
+        if (message.includes("vizard") && message.includes("timeout")) {
+            return "⏰ Vizard AI Timeout - Clip processing took too long";
+        }
+
         // Python/script specific errors
         if (message.includes("failed to process exactly") && message.includes("movie clips")) {
             return "🎬 Movie Processing Failed - Critical workflow error";
@@ -1117,6 +1143,12 @@ class VideoQueueManager {
             /Failed to process exactly.*movie clips/i,
             /CRITICAL:.*Failed to process/i,
             /RuntimeError.*CRITICAL/i,
+
+            // Vizard AI critical errors (NEW)
+            /STRICT MODE:.*clips generated.*required/i,
+            /Failed to create any movie clips/i,
+            /VIZARD RATE LIMIT/i,
+            /All.*project attempts failed/i,
 
             // Authentication failures
             /Authentication failed/i,
@@ -1149,6 +1181,22 @@ class VideoQueueManager {
         // HeyGen credit errors
         if (output.includes("MOVIO_PAYMENT_INSUFFICIENT_CREDIT") || output.includes("Insufficient credit")) {
             return "HeyGen credits exhausted - Please add credits to continue";
+        }
+
+        // Vizard AI specific errors (NEW)
+        if (output.includes("STRICT MODE") && output.includes("clips generated")) {
+            const clipMatch = output.match(/Only (\d+)\/3 clips generated/i);
+            const clipCount = clipMatch ? clipMatch[1] : "some";
+            return `Vizard AI Strict Mode: Only ${clipCount}/3 movie clips generated (all 3 required)`;
+        }
+        if (output.includes("VIZARD RATE LIMIT")) {
+            return "Vizard AI rate limit exceeded - Too many requests, please wait before retrying";
+        }
+        if (output.includes("Failed to create any movie clips")) {
+            return "Vizard AI failed - No movie clips could be generated from trailers";
+        }
+        if (output.includes("All") && output.includes("project attempts failed")) {
+            return "Vizard AI processing failed - All retry attempts exhausted";
         }
 
         // Critical workflow failures
@@ -1376,13 +1424,20 @@ class VideoQueueManager {
                 const output = data.toString("utf8");
                 stdout += output;
 
-                // 🚨 IMMEDIATE CRITICAL ERROR DETECTION - Stop process on fatal errors
+                // 🚨 IMMEDIATE CRITICAL ERROR DETECTION - Add error logs then stop process
                 if (this.detectCriticalErrors(output)) {
-                    console.log("🚨 CRITICAL ERROR DETECTED - Stopping process immediately");
+                    const errorMessage = this.extractCriticalErrorMessage(output);
+                    console.log("🚨 CRITICAL ERROR DETECTED - Adding error logs then stopping process");
+
+                    // ADD ERROR LOGS BEFORE TERMINATING PROCESS
+                    this.addJobLog(job.id, `❌ CRITICAL ERROR: ${errorMessage}`, "error");
+                    this.addJobLog(job.id, `🚨 Process terminated due to critical error`, "error");
+                    this.addJobLog(job.id, `📊 Error detected in Python output at: ${new Date().toISOString()}`, "error");
+
                     if (pythonProcess && !pythonProcess.killed) {
                         pythonProcess.kill("SIGKILL");
                     }
-                    reject(new Error(this.extractCriticalErrorMessage(output)));
+                    reject(new Error(errorMessage));
                     return;
                 }
 
@@ -1644,8 +1699,31 @@ class VideoQueueManager {
                 console.log(`🧹 Cleaned up process for job ${job.id} (${this.activeProcesses.size} active processes)`);
                 console.log(`\n--- Python Script Completed ---`);
                 if (code !== 0) {
-                    // Check for specific error messages to make them more user-friendly
+                    // CRITICAL FIX: Add comprehensive error logging for non-zero exit codes
+                    this.addJobLog(job.id, `❌ Python workflow failed with exit code: ${code}`, "error");
+                    this.addJobLog(job.id, `⏰ Failure time: ${new Date().toISOString()}`, "error");
+
+                    // Check for specific error messages and add detailed logs
                     const errorOutput = stdout + stderr;
+
+                    // Add specific error type logs
+                    if (errorOutput.includes("STRICT MODE") && errorOutput.includes("clips generated")) {
+                        const clipMatch = errorOutput.match(/Only (\d+)\/3 clips generated/i);
+                        const clipCount = clipMatch ? clipMatch[1] : "some";
+                        this.addJobLog(job.id, `🎬 Vizard AI Strict Mode: Only ${clipCount}/3 movie clips generated`, "error");
+                        this.addJobLog(job.id, `⚠️ Requirement: ALL 3 movie clips must be generated (no partial success)`, "error");
+                    } else if (errorOutput.includes("VIZARD RATE LIMIT")) {
+                        this.addJobLog(job.id, `🚫 Vizard AI Rate Limited: Too many API requests`, "error");
+                        this.addJobLog(job.id, `💡 Solution: Wait before retrying or reduce retry attempts`, "error");
+                    } else if (errorOutput.includes("Failed to create any movie clips")) {
+                        this.addJobLog(job.id, `🎬 Vizard AI Complete Failure: No movie clips generated`, "error");
+                        this.addJobLog(job.id, `🔍 Possible causes: Invalid trailer URLs, API issues, or processing errors`, "error");
+                    } else {
+                        // Generic error output
+                        this.addJobLog(job.id, `❌ Error details: ${stderr || stdout || "No error details available"}`, "error");
+                    }
+
+                    console.error(`❌ FATAL ERROR - Job failed: ${job.id} Error: Python process exited with code ${code}`);
 
                     // Check for Creatomate API errors (insufficient credits, etc.)
                     if (errorOutput.includes("Creatomate API error")) {

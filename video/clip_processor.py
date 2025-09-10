@@ -2733,6 +2733,48 @@ def _create_single_highlight_for_short_video(total_duration: float, title: str) 
         return None
 
 
+def _select_best_clip_by_viral_score(clips: List[Dict]) -> Dict:
+    """
+    Select the clip with the highest viralScore.
+    If multiple clips have the same highest score, select the first one in the array.
+    
+    Args:
+        clips (List[Dict]): List of clip dictionaries with viralScore
+        
+    Returns:
+        Dict: The selected clip with highest viralScore (first in case of ties)
+    """
+    if not clips:
+        return None
+    
+    # Convert viralScores to float for proper comparison and track original index
+    clips_with_scores = []
+    for i, clip in enumerate(clips):
+        viral_score = float(clip.get('viralScore', 0))
+        clips_with_scores.append({
+            'clip': clip,
+            'viral_score': viral_score,
+            'original_index': i  # Track original position for tie-breaking
+        })
+    
+    # Sort by viral_score (descending) then by original_index (ascending) for tie-breaking
+    clips_with_scores.sort(key=lambda x: (-x['viral_score'], x['original_index']))
+    
+    # Return the best clip (highest score, first in array for ties)
+    best_entry = clips_with_scores[0]
+    selected_clip = best_entry['clip']
+    
+    logger.info(f"   🏆 SELECTED CLIP: Viral Score {best_entry['viral_score']} (position {best_entry['original_index'] + 1}/{len(clips)})")
+    
+    # Log other clips for comparison
+    if len(clips_with_scores) > 1:
+        logger.info(f"   📊 OTHER CLIPS:")
+        for i, entry in enumerate(clips_with_scores[1:4], 1):  # Show up to 3 other clips
+            logger.info(f"     #{i+1}: Score {entry['viral_score']} (position {entry['original_index'] + 1})")
+    
+    return selected_clip
+
+
 def validate_processing_requirements() -> Dict[str, Any]:
     """
     Validate that all requirements for clip processing are met.
@@ -2837,8 +2879,8 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                 logger.warning(f"   📺 URL provided: '{trailer_url}'")
                 continue
             
-            # Step 1: Create Vizard project with trailer URL (with restart logic for Code 2000 + no videos)
-            max_project_attempts = 3  # Maximum number of project creations for same video
+            # Step 1: Create Vizard project with trailer URL - REDUCED retries to prevent rate limiting
+            max_project_attempts = 2  # REDUCED from 3 to 2 to prevent rate limiting
             project_attempt = 0
             movie_processed = False
             
@@ -2848,6 +2890,9 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                 if project_attempt > 1:
                     logger.info(f"   🔄 RESTARTING PROJECT CREATION (attempt {project_attempt}/{max_project_attempts})")
                     logger.info(f"   📺 YouTube URL: {trailer_url}")
+                    # Add delay before retry to prevent rate limiting
+                    logger.info(f"   ⏰ Waiting 60 seconds before retry to prevent rate limiting...")
+                    time.sleep(60)  # Wait 1 minute between project attempts
                 
                 logger.info(f"   🚀 Creating Vizard AI project for: {title} (attempt {project_attempt}/{max_project_attempts})")
                 project_payload = {
@@ -2856,11 +2901,10 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                     "videoType": 2,
                     "ratioOfClip": 1,
                     "templateId": 69353061,
-                    "removeSilenceSwitch": 0,
-                    "maxClipNumber": 1,
                     "subtitleSwitch": 1,
                     "headlineSwitch": 1,
                     "ext": "mp4",
+                    "projectName": f"StreamGank - {title}",
                     "highlightSwitch": 1,
                     "preferLength": [1]
                 }
@@ -2881,13 +2925,12 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                 project_data = project_response.json()
                 
                 if project_data.get('code') != 2000:
-                    # Handle rate limiting specifically
+                    # Handle rate limiting specifically - FAIL IMMEDIATELY to prevent further issues
                     if project_data.get('code') == 4003:
                         error_msg = project_data.get('errMsg', 'Rate limit exceeded')
                         logger.error(f"🚫 VIZARD RATE LIMIT for {title}: {error_msg}")
-                        logger.error(f"   ⏰ Waiting 60 seconds before retry...")
-                        time.sleep(60)  # Wait 1 minute for rate limit reset
-                        continue  # Retry the same project
+                        logger.error(f"   ❌ STOPPING immediately to prevent further rate limiting")
+                        return {}  # Fail immediately on rate limit
                     else:
                         logger.error(f"❌ Vizard API error for {title}: {project_data}")
                         break  # Exit project attempt loop and try next movie
@@ -2987,8 +3030,8 @@ def process_movie_trailers_to_clips_vizard(movie_data: List[Dict], max_movies: i
                                 logger.error(f"   ❌ Invalid response format from Vizard API")
                                 break
                             
-                            # Step 3: Select the clip with the highest viral score
-                            best_clip = max(valid_clips, key=lambda v: float(v.get('viralScore', 0)))
+                            # Step 3: Select the clip with the highest viral score (first in array for ties)
+                            best_clip = _select_best_clip_by_viral_score(valid_clips)
                             
                             video_url = best_clip.get('videoUrl')
                             viral_score = best_clip.get('viralScore', 'N/A')
@@ -3191,8 +3234,8 @@ def process_movie_trailers_to_clips_vizard_parallel(movie_data: List[Dict], max_
                 logger.warning(f"⚠️ [Thread-{thread_id}] No valid trailer URL for: {movie_title}")
                 return (movie_title, None)
             
-            # Project retry loop (for Code 2000 + no videos scenarios)
-            max_project_attempts = 3
+            # Project retry loop - REDUCED to prevent rate limiting
+            max_project_attempts = 2  # REDUCED from 3 to 2 to prevent rate limiting
             project_attempt = 0
             
             while project_attempt < max_project_attempts:
@@ -3200,6 +3243,9 @@ def process_movie_trailers_to_clips_vizard_parallel(movie_data: List[Dict], max_
                 
                 if project_attempt > 1:
                     logger.info(f"🔄 [Thread-{thread_id}] PROJECT RESTART #{project_attempt}/{max_project_attempts} for {movie_title}")
+                    # Add delay before retry to prevent rate limiting
+                    logger.info(f"⏰ [Thread-{thread_id}] Waiting 60 seconds before retry to prevent rate limiting...")
+                    time.sleep(60)  # Wait 1 minute between project attempts
                 
                 # Step 1: Create Vizard project (with retry logic)
                 logger.info(f"🚀 [Thread-{thread_id}] Creating Vizard AI project for: {movie_title}")
@@ -3209,11 +3255,10 @@ def process_movie_trailers_to_clips_vizard_parallel(movie_data: List[Dict], max_
                     "videoType": 2,
                     "ratioOfClip": 1,
                     "templateId": 69353061,
-                    "removeSilenceSwitch": 0,
-                    "maxClipNumber": 1,
                     "subtitleSwitch": 1,
                     "headlineSwitch": 1,
                     "ext": "mp4",
+                    "projectName": f"StreamGank - {movie_title}",
                     "highlightSwitch": 1,
                     "preferLength": [1]
                 }
@@ -3235,13 +3280,12 @@ def process_movie_trailers_to_clips_vizard_parallel(movie_data: List[Dict], max_
                 project_data = project_response.json()
                 
                 if project_data.get('code') != 2000:
-                    # Handle rate limiting specifically
+                    # Handle rate limiting specifically - FAIL IMMEDIATELY to prevent further issues
                     if project_data.get('code') == 4003:
                         error_msg = project_data.get('errMsg', 'Rate limit exceeded')
                         logger.error(f"🚫 [Thread-{thread_id}] VIZARD RATE LIMIT for {movie_title}: {error_msg}")
-                        logger.error(f"   ⏰ [Thread-{thread_id}] Waiting 120 seconds before retry...")
-                        time.sleep(120)  # Wait 2 minutes for rate limit reset (longer in parallel mode)
-                        continue  # Retry the same project
+                        logger.error(f"   ❌ [Thread-{thread_id}] STOPPING immediately to prevent further rate limiting")
+                        return (movie_title, None)  # Fail immediately on rate limit
                     else:
                         logger.error(f"❌ [Thread-{thread_id}] Vizard API error for {movie_title}: {project_data}")
                         if project_attempt >= max_project_attempts:
@@ -3302,13 +3346,13 @@ def process_movie_trailers_to_clips_vizard_parallel(movie_data: List[Dict], max_
                                 logger.info(f"📹 [Thread-{thread_id}] Found {len(videos)} clips for {movie_title}")
                                 logger.info(f"⏰ [Thread-{thread_id}] Processing time: {elapsed_time:.1f}s")
                                 
-                                # Select best clip
+                                # Select best clip with highest viral score (first in array for ties)
                                 valid_clips = [v for v in videos if v.get('videoUrl') and v.get('viralScore')]
                                 if not valid_clips:
                                     logger.warning(f"⚠️ [Thread-{thread_id}] No valid clips for {movie_title}")
                                     return (movie_title, None)
                                 
-                                best_clip = max(valid_clips, key=lambda v: float(v.get('viralScore', 0)))
+                                best_clip = _select_best_clip_by_viral_score(valid_clips)
                                 video_url = best_clip.get('videoUrl')
                                 viral_score = best_clip.get('viralScore', 'N/A')
                                 
