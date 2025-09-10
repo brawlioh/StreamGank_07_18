@@ -113,7 +113,7 @@ export class FormManager {
             cc6718c5363e42b282a123f99b94b335: { name: 'Default Template', genres: ['default'] },
             ed21a309a5c84b0d873fde68642adea3: { name: 'Horror', genres: ['Horror'] },
             '7f8db20ddcd94a33a1235599aa8bf473': { name: 'Action Adventure', genres: ['Action & Adventure'] },
-            bc62f68a6b074406b571df42bdc6b71a: { name: 'Romance', genres: ['Romance'] }
+            bc62f68a6b074406b571df42bdc6b71a: { name: 'Romance/Comedy', genres: ['Romance'] }
         };
 
         // Create backward-compatible templatesByGenre from single source

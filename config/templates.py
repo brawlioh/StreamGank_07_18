@@ -39,7 +39,7 @@ HEYGEN_TEMPLATES = {
     # Romance Templates
     'romance': {
         'id': 'bc62f68a6b074406b571df42bdc6b71a',
-        'name': 'Romance',
+        'name': 'Romance/Comedy',
         'description': 'Romantic template for love and relationship content',
         'genres': ['Romance']
     },
